@@ -19,6 +19,9 @@ importers:
       express:
         specifier: ^4.21.0
         version: 4.22.1
+      lodash:
+        specifier: ^4.18.1
+        version: 4.18.1
       long:
         specifier: ^5.3.2
         version: 5.3.2
@@ -53,6 +56,9 @@ importers:
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
+      '@types/lodash':
+        specifier: ^4.17.25
+        version: 4.17.25
       '@types/multer':
         specifier: ^2.1.0
         version: 2.1.0
@@ -910,6 +916,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/lodash@4.17.25':
+    resolution: {integrity: sha512-+K1NIO8I+F9/wNulfVvu23QYd0Pe9/OCqRrim4NoYIf1VoEDL90Ve4ClzpyqBLc7NpGGWRvYNCKZ1BE/Jpf8dQ==}
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
@@ -2369,8 +2378,8 @@ packages:
   lodash.unescape@4.0.1:
     resolution: {integrity: sha512-DhhGRshNS1aX6s5YdBE3njCCouPgnG29ebyHvImlZzXZf2SHgt+J08DHgytTPnpywNbO1Y8mNUFyQuIDBq2JZg==}
 
-  lodash@4.17.23:
-    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   logform@2.7.0:
     resolution: {integrity: sha512-TFYA4jnP7PVbmlBIfhlSe+WKxs9dklXMTEGcBCIvLhE/Tn3H6Gk1norupVW7m5Cnd4bLcr08AytbyV/xj7f/kQ==}
@@ -4210,6 +4219,8 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
+  '@types/lodash@4.17.25': {}
+
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
@@ -5877,7 +5888,7 @@ snapshots:
 
   lodash.unescape@4.0.1: {}
 
-  lodash@4.17.23: {}
+  lodash@4.18.1: {}
 
   logform@2.7.0:
     dependencies:
@@ -6557,7 +6568,7 @@ snapshots:
   pushoo@0.1.11:
     dependencies:
       axios: 0.26.1
-      lodash: 4.17.23
+      lodash: 4.18.1
       markdown-to-txt: 2.0.1
       marked: 4.3.0
     transitivePeerDependencies:
