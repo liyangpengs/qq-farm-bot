@@ -62,9 +62,9 @@ RUN chmod -R 755 data
 
 VOLUME ["/app/core/data"]
 
-EXPOSE 3007
+EXPOSE 3690
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget -q --spider http://localhost:3007/api/game-version || exit 1
+    CMD wget -q --spider http://localhost:3690/api/game-version || exit 1
 
 CMD ["node", "client.js"]
