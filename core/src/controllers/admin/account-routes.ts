@@ -122,6 +122,9 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             }
             res.json({ ok: true, data });
         } catch (e: any) {
+            if (e?.code === 'MAX_ACCOUNTS_REACHED') {
+                return res.status(400).json({ ok: false, error: e.message, code: 'MAX_ACCOUNTS_REACHED' });
+            }
             res.status(500).json({ ok: false, error: e.message });
         }
     });

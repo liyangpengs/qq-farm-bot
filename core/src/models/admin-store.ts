@@ -12,7 +12,7 @@ interface AdminRecord {
     mustChangePassword?: boolean;
 }
 
-let admin: AdminRecord | null = null;
+let admins: AdminRecord[] = [];
 
 function normalizeAdmin(raw: any): AdminRecord | null {
     if (!raw || typeof raw !== 'object' || !String(raw.password || '').trim()) return null;
@@ -24,39 +24,58 @@ function normalizeAdmin(raw: any): AdminRecord | null {
     };
 }
 
-function saveAdmin(): void {
+function saveAdmins(): void {
     ensureDataDir();
-    if (!admin) return;
-    fs.writeFileSync(ADMIN_FILE, JSON.stringify({ admin }, null, 2), 'utf8');
+    fs.writeFileSync(ADMIN_FILE, JSON.stringify({ admins }, null, 2), 'utf8');
 }
 
-function loadAdmin(): AdminRecord {
+function loadAdmins(): AdminRecord[] {
     ensureDataDir();
-    if (admin) return admin;
+    if (admins.length > 0) return admins;
     try {
         if (fs.existsSync(ADMIN_FILE)) {
             const data = JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
-            admin = normalizeAdmin(data?.admin || data);
+            // 新格式：{ admins: [...] }
+            if (Array.isArray(data?.admins)) {
+                admins = data.admins
+                    .map(normalizeAdmin)
+                    .filter(Boolean) as AdminRecord[];
+            }
+            // 兼容旧格式：{ admin: {...} }
+            if (admins.length === 0 && data?.admin) {
+                const legacy = normalizeAdmin(data.admin);
+                if (legacy) {
+                    admins = [legacy];
+                    saveAdmins();
+                    console.log('[管理员] 已从旧格式迁移到多管理员格式');
+                }
+            }
         }
     } catch {
-        admin = null;
+        admins = [];
     }
-    if (!admin) {
-        admin = {
+    if (admins.length === 0) {
+        admins = [{
             username: 'admin',
             password: security.hashPassword('admin'),
             createdAt: Date.now(),
             mustChangePassword: true,
-        };
-        saveAdmin();
+        }];
+        saveAdmins();
         console.log('[管理员] 已创建默认账号 admin，默认密码 admin');
     }
-    return admin;
+    return admins;
 }
 
-function getAdminInfo(): { username: string; role: 'admin'; mustChangePassword: boolean } {
-    const current = loadAdmin();
-    return { username: current.username, role: 'admin', mustChangePassword: current.mustChangePassword === true };
+function getAdminInfo(username?: string): { username: string; role: 'admin'; mustChangePassword: boolean } {
+    const current = loadAdmins();
+    const target = username
+        ? current.find(a => a.username === username)
+        : current[0];
+    if (!target) {
+        return { username: username || '', role: 'admin', mustChangePassword: false };
+    }
+    return { username: target.username, role: 'admin', mustChangePassword: target.mustChangePassword === true };
 }
 
 function validateAdmin(username: string, password: string, ip: string = 'unknown'): any {
@@ -66,8 +85,9 @@ function validateAdmin(username: string, password: string, ip: string = 'unknown
     const lockout = security.checkAdminLockout();
     if (lockout.locked) return { error: 'locked', ...lockout };
 
-    const current = loadAdmin();
-    if (username !== current.username || !security.verifyPassword(password, current.password)) {
+    const current = loadAdmins();
+    const target = current.find(a => a.username === username);
+    if (!target || !security.verifyPassword(password, target.password)) {
         const attempt = security.recordFailedAttempt();
         return attempt.locked
             ? { error: 'locked', message: attempt.message }
@@ -75,24 +95,26 @@ function validateAdmin(username: string, password: string, ip: string = 'unknown
     }
 
     security.clearFailedAttempts();
-    if (security.needsRehash(current.password)) {
-        current.password = security.hashPassword(password);
-        saveAdmin();
+    if (security.needsRehash(target.password)) {
+        target.password = security.hashPassword(password);
+        saveAdmins();
     }
-    return getAdminInfo();
+    return getAdminInfo(target.username);
 }
 
-function changePassword(oldPassword: string, newPassword: string): { ok: boolean; error?: string; message?: string } {
-    const current = loadAdmin();
-    if (!security.verifyPassword(oldPassword, current.password)) return { ok: false, error: '当前密码错误' };
+function changePassword(username: string, oldPassword: string, newPassword: string): { ok: boolean; error?: string; message?: string } {
+    const current = loadAdmins();
+    const target = current.find(a => a.username === username);
+    if (!target) return { ok: false, error: '用户不存在' };
+    if (!security.verifyPassword(oldPassword, target.password)) return { ok: false, error: '当前密码错误' };
     const validation = security.validatePasswordStrength(newPassword);
     if (!validation.valid) return { ok: false, error: validation.errors.join('；') };
-    current.password = security.hashPassword(newPassword);
-    delete current.mustChangePassword;
-    saveAdmin();
+    target.password = security.hashPassword(newPassword);
+    delete target.mustChangePassword;
+    saveAdmins();
     return { ok: true, message: '密码修改成功' };
 }
 
-loadAdmin();
+loadAdmins();
 
 module.exports = { getAdminInfo, validateAdmin, changePassword };

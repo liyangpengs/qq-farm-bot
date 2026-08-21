@@ -68,6 +68,14 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
             touchedAccountId = String(data.accounts[idx].id || '');
         }
     } else {
+        // 检查账户数量上限（-1 表示不限制）
+        const maxAccounts = Number(require('./global-config').getMaxAccounts());
+        if (maxAccounts !== -1 && data.accounts.length >= maxAccounts) {
+            const err: any = new Error(`农场账户数量已达上限 (${maxAccounts})，无法添加新账号`);
+            (err as any).code = 'MAX_ACCOUNTS_REACHED';
+            throw err;
+        }
+
         const id = data.nextId++;
         touchedAccountId = String(id);
         data.accounts.push({

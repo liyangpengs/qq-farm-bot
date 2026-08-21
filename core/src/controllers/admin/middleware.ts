@@ -8,6 +8,7 @@ const { normalizeAccountRef, resolveAccountId } = require('../../services/accoun
 
 interface AuthenticatedRequest extends Request {
     adminToken?: string;
+    adminUser?: string;
 }
 
 function getClientIp(req: Request): string {
@@ -29,11 +30,13 @@ const issueToken = (): string => crypto.randomBytes(24).toString('hex');
 function createAuthRequired(ctx: AdminContext) {
     return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
         const token = String(req.headers['x-admin-token'] || '');
-        if (!token || !ctx.tokens.has(token)) {
+        const username = ctx.tokens.get(token);
+        if (!token || !username) {
             res.status(401).json({ ok: false, error: 'Unauthorized' });
             return;
         }
         req.adminToken = token;
+        req.adminUser = username;
         next();
     };
 }

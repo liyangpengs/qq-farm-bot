@@ -41,8 +41,8 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         }
 
         const token = issueToken();
-        ctx.tokens.add(token);
-        adminLogger.info('超级管理员登录成功', { username: result.username, ip: clientIp });
+        ctx.tokens.set(token, result.username);
+        adminLogger.info('管理员登录成功', { username: result.username, ip: clientIp });
         return res.json({
             ok: true,
             data: {
@@ -59,7 +59,8 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         if (!oldPassword || !newPassword) {
             return res.status(400).json({ ok: false, error: '请提供原密码和新密码' });
         }
-        const result = adminStore.changePassword(String(oldPassword), String(newPassword));
+        const username = (req as any).adminUser;
+        const result = adminStore.changePassword(username, String(oldPassword), String(newPassword));
         if (result.ok) ctx.tokens.clear();
         return res.json(result);
     });
@@ -112,8 +113,9 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         res.json({ ok: true });
     });
 
-    app.get('/api/user/me', (_req: Request, res: Response) => {
-        res.json({ ok: true, data: adminStore.getAdminInfo() });
+    app.get('/api/user/me', (req: Request, res: Response) => {
+        const username = (req as any).adminUser;
+        res.json({ ok: true, data: adminStore.getAdminInfo(username) });
     });
 }
 
