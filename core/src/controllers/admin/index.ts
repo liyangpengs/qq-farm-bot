@@ -1,5 +1,5 @@
 import type { AdminContext } from './context';
-export {};
+export { };
 
 /**
  * Admin panel HTTP server orchestrator.
@@ -44,14 +44,14 @@ function startAdminServer(dataProvider: any): void {
     ctx.app = app;
 
     app.use((req: any, res: any, next: any) => {
-        const allowedOrigins: string[] = CONFIG.ALLOWED_ORIGINS || ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
-        const origin = req.headers.origin;
+        // const allowedOrigins: string[] = CONFIG.ALLOWED_ORIGINS || ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+        // const origin = req.headers.origin;
 
-        if (origin && allowedOrigins.includes(origin)) {
-            res.header('Access-Control-Allow-Origin', origin);
-        } else if (!origin) {
-            res.header('Access-Control-Allow-Origin', '*');
-        }
+        // if (origin && allowedOrigins.includes(origin)) {
+        //     res.header('Access-Control-Allow-Origin', origin);
+        // } else if (!origin) {
+        res.header('Access-Control-Allow-Origin', CONFIG.ALLOW_ORIGIN || '*');
+        // }
 
         res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS, PUT');
         res.header('Access-Control-Allow-Headers', 'Content-Type, x-account-id, x-admin-token, x-proxy-api-key, x-proxy-api-url, x-proxy-app-id');
@@ -83,7 +83,7 @@ function startAdminServer(dataProvider: any): void {
     // SPA fallback
     app.get('*', (req: any, res: any) => {
         if (req.path.startsWith('/api') || req.path.startsWith('/game-config')) {
-             return res.status(404).json({ ok: false, error: 'Not Found' });
+            return res.status(404).json({ ok: false, error: 'Not Found' });
         }
         if (fs.existsSync(webDist)) {
             res.sendFile(path.join(webDist, 'index.html'));
