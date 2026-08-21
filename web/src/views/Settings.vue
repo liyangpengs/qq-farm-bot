@@ -282,11 +282,13 @@ interface BagSeedItem {
   count: number
   requiredLevel: number
   plantSize: number
+  image?: string
 }
 
 const bagSeeds = ref<BagSeedItem[]>([])
 const bagSeedsLoading = ref(false)
 const bagSeedsError = ref<string | null>(null)
+const bagSeedImageErrors = ref<Record<number, boolean>>({})
 const draggingBagSeedId = ref<number | null>(null)
 
 const visibleBagSeedIds = computed(() => bagSeeds.value.map(seed => seed.seedId))
@@ -739,6 +741,7 @@ watch(currentAccountId, (accountId) => {
   draggingBagSeedId.value = null
   bagSeeds.value = []
   bagSeedsError.value = null
+  bagSeedImageErrors.value = {}
   seedOptions.value = []
   seedOptionsRequestAccountId = ''
   seedOptionsLoadedAccountId = ''
@@ -1601,6 +1604,17 @@ async function handleResetSystemConfig() {
                   >
                     <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-amber-100 text-xs text-amber-700 font-bold dark:bg-amber-900/50 dark:text-amber-300">
                       {{ index + 1 }}
+                    </div>
+                    <div class="h-10 w-10 flex shrink-0 items-center justify-center overflow-hidden border rounded-lg bg-amber-50 dark:border-amber-700/50 dark:bg-gray-900">
+                      <img
+                        v-if="seed.image && !bagSeedImageErrors[seed.seedId]"
+                        :src="seed.image"
+                        class="h-8 w-8 object-contain"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                        @error="bagSeedImageErrors[seed.seedId] = true"
+                      >
+                      <span v-else class="i-carbon-sprout text-lg text-gray-400" />
                     </div>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-1.5">
