@@ -92,7 +92,7 @@ function startAdminServer(dataProvider: any): void {
         }
     });
 
-    const port: number = CONFIG.adminPort || 3007;
+    const port: number = CONFIG.adminPort || 3690;
     ctx.server = app.listen(port, '0.0.0.0', () => {
         adminLogger.info('admin panel started', { url: `http://localhost:${port}`, port });
     });

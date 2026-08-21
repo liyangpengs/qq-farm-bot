@@ -6,7 +6,7 @@ const tokenRef = useStorage('admin_token', '')
 const accountIdRef = useStorage('current_account_id', '')
 
 const api = axios.create({
-  baseURL: '/',
+  baseURL: import.meta.env.VITE_BASE_URL,
   timeout: 10000,
 })
 

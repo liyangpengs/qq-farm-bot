@@ -94,8 +94,8 @@ export const useStatusStore = defineStore('status', () => {
     if (socket)
       return socket
 
-    socket = io('/', {
-      path: '/socket.io',
+    socket = io(import.meta.env.VITE_BASE_URL, {
+      path: `${import.meta.env.VITE_PROXY_SPACE}/socket.io`,
       autoConnect: false,
       transports: ['websocket'],
       auth: {

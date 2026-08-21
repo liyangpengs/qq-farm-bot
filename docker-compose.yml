@@ -7,7 +7,7 @@ services:
     container_name: qq-farm-bot
     restart: unless-stopped
     ports:
-      - "${PORT:-3007}:3007"
+      - "${PORT:-3690}:3007"
     volumes:
       - qq-farm-data:/app/core/data
       - qq-farm-logs:/app/core/data/logs
