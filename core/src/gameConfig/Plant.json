@@ -10,7 +10,7 @@
     "seed_id": 29999,
     "land_level_need": 1,
     "seasons": 1,
-    "grow_phases": "种子:30;发芽:30;成熟:0;",
+    "grow_phases": "种子:1;发芽:1;成熟:0;",
     "exp": 1,
     "special_fruit": null,
     "size": null,

@@ -16,6 +16,7 @@ interface WorkerManagerOptions {
     buildConfigSnapshotForAccount: (accountId: string) => any;
     getOfflineAutoDeleteMs: () => number;
     triggerOfflineReminder: (payload: any) => void;
+    sendConfiguredPush?: (payload: any) => Promise<void> | void;
     addOrUpdateAccount: (acc: any) => any;
     deleteAccount: (id: string) => void;
     onStatusSync?: (accountId: string, status: any, accountName?: string) => void;
@@ -38,6 +39,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
         buildConfigSnapshotForAccount,
         getOfflineAutoDeleteMs,
         triggerOfflineReminder,
+        sendConfiguredPush,
         addOrUpdateAccount,
         deleteAccount,
         onStatusSync,
@@ -371,7 +373,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 }
                 worker.requests.clear();
             }
-            log('系统', `账号 ${worker.name} 连接已断开，已停止运行并等待重新扫码`, {
+            log('系统', `账号 ${worker.name} 连接已断开，已停止运行并等待 Helper 刷新 Code 或重新扫码`, {
                 accountId: String(accountId),
                 accountName: worker.name,
                 source,
@@ -386,7 +388,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
             });
             addAccountLog(
                 'disconnect_stop',
-                `账号 ${worker.name} 连接已断开，已停止运行并等待重新扫码`,
+                `账号 ${worker.name} 连接已断开，已停止运行并等待 Helper 刷新 Code 或重新扫码`,
                 accountId,
                 worker.name,
                 { source, code, reason, phase, connectionId: Number(msg.connectionId) || 0 },
@@ -432,6 +434,18 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 accountId: String(accountId),
                 accountName: worker.name,
                 friendCount: saved.length,
+            });
+        } else if (msg.type === 'push_notify') {
+            const title = String(msg.title || '').trim();
+            const content = String(msg.content || '').trim();
+            if (!title || !content || typeof sendConfiguredPush !== 'function') return;
+            Promise.resolve(sendConfiguredPush({
+                title,
+                content,
+                accountId,
+                accountName: worker.name,
+            })).catch((e: any) => {
+                log('错误', `事件提醒发送异常: ${e && e.message ? e.message : e}`);
             });
         } else if (msg.type === 'known_friend_gid_remove') {
             const { getKnownFriendGids, setKnownFriendGids } = require('../models/store');

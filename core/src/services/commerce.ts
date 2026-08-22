@@ -52,6 +52,14 @@ async function currencyBalances(ids: number[]): Promise<Record<string, number>> 
     } catch {
         // Catalog data remains useful while a balance refresh is unavailable.
     }
+    if (wanted.has(1004)) {
+        try {
+            const pay = require('./pay');
+            balances['1004'] = Math.max(0, toNum(await pay.getDiamondBalance()));
+        } catch {
+            delete balances['1004'];
+        }
+    }
     return balances;
 }
 

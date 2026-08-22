@@ -21,7 +21,7 @@ const { sidebarOpen } = storeToRefs(appStore)
 
     <Sidebar />
 
-    <main class="app-main relative h-full min-w-0 flex flex-1 flex-col overflow-hidden">
+    <main class="app-main relative h-full min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
       <header v-if="!route.meta.fullBleed" class="glass-mobile-header lg:hidden">
         <div class="mobile-heading min-w-0">
           <span class="mobile-heading__brand">
@@ -34,7 +34,7 @@ const { sidebarOpen } = storeToRefs(appStore)
         </NButton>
       </header>
 
-      <div class="app-content flex flex-1 flex-col overflow-hidden">
+      <div class="app-content flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
           class="page-scroll custom-scrollbar flex flex-1 flex-col"
           :class="route.meta.fullBleed ? 'overflow-hidden p-0' : 'overflow-y-auto'"
@@ -101,10 +101,12 @@ const { sidebarOpen } = storeToRefs(appStore)
 }
 
 .page-scroll {
+  min-height: 0;
   padding: 22px clamp(16px, 2.4vw, 34px) 28px;
 }
 
 .page-scroll > :deep(*) {
+  flex: 0 0 auto;
   width: 100%;
   max-width: 1580px;
   margin-inline: auto;

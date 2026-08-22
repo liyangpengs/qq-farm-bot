@@ -174,6 +174,9 @@ function knownType(root, service, method, messageType) {
         'gamepb.taskpb.TaskService.TaskInfo': request ? 'gamepb.taskpb.TaskInfoRequest' : 'gamepb.taskpb.TaskInfoReply',
         'gamepb.taskpb.TaskService.ClaimTaskReward': request ? 'gamepb.taskpb.ClaimTaskRewardRequest' : 'gamepb.taskpb.ClaimTaskRewardReply',
         'gamepb.seasonpb.SeasonService.GetSeasonInfo': request ? 'gamepb.seasonpb.GetSeasonInfoRequest' : 'gamepb.seasonpb.GetSeasonInfoReply',
+        'gamepb.illustratedpb.IllustratedService.GetIllustratedListV2': request ? 'gamepb.illustratedpb.GetIllustratedListV2Request' : 'gamepb.illustratedpb.GetIllustratedListV2Reply',
+        'gamepb.illustratedpb.IllustratedService.GetIllustratedLevelListV2': request ? 'gamepb.illustratedpb.GetIllustratedLevelListV2Request' : 'gamepb.illustratedpb.GetIllustratedLevelListV2Reply',
+        'gamepb.illustratedpb.IllustratedService.ClearNewUnlockedFruitsV2': request ? 'gamepb.illustratedpb.ClearNewUnlockedFruitsV2Request' : 'gamepb.illustratedpb.ClearNewUnlockedFruitsV2Reply',
         'gamepb.activitypb.ActivityService.Operate': request ? null : 'gamepb.activitypb.ActivityOperateReply',
     };
     const name = names[`${service}.${method}`];

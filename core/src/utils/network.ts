@@ -9,7 +9,8 @@ const { recordOperation } = require('../services/stats');
 const { types } = require('./proto');
 const { toLong, toNum, syncServerTime, log, logWarn } = require('./utils');
 const cryptoWasm = require('./crypto-wasm');
-const { createGatewayToken } = require('./gateway-token');
+const { GatewayTokenProvider } = require('./gateway-token');
+const { MAX_HEARTBEAT_MISSES, shouldTerminateForHeartbeat } = require('./keepalive-policy');
 const { startAceRuntime, stopAceRuntime } = require('../services/ace');
 
 // ============ 事件发射器 (用于推送通知) ============
@@ -17,6 +18,7 @@ const networkEvents = new EventEmitter();
 
 // ============ 内部状态 ============
 type ConnectionPhase = 'connecting' | 'login' | 'online';
+type RequestPriority = 'normal' | 'high';
 
 interface ConnectionContext {
     id: number;
@@ -30,6 +32,7 @@ interface ConnectionContext {
 interface SendMsgOptions {
     timeoutMs?: number;
     expectedErrorCodes?: readonly number[];
+    priority?: RequestPriority;
 }
 
 interface PendingRequest {
@@ -38,6 +41,7 @@ interface PendingRequest {
     serviceName?: string;
     methodName?: string;
     startedAt?: number;
+    priority?: RequestPriority;
 }
 
 interface QueuedRequest {
@@ -51,6 +55,7 @@ interface QueuedRequest {
     timeoutKey: string;
     seq: number | null;
     settled: boolean;
+    priority: RequestPriority;
 }
 
 class GatewayError extends Error {
@@ -82,12 +87,19 @@ let clientSeq: number = 1;
 let serverSeq: number = 0;
 const pendingCallbacks = new Map<number, PendingRequest>();
 const requestQueue: QueuedRequest[] = [];
-const MAX_IN_FLIGHT_REQUESTS = 5;
+const MAX_NORMAL_IN_FLIGHT_REQUESTS = 5;
+const MAX_HIGH_IN_FLIGHT_REQUESTS = 2;
+const MAX_IN_FLIGHT_REQUESTS = MAX_NORMAL_IN_FLIGHT_REQUESTS + MAX_HIGH_IN_FLIGHT_REQUESTS;
 const MAX_QUEUED_REQUESTS = 100;
+const MAX_HIGH_PRIORITY_QUEUED_REQUESTS = 10;
 let nextRequestId = 1;
 let wsErrorState = { code: 0, at: 0, message: '' };
 let lastRequestPressureLogAt = 0;
 const networkScheduler = createScheduler('network');
+const gatewayTokens = new GatewayTokenProvider();
+let lastHeartbeatResponse = Date.now();
+let lastInboundAt = Date.now();
+let heartbeatMissCount = 0;
 
 function settleQueuedRequest(request: QueuedRequest, error?: Error, value?: { body: Buffer; meta: any }): void {
     if (request.settled) return;
@@ -97,10 +109,35 @@ function settleQueuedRequest(request: QueuedRequest, error?: Error, value?: { bo
     else request.resolve(value!);
 }
 
+function pendingPriorityCount(priority: RequestPriority): number {
+    let count = 0;
+    for (const pending of pendingCallbacks.values()) {
+        if ((pending.priority || 'normal') === priority) count += 1;
+    }
+    return count;
+}
+
+function takeDispatchableRequest(): QueuedRequest | null {
+    for (let index = requestQueue.length - 1; index >= 0; index--) {
+        if (requestQueue[index].settled) requestQueue.splice(index, 1);
+    }
+    if (pendingCallbacks.size >= MAX_IN_FLIGHT_REQUESTS) return null;
+
+    if (pendingPriorityCount('high') < MAX_HIGH_IN_FLIGHT_REQUESTS) {
+        const highIndex = requestQueue.findIndex(request => request.priority === 'high');
+        if (highIndex >= 0) return requestQueue.splice(highIndex, 1)[0];
+    }
+    if (pendingPriorityCount('normal') < MAX_NORMAL_IN_FLIGHT_REQUESTS) {
+        const normalIndex = requestQueue.findIndex(request => request.priority === 'normal');
+        if (normalIndex >= 0) return requestQueue.splice(normalIndex, 1)[0];
+    }
+    return null;
+}
+
 function drainRequestQueue(): void {
-    while (requestQueue.length > 0 && pendingCallbacks.size < MAX_IN_FLIGHT_REQUESTS) {
-        const request = requestQueue.shift()!;
-        if (request.settled) continue;
+    while (requestQueue.length > 0) {
+        const request = takeDispatchableRequest();
+        if (!request) break;
 
         if (!isCurrentConnection(request.context) || request.context.phase !== 'online') {
             settleQueuedRequest(request, new Error(`连接未打开: ${request.methodName}`));
@@ -113,6 +150,7 @@ function drainRequestQueue(): void {
             serviceName: request.serviceName,
             methodName: request.methodName,
             startedAt: Date.now(),
+            priority: request.priority,
             expectedErrorCodes: request.expectedErrorCodes,
             callback: (err, body, meta) => {
                 if (err) settleQueuedRequest(request, err);
@@ -168,7 +206,7 @@ function describeQueuedRequests(): string {
     if (requestQueue.length === 0) return 'none';
     return requestQueue
         .slice(0, 8)
-        .map((request) => request.methodName || 'unknown')
+        .map((request) => `${request.priority === 'high' ? '!' : ''}${request.methodName || 'unknown'}`)
         .join(',');
 }
 
@@ -177,7 +215,7 @@ function logRequestPressure(): void {
     if (now - lastRequestPressureLogAt < 1000) return;
     if (pendingCallbacks.size < MAX_IN_FLIGHT_REQUESTS && requestQueue.length === 0) return;
     lastRequestPressureLogAt = now;
-    logWarn('绯荤粺', `Gateway 请求压力: pending=${pendingCallbacks.size}, queued=${requestQueue.length}, active=${describePendingRequests()}, queuedMethods=${describeQueuedRequests()}`);
+    logWarn('系统', `Gateway 请求压力: pending=${pendingCallbacks.size}, queued=${requestQueue.length}, active=${describePendingRequests()}, queuedMethods=${describeQueuedRequests()}`);
 }
 
 // ============ 用户状态 (登录后设置) ============
@@ -235,7 +273,7 @@ async function encodeMsg(serviceName: string, methodName: string, bodyBytes: Buf
             server_seq: toLong(serverSeq),
         },
         body: finalBody,
-        token: createGatewayToken(),
+        token: gatewayTokens.next(),
     });
     return types.GateMessage.encode(msg).finish();
 }
@@ -281,6 +319,7 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
         : (timeoutOrOptions || {});
     const timeoutMs = Math.max(1, Number(options.timeoutMs) || 20000);
     const expectedErrorCodes = new Set((options.expectedErrorCodes || []).map(Number).filter(Number.isFinite));
+    const priority: RequestPriority = options.priority === 'high' ? 'high' : 'normal';
     return new Promise((resolve, reject) => {
         const context = currentConnection;
         if (!context || !isCurrentConnection(context) || context.socket.readyState !== WebSocket.OPEN) {
@@ -292,7 +331,9 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
             return;
         }
 
-        if (requestQueue.length >= MAX_QUEUED_REQUESTS) {
+        const highPriorityQueued = requestQueue.filter(request => request.priority === 'high').length;
+        if ((priority === 'normal' && requestQueue.length >= MAX_QUEUED_REQUESTS)
+            || (priority === 'high' && highPriorityQueued >= MAX_HIGH_PRIORITY_QUEUED_REQUESTS)) {
             reject(new Error(`请求等待队列已满: ${methodName} (queued=${requestQueue.length}, pending=${pendingCallbacks.size})`));
             return;
         }
@@ -309,6 +350,7 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
             timeoutKey: `request_timeout_${requestId}`,
             seq: null,
             settled: false,
+            priority,
         };
         requestQueue.push(request);
         networkScheduler.setTimeoutTask(request.timeoutKey, timeoutMs, () => {
@@ -342,6 +384,7 @@ function handleMessage(data: Buffer): void {
     try {
         const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
         const msg = types.GateMessage.decode(buf);
+        lastInboundAt = Date.now();
         const meta = msg.meta;
         if (!meta) return;
 
@@ -725,11 +768,17 @@ async function sendLogin(context: ConnectionContext, onLoginSuccess?: () => void
         try {
             if (userState.openId) {
                 await cryptoWasm.bindUser(userState.openId);
+                const initTokenLength = gatewayTokens.stageInitToken(cryptoWasm.getEncryptedInitInfo());
+                if (initTokenLength > 0) {
+                    log('ACE', `TSDK 初始化凭据已就绪: ${initTokenLength} 字符，将随下一条请求发送`);
+                }
             }
             if (!isCurrentConnection(context)) return;
             networkScheduler.clear('login_timeout');
             context.phase = 'online';
-            startAceRuntime(sendMsgAsync);
+            startAceRuntime((service: string, method: string, body: Buffer, timeoutMs?: number) => (
+                sendMsgAsync(service, method, body, { timeoutMs, priority: 'high' })
+            ));
             fetchUserSettings();
             startHeartbeat(context);
             if (onLoginSuccess) await onLoginSuccess();
@@ -746,39 +795,29 @@ async function sendLogin(context: ConnectionContext, onLoginSuccess?: () => void
 }
 
 // ============ 心跳 ============
-let lastHeartbeatResponse = Date.now();
-let heartbeatMissCount = 0;
-const HEARTBEAT_TIMEOUT = 30000;
-const MAX_HEARTBEAT_MISS = 1;
+const HEARTBEAT_REQUEST_TIMEOUT = 20000;
 
 function startHeartbeat(context: ConnectionContext): void {
     networkScheduler.clear('heartbeat_interval');
     lastHeartbeatResponse = Date.now();
+    lastInboundAt = Date.now();
     heartbeatMissCount = 0;
 
-    networkScheduler.setIntervalTask('heartbeat_interval', CONFIG.heartbeatInterval, () => {
+    networkScheduler.setIntervalTask('heartbeat_interval', CONFIG.heartbeatInterval, async () => {
         if (!isCurrentConnection(context) || context.phase !== 'online' || !userState.gid) return;
-
-        const timeSinceLastResponse = Date.now() - lastHeartbeatResponse;
-        if (timeSinceLastResponse > HEARTBEAT_TIMEOUT) {
-            heartbeatMissCount++;
-            logWarn('心跳', `连接可能已断开 (${Math.round(timeSinceLastResponse / 1000)}s 无响应, pending=${pendingCallbacks.size}, queued=${requestQueue.length}, active=${describePendingRequests()})`);
-            if (heartbeatMissCount >= MAX_HEARTBEAT_MISS) {
-                log('心跳', '心跳超时，账号将停止运行...');
-                finalizeConnection(context, {
-                    source: 'heartbeat_timeout',
-                    reason: `${Math.round(timeSinceLastResponse / 1000)}s 无响应`,
-                });
-                try { (context.socket as any).terminate(); } catch {}
-                return;
-            }
-        }
 
         const body = types.HeartbeatRequest.encode(types.HeartbeatRequest.create({
             gid: toLong(userState.gid),
             client_version: CONFIG.clientVersion,
+            field_3: toLong(0),
         })).finish();
-        sendMsgAsync('gamepb.userpb.UserService', 'Heartbeat', body).then(({ body: replyBody }) => {
+        try {
+            const { body: replyBody } = await sendMsgAsync(
+                'gamepb.userpb.UserService',
+                'Heartbeat',
+                body,
+                { timeoutMs: HEARTBEAT_REQUEST_TIMEOUT, priority: 'high' },
+            );
             if (!isCurrentConnection(context)) return;
             lastHeartbeatResponse = Date.now();
             heartbeatMissCount = 0;
@@ -786,8 +825,28 @@ function startHeartbeat(context: ConnectionContext): void {
                 const reply = types.HeartbeatReply.decode(replyBody);
                 if (reply.server_time) syncServerTime(toNum(reply.server_time));
             } catch {}
-        }).catch(() => {});
-    });
+        } catch {
+            if (!isCurrentConnection(context)) return;
+            heartbeatMissCount += 1;
+            const now = Date.now();
+            const inboundSilenceMs = Math.max(0, now - lastInboundAt);
+            const heartbeatSilenceMs = Math.max(0, now - lastHeartbeatResponse);
+            logWarn(
+                '心跳',
+                `心跳未响应 (miss=${heartbeatMissCount}/${MAX_HEARTBEAT_MISSES}, `
+                + `heartbeat=${Math.round(heartbeatSilenceMs / 1000)}s, inbound=${Math.round(inboundSilenceMs / 1000)}s, `
+                + `pending=${pendingCallbacks.size}, queued=${requestQueue.length}, active=${describePendingRequests()})`,
+            );
+            if (!shouldTerminateForHeartbeat(heartbeatMissCount, inboundSilenceMs)) return;
+
+            log('心跳', '连续心跳超时且连接无入站数据，账号将停止运行...');
+            finalizeConnection(context, {
+                source: 'heartbeat_timeout',
+                reason: `${Math.round(inboundSilenceMs / 1000)}s 无入站数据，连续 ${heartbeatMissCount} 次心跳失败`,
+            });
+            try { (context.socket as any).terminate(); } catch {}
+        }
+    }, { preventOverlap: true });
 }
 
 interface DisconnectDetails {
@@ -801,6 +860,7 @@ function clearNetworkRuntime(reason: string): void {
     rejectAllPendingRequests(`请求已中断: ${reason}`);
     networkScheduler.clearAll();
     stopAceRuntime(true);
+    gatewayTokens.clear();
     userState.gid = 0;
     userState.openId = '';
 }

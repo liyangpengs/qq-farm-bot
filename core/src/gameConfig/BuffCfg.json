@@ -1,0 +1,184 @@
+[
+  {
+    "id": 1,
+    "source_type": "超变升级",
+    "source_param": 1,
+    "attr_id": "收获经验加成",
+    "attr_value": 100
+  },
+  {
+    "id": 2,
+    "source_type": "超变升级",
+    "source_param": 2,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 100
+  },
+  {
+    "id": 3,
+    "source_type": "超变升级",
+    "source_param": 3,
+    "attr_id": "收获经验加成",
+    "attr_value": 150
+  },
+  {
+    "id": 4,
+    "source_type": "超变升级",
+    "source_param": 4,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 200
+  },
+  {
+    "id": 5,
+    "source_type": "超变升级",
+    "source_param": 5,
+    "attr_id": "节省10%肥料",
+    "attr_value": 200
+  },
+  {
+    "id": 6,
+    "source_type": "超变升级",
+    "source_param": 6,
+    "attr_id": "收获经验加成",
+    "attr_value": 200
+  },
+  {
+    "id": 7,
+    "source_type": "超变升级",
+    "source_param": 7,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 300
+  },
+  {
+    "id": 8,
+    "source_type": "超变升级",
+    "source_param": 8,
+    "attr_id": "收获经验加成",
+    "attr_value": 250
+  },
+  {
+    "id": 9,
+    "source_type": "超变升级",
+    "source_param": 9,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 400
+  },
+  {
+    "id": 10,
+    "source_type": "超变升级",
+    "source_param": 10,
+    "attr_id": "黄金产量固增",
+    "attr_value": 2
+  },
+  {
+    "id": 11,
+    "source_type": "超变升级",
+    "source_param": 11,
+    "attr_id": "收获经验加成",
+    "attr_value": 300
+  },
+  {
+    "id": 12,
+    "source_type": "超变升级",
+    "source_param": 12,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 500
+  },
+  {
+    "id": 13,
+    "source_type": "超变升级",
+    "source_param": 13,
+    "attr_id": "收获经验加成",
+    "attr_value": 350
+  },
+  {
+    "id": 14,
+    "source_type": "超变升级",
+    "source_param": 14,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 600
+  },
+  {
+    "id": 15,
+    "source_type": "超变升级",
+    "source_param": 15,
+    "attr_id": "节省10%肥料",
+    "attr_value": 250
+  },
+  {
+    "id": 16,
+    "source_type": "超变升级",
+    "source_param": 16,
+    "attr_id": "收获经验加成",
+    "attr_value": 400
+  },
+  {
+    "id": 17,
+    "source_type": "超变升级",
+    "source_param": 17,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 700
+  },
+  {
+    "id": 18,
+    "source_type": "超变升级",
+    "source_param": 18,
+    "attr_id": "收获经验加成",
+    "attr_value": 450
+  },
+  {
+    "id": 19,
+    "source_type": "超变升级",
+    "source_param": 19,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 800
+  },
+  {
+    "id": 20,
+    "source_type": "超变升级",
+    "source_param": 20,
+    "attr_id": "黄金产量固增",
+    "attr_value": 3
+  },
+  {
+    "id": 21,
+    "source_type": "超变升级",
+    "source_param": 21,
+    "attr_id": "收获经验加成",
+    "attr_value": 500
+  },
+  {
+    "id": 22,
+    "source_type": "超变升级",
+    "source_param": 22,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 900
+  },
+  {
+    "id": 23,
+    "source_type": "超变升级",
+    "source_param": 23,
+    "attr_id": "收获经验加成",
+    "attr_value": 550
+  },
+  {
+    "id": 24,
+    "source_type": "超变升级",
+    "source_param": 24,
+    "attr_id": "偷菜额外翻倍",
+    "attr_value": 1000
+  },
+  {
+    "id": 25,
+    "source_type": "超变升级",
+    "source_param": 25,
+    "attr_id": "节省10%肥料",
+    "attr_value": 300
+  },
+  {
+    "id": 2001,
+    "source_type": "活动加成",
+    "source_param": 2026070101,
+    "attr_id": "活动收获经验加成",
+    "attr_value": 2000
+  }
+]

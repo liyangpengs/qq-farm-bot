@@ -63,6 +63,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
     const {
         getOfflineAutoDeleteMs,
         triggerOfflineReminder,
+        sendConfiguredPush,
     } = reloginReminder;
 
     const { startWorker, stopWorker, restartWorker, callWorkerApi } = createWorkerManager({
@@ -80,6 +81,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         buildConfigSnapshotForAccount,
         getOfflineAutoDeleteMs,
         triggerOfflineReminder,
+        sendConfiguredPush,
         addOrUpdateAccount: store.addOrUpdateAccount,
         deleteAccount: store.deleteAccount,
         onStatusSync: (accountId: string, status: any, accountName?: string) => {

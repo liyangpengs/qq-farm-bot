@@ -325,6 +325,18 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
         }
     });
 
+    app.get('/api/illustrated', async (req: Request, res: Response) => {
+        const id = getAccId(ctx, req);
+        if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
+
+        try {
+            const data = await ctx.provider.getIllustratedSnapshot(id);
+            res.json({ ok: true, data });
+        } catch (e: any) {
+            handleApiError(res, e);
+        }
+    });
+
     // API: 批量锁定/解锁果实、超变果实和种子。
     app.post('/api/bag/lock', async (req: Request, res: Response) => {
         const id = getAccId(ctx, req);
