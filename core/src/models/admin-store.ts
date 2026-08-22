@@ -31,7 +31,6 @@ function saveAdmins(): void {
 
 function loadAdmins(): AdminRecord[] {
     ensureDataDir();
-    if (admins.length > 0) return admins;
     try {
         if (fs.existsSync(ADMIN_FILE)) {
             const data = JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));

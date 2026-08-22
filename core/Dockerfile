@@ -39,6 +39,8 @@ WORKDIR /app/core
 
 ENV NODE_ENV=production
 ENV TZ=Asia/Shanghai
+ENV ALLOW_ORIGIN=https://farm.linxiaoran.com
+
 
 RUN apk add --no-cache tzdata && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \

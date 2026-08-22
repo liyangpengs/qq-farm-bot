@@ -22,7 +22,7 @@ async function ensureTokenValid() {
   if (validatingPromise)
     return validatingPromise
 
-  validatingPromise = axios.get('/api/auth/validate', {
+  validatingPromise = axios.get(`${import.meta.env.VITE_BASE_URL}${import.meta.env.VITE_PROXY_SPACE}/api/auth/validate`, {
     headers: { 'x-admin-token': token },
     timeout: 6000,
   }).then((res) => {

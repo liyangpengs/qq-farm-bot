@@ -35,6 +35,7 @@ interface RuntimeConfig extends SystemConfig {
     friendCheckIntervalMax: number;
     adminPort: number;
     adminPassword: string | undefined;
+    ALLOW_ORIGIN: string | undefined;
 }
 
 // ============ 设备预设 ============
@@ -177,6 +178,7 @@ const CONFIG: RuntimeConfig = {
     friendCheckIntervalMax: 15000,
     adminPort: Number(process.env.ADMIN_PORT),
     adminPassword: process.env.ADMIN_PASSWORD,
+    ALLOW_ORIGIN: process.env.ALLOW_ORIGIN,
 };
 
 function normalizeDeviceInfo(input: any): DeviceInfo {
