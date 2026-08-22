@@ -69,11 +69,12 @@ if (existing) {
     process.exit(1);
 }
 
-// 添加新管理员
+// 添加新管理员（默认名下农场账户上限 1，可手动编辑 admin.json 修改）
 admins.push({
     username,
     password: hashedPassword,
     createdAt: Date.now(),
+    maxAccounts: 1,
 });
 
 // 写入

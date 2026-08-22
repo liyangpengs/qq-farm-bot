@@ -398,7 +398,6 @@ const globalConfig: GlobalConfig = {
     },
     offlineReminder: { ...DEFAULT_OFFLINE_REMINDER },
     systemConfig: null,
-    maxAccounts: 1,
 };
 
 function resolveAccountId(accountId: unknown): string {
@@ -468,12 +467,6 @@ function loadGlobalConfig(): void {
                     || savedDeviceVersion !== deviceClientVersion
                     || data.systemConfig.timeZone !== normalizedSystemConfig.timeZone;
                 globalConfig.systemConfig = normalizedSystemConfig;
-            }
-
-            // 读取农场账户数量上限
-            if (data.maxAccounts !== undefined && data.maxAccounts !== null) {
-                const maxAccounts = Number.parseInt(data.maxAccounts, 10);
-                globalConfig.maxAccounts = Number.isFinite(maxAccounts) ? maxAccounts : 1;
             }
         }
     } catch (e: any) {

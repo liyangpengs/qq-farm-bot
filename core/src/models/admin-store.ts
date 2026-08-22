@@ -10,9 +10,17 @@ interface AdminRecord {
     password: string;
     createdAt: number;
     mustChangePassword?: boolean;
+    /** 该管理员名下农场账户上限，-1 表示不限制，默认 1 */
+    maxAccounts?: number;
 }
 
 let admins: AdminRecord[] = [];
+
+function normalizeMaxAccounts(raw: unknown): number {
+    const value = Number.parseInt(String(raw), 10);
+    if (Number.isFinite(value)) return value === -1 ? -1 : Math.max(0, value);
+    return 1;
+}
 
 function normalizeAdmin(raw: any): AdminRecord | null {
     if (!raw || typeof raw !== 'object' || !String(raw.password || '').trim()) return null;
@@ -21,6 +29,7 @@ function normalizeAdmin(raw: any): AdminRecord | null {
         password: String(raw.password),
         createdAt: Number(raw.createdAt) || Date.now(),
         mustChangePassword: raw.mustChangePassword === true || undefined,
+        maxAccounts: normalizeMaxAccounts(raw.maxAccounts),
     };
 }
 
@@ -59,15 +68,25 @@ function loadAdmins(): AdminRecord[] {
     return admins;
 }
 
-function getAdminInfo(username?: string): { username: string; role: 'admin'; mustChangePassword: boolean } {
+function getAdminInfo(username?: string): { username: string; role: 'admin'; mustChangePassword: boolean; maxAccounts: number } {
     const current = loadAdmins();
     const target = username
         ? current.find(a => a.username === username)
         : current[0];
     if (!target) {
-        return { username: username || '', role: 'admin', mustChangePassword: false };
+        return { username: username || '', role: 'admin', mustChangePassword: false, maxAccounts: 1 };
     }
-    return { username: target.username, role: 'admin', mustChangePassword: target.mustChangePassword === true };
+    return {
+        username: target.username,
+        role: 'admin',
+        mustChangePassword: target.mustChangePassword === true,
+        maxAccounts: target.maxAccounts === undefined ? 1 : target.maxAccounts,
+    };
+}
+
+function getAdminMaxAccounts(username: string): number {
+    const info = getAdminInfo(username);
+    return info.maxAccounts;
 }
 
 function validateAdmin(username: string, password: string, ip: string = 'unknown'): any {
@@ -112,4 +131,4 @@ function changePassword(username: string, oldPassword: string, newPassword: stri
 
 loadAdmins();
 
-module.exports = { getAdminInfo, validateAdmin, changePassword };
+module.exports = { getAdminInfo, getAdminMaxAccounts, validateAdmin, changePassword };

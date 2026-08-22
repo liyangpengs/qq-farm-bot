@@ -52,8 +52,4 @@ module.exports = {
     // System config
     getSystemConfig: globalConfig.getSystemConfig,
     setSystemConfig: globalConfig.setSystemConfig,
-
-    // Max accounts limit
-    getMaxAccounts: globalConfig.getMaxAccounts,
-    setMaxAccounts: globalConfig.setMaxAccounts,
 };

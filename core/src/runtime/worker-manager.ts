@@ -253,6 +253,14 @@ function createWorkerManager(options: WorkerManagerOptions) {
             if (profile.name) {
                 const newNick = String(profile.name).trim();
                 if (newNick && newNick !== '未知' && newNick !== '未登录') {
+                    // 账号名称仍是默认占位（账号N）时，默认改用登录昵称作为农场账户名称
+                    const defaultName = `账号${accountId}`;
+                    const currentName = String(worker.name || '').trim();
+                    if (!currentName || currentName === defaultName) {
+                        worker.name = newNick;
+                        accountUpdate.name = newNick;
+                        profileChanged = true;
+                    }
                     if (worker.nick !== newNick) {
                         const oldNick = worker.nick;
                         worker.nick = newNick;

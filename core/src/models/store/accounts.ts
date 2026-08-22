@@ -81,8 +81,8 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
             touchedAccountId = String(data.accounts[idx].id || '');
         }
     } else {
-        // 检查当前管理员名下账户数量上限（-1 表示不限制；按归属分别计数）
-        const maxAccounts = Number(require('./global-config').getMaxAccounts());
+        // 检查当前管理员名下账户数量上限（按 admin.json 中该管理员的 maxAccounts，-1 表示不限制）
+        const maxAccounts = Number(require('../admin-store').getAdminMaxAccounts(String(acc.owner || '')));
         const ownerKey = String(acc.owner || '').trim();
         const ownerCount = data.accounts.filter(a => String(a.owner || '').trim() === ownerKey).length;
         if (maxAccounts !== -1 && ownerCount >= maxAccounts) {

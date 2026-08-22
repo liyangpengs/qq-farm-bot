@@ -162,18 +162,6 @@ function setSystemConfig(config: Partial<SystemConfig> | undefined): SystemConfi
     return { ...globalConfig.systemConfig };
 }
 
-function getMaxAccounts(): number {
-    return globalConfig.maxAccounts;
-}
-
-function setMaxAccounts(limit: unknown): number {
-    const maxAccounts = Number.parseInt(limit as string, 10);
-    const value = Number.isFinite(maxAccounts) ? maxAccounts : 1;
-    globalConfig.maxAccounts = value;
-    saveGlobalConfig();
-    return value;
-}
-
 // Initialize on load
 const { loadGlobalConfig } = sharedState;
 loadGlobalConfig();
@@ -192,6 +180,4 @@ module.exports = {
     setOfflineReminder,
     getSystemConfig,
     setSystemConfig,
-    getMaxAccounts,
-    setMaxAccounts,
 };

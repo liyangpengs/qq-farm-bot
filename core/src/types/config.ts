@@ -122,6 +122,4 @@ export interface GlobalConfig {
   ui: UIConfig;
   offlineReminder: OfflineReminder;
   systemConfig: SystemConfig | null;
-  /** 农场账户数量上限，-1 表示不限制，默认 1 */
-  maxAccounts: number;
 }

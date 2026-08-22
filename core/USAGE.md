@@ -56,28 +56,36 @@
 
 ## 设置账户数量上限
 
-编辑 `data/store.json`，修改 `maxAccounts` 字段：
+`maxAccounts` 是**每个管理员名下**的农场账户上限，按账号的 `owner`（管理员用户名）分别计数，不同管理员各自独立。默认值为 `1`。
+
+在 `data/admin.json` 中给对应管理员记录设置 `maxAccounts` 字段：
 
 ```json
 {
-  "maxAccounts": 3,
-  "accountConfigs": {},
-  "defaultAccountConfig": { ... },
-  "ui": { "theme": "light" },
-  "offlineReminder": { ... },
-  "systemConfig": null
+  "admins": [
+    {
+      "username": "admin",
+      "password": "bcrypt_hash",
+      "createdAt": 1690000000000,
+      "maxAccounts": 5
+    },
+    {
+      "username": "user2",
+      "password": "bcrypt_hash",
+      "createdAt": 1690000000000,
+      "maxAccounts": 1
+    }
+  ]
 }
 ```
 
 | 值 | 含义 |
 |----|------|
-| `1` | 默认，每个管理员名下最多 1 个账户 |
-| `N`（≥ 0） | 每个管理员名下最多 N 个账户 |
-| `-1` | 不限制数量 |
+| `1` | 默认，该管理员名下最多 1 个账户 |
+| `N`（≥ 0） | 该管理员名下最多 N 个账户 |
+| `-1` | 该管理员名下不限制数量 |
 
-> **注意：** `maxAccounts` 是**单个管理员名下**的农场账户上限，按账号的 `owner`（管理员用户名）分别计数，而不是整个系统所有账户的总数。不同管理员各自拥有独立的上限。
->
-> 修改后无需重启，下次新增账户时生效。
+> **注意：** `maxAccounts` 是单个管理员名下按 `owner` 分别计数的上限，不是整个系统的总数。修改 admin.json 后需重启服务生效。
 
 ## 删除账户
 
@@ -98,16 +106,20 @@
       "username": "admin",
       "password": "bcrypt_hash",
       "createdAt": 1690000000000,
-      "mustChangePassword": true
+      "mustChangePassword": true,
+      "maxAccounts": 1
     },
     {
       "username": "user2",
       "password": "bcrypt_hash",
-      "createdAt": 1690000000000
+      "createdAt": 1690000000000,
+      "maxAccounts": 5
     }
   ]
 }
 ```
+
+> `maxAccounts` 表示该管理员名下可添加的农场账户上限，默认 `1`，可手动编辑 admin.json 修改（`-1` 不限制）。
 
 ### 添加管理员
 
@@ -123,9 +135,11 @@ node add-admin.js <用户名> <密码>
 node add-admin.js user2 mypassword123
 ```
 
+> 新管理员默认 `maxAccounts: 1`（名下最多 1 个农场账户），如需调整请在 `admin.json` 中手动修改该记录并重启服务。
+
 ### 手动添加管理员
 
-在 `admins` 数组中追加一条记录，`password` 字段需要是 bcrypt 哈希值（可用 `node add-admin.js` 脚本生成）。
+在 `admins` 数组中追加一条记录，`password` 字段需要是 bcrypt 哈希值（可用 `node add-admin.js` 脚本生成）。建议同时设置 `maxAccounts` 字段（默认 `1`）。
 
 ### 删除管理员
 
