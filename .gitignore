@@ -40,6 +40,8 @@ Thumbs.db
 # Test/coverage
 **/test/
 **/tests/
+!core/tests/
+!core/tests/*.test.js
 coverage/
 .nyc_output/
 

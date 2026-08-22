@@ -3,15 +3,17 @@ import { NTab, NTabs } from 'naive-ui'
 import { ref, watch } from 'vue'
 import BagPanel from '@/components/BagPanel.vue'
 import FarmPanel from '@/components/FarmPanel.vue'
+import IllustratedPanel from '@/components/IllustratedPanel.vue'
 import PetPanel from '@/components/PetPanel.vue'
 import TaskPanel from '@/components/TaskPanel.vue'
 
-type PersonalTab = 'farm' | 'pet' | 'bag' | 'task'
+type PersonalTab = 'farm' | 'illustrated' | 'pet' | 'bag' | 'task'
 
 const currentTab = ref<PersonalTab>('farm')
 
 const tabPanels: Record<PersonalTab, any> = {
   farm: FarmPanel,
+  illustrated: IllustratedPanel,
   pet: PetPanel,
   bag: BagPanel,
   task: TaskPanel,
@@ -30,6 +32,9 @@ watch(currentTab, (tab) => {
     <NTabs v-model:value="currentTab" class="mb-4" type="line" animated>
       <NTab name="farm">
         <span class="inline-flex items-center gap-2"><span class="i-carbon-sprout" />我的农场</span>
+      </NTab>
+      <NTab name="illustrated">
+        <span class="inline-flex items-center gap-2"><span class="i-carbon-book" />图鉴</span>
       </NTab>
       <NTab name="pet">
         <span class="inline-flex items-center gap-2"><span class="i-carbon-dog-walker" />宠物</span>

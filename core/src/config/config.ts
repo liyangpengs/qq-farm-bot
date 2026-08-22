@@ -40,7 +40,7 @@ interface RuntimeConfig extends SystemConfig {
 // ============ 设备预设 ============
 
 // clientVersion 由 CONFIG.clientVersion 动态获取，不写死在预设中
-const DEFAULT_CLIENT_VERSION = '1.13.2.9_20260723';
+const DEFAULT_CLIENT_VERSION = '1.13.2.10_20260723';
 const DEFAULT_TIME_ZONE = 'Asia/Shanghai';
 
 const TIME_ZONE_OPTIONS = [

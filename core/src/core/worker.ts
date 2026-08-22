@@ -335,6 +335,42 @@ function stopUnifiedScheduler(): void {
     workerScheduler.clear('unified_next_tick');
 }
 
+function stopMysteryShopTimer(): void {
+    workerScheduler.clear('mystery_shop_initial');
+    workerScheduler.clear('mystery_shop_interval');
+    workerScheduler.clear('mystery_shop_after_save');
+}
+
+function runMysteryShopTick(): Promise<void> {
+    if (!loginReady) return Promise.resolve();
+    const {
+        isMysteryShopWatchEnabled,
+        checkMysteryShopTick,
+    } = require('../services/mystery-shop-auto');
+    if (!isMysteryShopWatchEnabled(getAutomation())) return Promise.resolve();
+    return checkMysteryShopTick().then((result: any) => {
+        if (result?.push?.title && result?.push?.content) {
+            sendToMaster({ type: 'push_notify', title: result.push.title, content: result.push.content });
+        }
+    });
+}
+
+function startMysteryShopTimer(): void {
+    const {
+        isMysteryShopWatchEnabled,
+        AUTO_BUY_CHECK_INTERVAL_MS,
+        AUTO_BUY_INITIAL_DELAY_MS,
+    } = require('../services/mystery-shop-auto');
+    stopMysteryShopTimer();
+    if (!loginReady || !isMysteryShopWatchEnabled(getAutomation())) return;
+    workerScheduler.setTimeoutTask('mystery_shop_initial', AUTO_BUY_INITIAL_DELAY_MS, () => {
+        runMysteryShopTick().catch(() => null);
+    });
+    workerScheduler.setIntervalTask('mystery_shop_interval', AUTO_BUY_CHECK_INTERVAL_MS, () => {
+        runMysteryShopTick().catch(() => null);
+    });
+}
+
 function applyRuntimeConfig(snapshot: any, syncNow: boolean = false): number {
     const rev = Number((snapshot || {}).__revision || 0);
     if (rev > 0 && rev < appliedConfigRevision) {
@@ -383,6 +419,18 @@ function applyRuntimeConfig(snapshot: any, syncNow: boolean = false): number {
                             result: 'error',
                         });
                     }
+                });
+            }
+
+            const {
+                mysteryShopConfigChanged,
+                isMysteryShopWatchEnabled,
+                AUTO_BUY_AFTER_SAVE_DELAY_MS,
+            } = require('../services/mystery-shop-auto');
+            startMysteryShopTimer();
+            if (isMysteryShopWatchEnabled(nextAuto) && mysteryShopConfigChanged(prevAuto, nextAuto)) {
+                workerScheduler.setTimeoutTask('mystery_shop_after_save', AUTO_BUY_AFTER_SAVE_DELAY_MS, () => {
+                    runMysteryShopTick().catch(() => null);
                 });
             }
         }
@@ -573,6 +621,7 @@ async function startBot(config: any): Promise<void> {
         startUnifiedScheduler();
         // 每日礼包/任务改为跨日调度，不在农场轮询内执行
         startDailyRoutineTimer();
+        startMysteryShopTimer();
 
         // 立即发送一次状态
         syncStatus();
@@ -680,6 +729,9 @@ async function handleApiCall(msg: any): Promise<void> {
             switch (method) {
             case 'getLands':
                 result = await getLandsDetail();
+                break;
+            case 'getIllustratedSnapshot':
+                result = await require('../services/illustrated').getIllustratedSnapshot();
                 break;
             case 'getFriends':
                 result = await getFriendsList(args[0] === true);

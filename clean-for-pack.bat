@@ -2,13 +2,11 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT=%~dp0"
-set "CLEAN_DATA=0"
-set "ASSUME_YES=0"
+set "KEEP_DATA=0"
 set "FAILED=0"
 
 for %%A in (%*) do (
-    if /I "%%~A"=="--data" set "CLEAN_DATA=1"
-    if /I "%%~A"=="--yes" set "ASSUME_YES=1"
+    if /I "%%~A"=="--keep-data" set "KEEP_DATA=1"
     if /I "%%~A"=="--help" goto :usage
     if /I "%%~A"=="-h" goto :usage
 )
@@ -43,15 +41,10 @@ call :remove_file "%ROOT%app_dev.log"
 
 for /r "%ROOT%" %%F in (*.tsbuildinfo) do call :remove_file "%%~fF"
 
-if "%CLEAN_DATA%"=="1" (
-    if "%ASSUME_YES%"=="1" (
-        set "DELETE_DATA=Y"
-    ) else (
-        choice /C YN /N /M "Delete runtime data in core\data (accounts, credentials and logs)? [Y/N] "
-        if errorlevel 2 set "DELETE_DATA=N"
-        if errorlevel 1 set "DELETE_DATA=Y"
-    )
-    if /I "!DELETE_DATA!"=="Y" call :remove_dir "%ROOT%core\data"
+if "%KEEP_DATA%"=="1" (
+    echo [SKIP] Preserving runtime data: %ROOT%core\data
+) else (
+    call :remove_dir "%ROOT%core\data"
 )
 
 popd >nul
@@ -63,7 +56,7 @@ if "%FAILED%"=="1" (
 )
 
 echo.
-echo Cleaning complete. Runtime data was preserved unless --data was supplied.
+echo Cleaning complete. Runtime data was removed unless --keep-data was supplied.
 exit /b 0
 
 :remove_dir
@@ -91,8 +84,7 @@ if exist "%~1" (
 exit /b 0
 
 :usage
-echo Usage: clean-for-pack.bat [--data] [--yes]
+echo Usage: clean-for-pack.bat [--keep-data]
 echo.
-echo   --data  Also remove core\data runtime data. Prompts unless --yes is used.
-echo   --yes   Skip the runtime data confirmation prompt.
+echo   --keep-data  Preserve core\data runtime data. By default it is removed.
 exit /b 0

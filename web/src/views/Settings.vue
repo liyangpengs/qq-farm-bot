@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { NButton, NCheckbox, NCheckboxGroup, NTab, NTabs, NTimePicker } from 'naive-ui'
+import { NButton, NTab, NTabs, NTimePicker } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
 import AccountModal from '@/components/AccountModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import AutomationSettingsForm from '@/components/settings/AutomationSettingsForm.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
@@ -804,6 +805,13 @@ const localAutomationSettings = ref({
     fertilizer_gift: false,
     fertilizer_buy_organic: false,
     fertilizer_buy_normal: false,
+    mystery_shop_auto_buy: false,
+    mystery_shop_allow_gold: true,
+    mystery_shop_allow_coupon: false,
+    mystery_shop_allow_gold_bean: false,
+    mystery_shop_allow_diamond: false,
+    mystery_shop_arrival_notify: false,
+    mystery_shop_purchase_notify: false,
     fertilizer: 'normal',
     skip_own_weed_bug: false,
     fertilizer_multi_season: false,
@@ -842,6 +850,13 @@ function syncLocalAutomationSettings() {
         fertilizer_gift: false,
         fertilizer_buy_organic: false,
         fertilizer_buy_normal: false,
+        mystery_shop_auto_buy: false,
+        mystery_shop_allow_gold: true,
+        mystery_shop_allow_coupon: false,
+        mystery_shop_allow_gold_bean: false,
+        mystery_shop_allow_diamond: false,
+        mystery_shop_arrival_notify: false,
+        mystery_shop_purchase_notify: false,
         fertilizer: 'none',
         skip_own_weed_bug: false,
         fertilizer_multi_season: false,
@@ -864,6 +879,13 @@ function syncLocalAutomationSettings() {
         fertilizer_gift: false,
         fertilizer_buy_organic: false,
         fertilizer_buy_normal: false,
+        mystery_shop_auto_buy: false,
+        mystery_shop_allow_gold: true,
+        mystery_shop_allow_coupon: false,
+        mystery_shop_allow_gold_bean: false,
+        mystery_shop_allow_diamond: false,
+        mystery_shop_arrival_notify: false,
+        mystery_shop_purchase_notify: false,
         fertilizer: 'none',
         skip_own_weed_bug: false,
         fertilizer_multi_season: false,
@@ -1794,144 +1816,14 @@ async function handleResetSystemConfig() {
             <p>{{ currentAccountId ? '账号设置加载失败，请切换账号或刷新页面重试' : '请先选择账号' }}</p>
           </div>
 
-          <div v-else class="space-y-4">
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
-              <BaseSwitch v-model="localAutomationSettings.automation.farm" label="自动种植收获" />
-              <BaseSwitch v-model="localAutomationSettings.automation.task" label="自动做任务" />
-              <BaseSwitch v-model="localAutomationSettings.automation.sell" label="自动卖果实" />
-              <BaseSwitch v-model="localAutomationSettings.automation.friend" label="自动好友互动" />
-              <BaseSwitch v-model="localAutomationSettings.automation.farm_push" label="推送触发巡田" />
-              <BaseSwitch v-model="localAutomationSettings.automation.land_upgrade" label="自动升级土地" />
-              <BaseSwitch v-model="localAutomationSettings.automation.fertilizer_gift" label="自动填充化肥" />
-              <BaseSwitch v-model="localAutomationSettings.automation.fertilizer_buy_organic" label="自动购买有机化肥" />
-              <BaseSwitch v-model="localAutomationSettings.automation.fertilizer_buy_normal" label="自动购买无机化肥" />
-              <BaseSwitch v-model="localAutomationSettings.automation.skip_own_weed_bug" label="巡田时跳过一键务农" />
-            </div>
-
-            <div v-if="localAutomationSettings.automation.fertilizer_buy_organic || localAutomationSettings.automation.fertilizer_buy_normal" class="rounded bg-green-50 p-3 text-sm space-y-3 dark:bg-green-900/20">
-              <div v-if="localAutomationSettings.automation.fertilizer_buy_organic" class="space-y-2">
-                <div class="text-green-700 font-medium dark:text-green-400">
-                  有机化肥设置
-                </div>
-                <div class="flex flex-wrap gap-4">
-                  <BaseInput
-                    v-model.number="localAutomationSettings.fertilizerBuyOrganicCount"
-                    label="购买数量"
-                    type="number"
-                    min="1"
-                    max="10000"
-                  />
-                  <BaseInput
-                    v-model.number="localAutomationSettings.fertilizerBuyOrganicThresholdHours"
-                    label="触发阈值 (小时)"
-                    type="number"
-                    min="1"
-                    max="990"
-                  />
-                </div>
-              </div>
-              <div v-if="localAutomationSettings.automation.fertilizer_buy_normal" class="space-y-2">
-                <div class="text-green-700 font-medium dark:text-green-400">
-                  无机化肥设置
-                </div>
-                <div class="flex flex-wrap gap-4">
-                  <BaseInput
-                    v-model.number="localAutomationSettings.fertilizerBuyNormalCount"
-                    label="购买数量"
-                    type="number"
-                    min="1"
-                    max="10000"
-                  />
-                  <BaseInput
-                    v-model.number="localAutomationSettings.fertilizerBuyNormalThresholdHours"
-                    label="触发阈值 (小时)"
-                    type="number"
-                    min="1"
-                    max="990"
-                  />
-                </div>
-              </div>
-              <div class="flex flex-wrap gap-4">
-                <BaseInput
-                  v-model.number="localAutomationSettings.fertilizerBuyCheckIntervalMinutes"
-                  label="检测间隔 (分钟)"
-                  type="number"
-                  min="1"
-                  max="1440"
-                />
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                系统会按照设定的检测间隔定时检测化肥容器剩余量，当低于触发阈值时自动购买。保存设置后会立即检测一次。同时开启两种化肥购买时，优先购买有机化肥。
-              </p>
-            </div>
-
-            <div v-if="localAutomationSettings.automation.friend" class="flex flex-wrap gap-4 rounded bg-blue-50 p-3 text-sm dark:bg-blue-900/20">
-              <BaseSwitch v-model="localAutomationSettings.automation.friend_steal" label="自动偷菜" />
-              <BaseSwitch v-model="localAutomationSettings.automation.friend_help" label="自动帮忙" />
-              <BaseSwitch v-model="localAutomationSettings.automation.friend_bad" label="自动捣乱" />
-              <BaseSwitch v-model="localAutomationSettings.automation.friend_help_exp_limit" label="经验满不帮忙" />
-            </div>
-
-            <div class="space-y-3">
-              <div class="border border-amber-200 rounded bg-amber-50/60 p-3 dark:border-amber-800/60 dark:bg-amber-900/10">
-                <div class="mb-2 text-sm text-amber-800 font-medium dark:text-amber-300">
-                  施肥范围
-                </div>
-                <NCheckboxGroup v-model:value="localAutomationSettings.automation.fertilizer_land_types">
-                  <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
-                    <NCheckbox
-                      v-for="option in fertilizerLandTypeOptions"
-                      :key="option.value"
-                      :value="option.value"
-                    >
-                      {{ option.label }}
-                    </NCheckbox>
-                  </div>
-                </NCheckboxGroup>
-                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  施肥前会优先按土地类型过滤，仅对命中范围的地块执行施肥策略。
-                </p>
-              </div>
-
-              <BaseSelect
-                v-model="localAutomationSettings.automation.fertilizer"
-                label="施肥策略"
-                :options="fertilizerOptions"
-              />
-
-              <div class="flex items-center gap-4">
-                <BaseSwitch
-                  v-model="localAutomationSettings.automation.fertilizer_multi_season"
-                  label="多季补肥"
-                />
-              </div>
-
-              <div v-if="localAutomationSettings.automation.fertilizer === 'smart'" class="flex flex-wrap gap-4 rounded bg-amber-50 p-3 text-sm dark:bg-amber-900/20">
-                <BaseInput
-                  v-model.number="localAutomationSettings.automation.fertilizer_smart_seconds"
-                  label="快成熟判定秒数"
-                  type="number"
-                  min="30"
-                  max="3600"
-                  class="w-40"
-                />
-                <span class="flex items-end pb-2 text-xs text-gray-500 dark:text-gray-400">
-                  距离成熟时间 ≤ 此秒数时施有机肥（默认300秒=5分钟）
-                </span>
-              </div>
-            </div>
-
-            <div class="flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
-              <BaseButton
-                variant="primary"
-                size="sm"
-                :loading="automationSaving"
-                @click="saveAutomationSettings"
-              >
-                保存自动控制
-              </BaseButton>
-            </div>
-          </div>
+          <AutomationSettingsForm
+            v-else
+            v-model="localAutomationSettings"
+            :saving="automationSaving"
+            :fertilizer-land-type-options="fertilizerLandTypeOptions"
+            :fertilizer-options="fertilizerOptions"
+            @save="saveAutomationSettings"
+          />
         </div>
 
         <!-- 系统设置 -->

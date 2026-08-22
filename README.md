@@ -1,9 +1,18 @@
 # QQ 农场多账号挂机 + Web 面板
 
-基于 Node.js 的 QQ 农场自动化工具，提供多账号挂机、农场与好友自动化、活动中心、商城、数据分析和 Web 控制面板。当前项目版本为 `20260819`。
+基于 Node.js 的 QQ 农场自动化工具，提供多账号挂机、农场与好友自动化、作物与超变图鉴、活动中心、商城、数据分析和 Web 控制面板。当前项目版本为 `20260821`。
 
 > [!IMPORTANT]
 > 首次启动会创建默认管理员 `admin` / `admin`，Web 面板默认端口为 `3007`。对外部署后请立即修改密码，并避免将未加防护的管理端口直接暴露到公网。
+
+## 项目截图
+|  |  |
+| --- | --- |
+| ![项目截图 1](https://free.picui.cn/free/2026/08/21/6a87f4e28ce59.jpg) | ![项目截图 2](https://free.picui.cn/free/2026/08/21/6a87f4e2e5557.jpg) |
+| ![项目截图 3](https://free.picui.cn/free/2026/08/21/6a87f4e3780bb.jpg) | ![项目截图 4](https://free.picui.cn/free/2026/08/21/6a87f4e398c30.jpg) |
+| ![项目截图 5](https://free.picui.cn/free/2026/08/21/6a87f4e8bbbce.jpg) | ![项目截图 6](https://free.picui.cn/free/2026/08/21/6a87f4e90d06c.jpg) |
+| ![项目截图 7](https://free.picui.cn/free/2026/08/21/6a87f4e95678d.jpg) | ![项目截图 8](https://free.picui.cn/free/2026/08/21/6a87f4e958eae.jpg) |
+| ![项目截图 9](https://free.picui.cn/free/2026/08/21/6a87f4e91bccb.jpg) | ![项目截图 10](https://free.picui.cn/free/2026/08/21/6a87f4e355da8.jpg) |
 
 ## 功能概览
 
@@ -21,6 +30,14 @@
 - 支持一键务农、一键种植、一键收获、一键铲除和一键全收等面板操作
 - 支持多种种植策略、背包种子优先级、作物黑名单和执行间隔配置
 - 汇总任务、免费礼包、分享奖励、会员礼包、月卡礼包和图鉴奖励等每日状态，并按天自动处理支持的领取项
+
+### 图鉴
+
+- 在“个人 → 图鉴”中查看作物图鉴和超变图鉴的等级、进度及果实收藏状态
+- 作物图鉴按游戏配置排序展示作物，收藏奖励统一放在详情弹窗中查看
+- 超变图鉴依据 `Illustrated.json` 的 `param` 和 `type` 字段区分黄金果实、活动果实与装扮果实，不依赖果实名或协议奖励分类字段推断
+- 超变属性弹窗顶部汇总当前生效加成，等级列表展示属性名称、触发概率或数量，以及已达成状态或所需进度
+- 移动端图鉴使用四列果实布局，等级进度和弹窗样式与现有面板保持一致
 
 ### 好友互动
 
@@ -185,7 +202,7 @@ chmod +x ./qq-farm-bot
 4. 为账号配置种植、自动化和好友策略，并按需设置实例级下线提醒。
 5. 启动账号，在概览页确认连接状态、农场数据和实时日志。
 
-Code 具有时效性；登录失败时应先重新获取 Code 或重新扫码。
+Code 具有时效性；登录失败时应先重新获取 Code 或重新扫码。QQ 客户端被挤下线后，官方“重新登录”会签发新的 Code；可启动 QQFarmCodeHelper 的标准获取模式并开启自动同步，再点击官方“重新登录”，Helper 会更新匹配账号的 Code 并重新启动远程账号。协议监听模式只落盘抓包，永远不会自动上传 Code。
 
 ## 配置说明
 
@@ -225,6 +242,23 @@ Code 具有时效性；登录失败时应先重新获取 Code 或重新扫码。
 
 `smart` 模式施加有机肥后会重新检查一次自有土地，并立即收获本轮因施肥进入成熟状态的作物；该追收最多执行一次，不会形成循环请求。
 
+### 图鉴配置
+
+图鉴使用 `core/src/gameConfig/Illustrated.json` 和 `core/src/gameConfig/BuffCfg.json` 两份游戏配置：
+
+| 配置 | 字段 | 说明 |
+| --- | --- | --- |
+| `Illustrated.json` | `param` | 与图鉴协议返回的果实 ID 对应 |
+| `Illustrated.json` | `type` | 果实分类，包括普通果实、黄金果实、活动果实和装扮果实 |
+| `Illustrated.json` | `illustrated_type` | 区分普通图鉴和超变图鉴 |
+| `Illustrated.json` | `sort` | 图鉴中的展示顺序 |
+| `BuffCfg.json` | `source_type` | 超变图鉴只展示 `超变升级`，隐藏 `活动加成` |
+| `BuffCfg.json` | `source_param` | 触发该属性加成的图鉴等级 |
+| `BuffCfg.json` | `attr_id` | 属性加成名称 |
+| `BuffCfg.json` | `attr_value` | 大于 `10` 时为触发概率，小于 `10` 时为数量 |
+
+概率值按千分值转换为百分比展示，例如 `100` 显示为 `10%`、`500` 显示为 `50%`；数量值直接展示，例如 `2` 显示为 `数量 +2`。当前加成会按属性名称取当前等级已生效的最新配置。
+
 ## 数据与备份
 
 | 运行方式 | 数据位置 |
@@ -246,13 +280,13 @@ qq-farm-bot/
 │   │   ├── controllers/   # Web API 与鉴权路由
 │   │   ├── core/          # 单账号 Worker 与任务调度
 │   │   ├── runtime/       # 多账号运行时和状态同步
-│   │   ├── services/      # 农场、好友、活动、商城、微信登录等业务
+│   │   ├── services/      # 农场、好友、图鉴、活动、商城、微信登录等业务
 │   │   ├── proto/         # Protocol Buffers 定义
-│   │   ├── gameConfig/    # 作物、道具、等级等游戏配置
+│   │   ├── gameConfig/    # 作物、道具、等级、图鉴与属性加成等游戏配置
 │   │   └── models/        # 超级管理员、游戏账号与配置持久化
 │   └── data/              # 源码模式运行数据
 ├── web/                   # Vue 3 Web 面板
-│   ├── src/components/    # 农场、背包、任务、活动与基础组件
+│   ├── src/components/    # 农场、图鉴、背包、任务、活动与基础组件
 │   ├── src/stores/        # Pinia 状态管理
 │   ├── src/views/         # 各功能页面
 │   └── dist/              # 前端构建产物
@@ -271,6 +305,7 @@ qq-farm-bot/
 | `pnpm dev:web` | 启动 Vite 前端开发服务 |
 | `pnpm dev:core` | 使用 `tsx` 启动后端 |
 | `pnpm lint` | 检查并自动修复前后端代码风格 |
+| `pnpm -C core typecheck` | 执行后端 TypeScript 类型检查 |
 | `pnpm typecheck:web` | 执行前端 TypeScript 类型检查（不参与生产启动） |
 | `pnpm build:web` | 构建 Web 面板到 `web/dist/` |
 | `pnpm build:core` | 编译后端 TypeScript |
@@ -286,9 +321,14 @@ bash ./clean.sh
 
 # Windows
 clean-for-pack.bat
+
+# 保留 core/data 运行数据
+clean-for-pack.bat --keep-data
 ```
 
-`clean.sh` 会停止当前服务，然后删除项目根目录下除 `.git` 以外的全部文件和目录，包括源码、依赖、构建产物、运行数据以及脚本自身。该操作不可撤销，只应用于准备通过 Git 重新检出工作区的场景。Windows 的 `clean-for-pack.bat` 仍只用于清理打包产物。
+`clean.sh` 会停止当前服务，然后删除项目根目录下除 `.git` 以外的全部文件和目录，包括源码、依赖、构建产物、运行数据以及脚本自身。该操作不可撤销，只应用于准备通过 Git 重新检出工作区的场景。
+
+Windows 的 `clean-for-pack.bat` 会清理依赖、构建产物、覆盖率文件、日志以及 `core/data` 运行数据，适合生成不包含账号和凭据的发布目录。如需保留 `core/data`，必须显式传入 `--keep-data`。
 
 ### 抓包协议分析
 

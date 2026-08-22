@@ -13,4 +13,29 @@ function createGatewayToken(): string {
     return `${token}=`;
 }
 
-module.exports = { createGatewayToken };
+class GatewayTokenProvider {
+    private pendingInitToken = '';
+
+    stageInitToken(value: unknown): number {
+        const token = String(value || '').trim();
+        if (!token) return 0;
+        if (token.length > 64 * 1024 || !/^[\x21-\x7E]+$/.test(token)) {
+            throw new Error('TSDK 初始化凭据格式无效');
+        }
+        this.pendingInitToken = token;
+        return token.length;
+    }
+
+    next(): string {
+        if (!this.pendingInitToken) return createGatewayToken();
+        const token = this.pendingInitToken;
+        this.pendingInitToken = '';
+        return token;
+    }
+
+    clear(): void {
+        this.pendingInitToken = '';
+    }
+}
+
+module.exports = { createGatewayToken, GatewayTokenProvider };

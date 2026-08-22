@@ -74,7 +74,7 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
     });
 
     app.get('/api/game-version', (_req: Request, res: Response) => {
-        res.json({ ok: true, clientVersion: getRuntimeConfig().clientVersion });
+        res.json({ ok: true, clientVersion: getRuntimeConfig().clientVersion, botVersion: version });
     });
 
     app.get('/api/auth/validate', (_req: Request, res: Response) => {

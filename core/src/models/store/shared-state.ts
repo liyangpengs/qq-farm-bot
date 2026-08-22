@@ -1,11 +1,9 @@
 import type { AccountConfig, AutomationConfig, BagSeedFallbackStrategy, FertilizerLandType, GlobalConfig, IntervalConfig, OfflineReminder, PlantingStrategy, QuietHoursConfig } from '../../types/config';
 export {};
 
-const fs = require('node:fs');
-const path = require('node:path');
 const { DEFAULT_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone } = require('../../config/config');
 const { getDataFile, ensureDataDir } = require('../../config/runtime-paths');
-const { readTextFile, readJsonFile, writeJsonFileAtomic } = require('../../services/json-db');
+const { readJsonFile } = require('../../services/json-db');
 
 const STORE_FILE: string = getDataFile('store.json');
 const ACCOUNTS_FILE: string = getDataFile('accounts.json');
@@ -25,8 +23,16 @@ const FERTILIZER_LAND_TYPE_SET: Set<string> = new Set(DEFAULT_FERTILIZER_LAND_TY
 const INTERVAL_MAX_SEC: number = 86400;
 const DEFAULT_KNOWN_FRIEND_GID_SYNC_COOLDOWN_SEC: number = 300;
 const DEFAULT_FRIENDS_LIST_CACHE_TTL_SEC: number = 60;
-const PREVIOUS_DEFAULT_CLIENT_VERSION: string = '1.13.2.8_20260723';
+const LEGACY_DEFAULT_CLIENT_VERSIONS: ReadonlySet<string> = new Set([
+    '1.13.2.8_20260723',
+    '1.13.2.9_20260723',
+]);
+function isManagedDefaultClientVersion(value: unknown): boolean {
+    const version = String(value || '').trim();
+    return version === DEFAULT_CLIENT_VERSION || LEGACY_DEFAULT_CLIENT_VERSIONS.has(version);
+}
 let systemConfigMigrated: boolean = false;
+let accountFallbackConfig: AccountConfig;
 
 const DEFAULT_OFFLINE_REMINDER: OfflineReminder = {
     channel: 'webhook',
@@ -52,6 +58,13 @@ const DEFAULT_ACCOUNT_CONFIG: AccountConfig = {
         fertilizer_gift: false,
         fertilizer_buy_organic: false,
         fertilizer_buy_normal: false,
+        mystery_shop_auto_buy: false,
+        mystery_shop_allow_gold: true,
+        mystery_shop_allow_coupon: false,
+        mystery_shop_allow_gold_bean: false,
+        mystery_shop_allow_diamond: false,
+        mystery_shop_arrival_notify: false,
+        mystery_shop_purchase_notify: false,
         sell: true,
         fertilizer: 'smart',
         fertilizer_multi_season: true,
@@ -367,7 +380,7 @@ function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accoun
 
 // ============ Global Config (mutable shared state) ============
 
-let accountFallbackConfig: AccountConfig = {
+accountFallbackConfig = {
     ...DEFAULT_ACCOUNT_CONFIG,
     automation: { ...DEFAULT_ACCOUNT_CONFIG.automation, fertilizer_land_types: [...DEFAULT_FERTILIZER_LAND_TYPES] },
     intervals: { ...DEFAULT_ACCOUNT_CONFIG.intervals },
@@ -429,9 +442,9 @@ function loadGlobalConfig(): void {
                 const deviceOs = String(srcDevice.os || data.systemConfig.os || 'Windows').trim();
                 const savedTopVersion = String(data.systemConfig.clientVersion || '').trim();
                 const savedDeviceVersion = String(srcDevice.clientVersion || '').trim();
-                const customDeviceVersion = savedDeviceVersion && savedDeviceVersion !== PREVIOUS_DEFAULT_CLIENT_VERSION
+                const customDeviceVersion = savedDeviceVersion && !isManagedDefaultClientVersion(savedDeviceVersion)
                     ? savedDeviceVersion : '';
-                const customTopVersion = savedTopVersion && savedTopVersion !== PREVIOUS_DEFAULT_CLIENT_VERSION
+                const customTopVersion = savedTopVersion && !isManagedDefaultClientVersion(savedTopVersion)
                     ? savedTopVersion : '';
                 const deviceClientVersion = customDeviceVersion || customTopVersion || DEFAULT_CLIENT_VERSION;
                 const normalizedSystemConfig = {
@@ -477,7 +490,7 @@ module.exports = {
     DEFAULT_FRIENDS_LIST_CACHE_TTL_SEC,
     DEFAULT_OFFLINE_REMINDER,
     DEFAULT_ACCOUNT_CONFIG,
-    PREVIOUS_DEFAULT_CLIENT_VERSION,
+    LEGACY_DEFAULT_CLIENT_VERSIONS,
     ALLOWED_AUTOMATION_KEYS,
     // Mutable shared state (by reference)
     globalConfig,
@@ -496,6 +509,7 @@ module.exports = {
     normalizeIntervals,
     normalizeAccountConfig,
     cloneAccountConfig,
+    isManagedDefaultClientVersion,
     resolveAccountId,
     loadGlobalConfig,
 };

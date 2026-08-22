@@ -118,6 +118,23 @@ interface MutantEffectDto {
     activityId: number;
 }
 
+interface IllustratedConfigItem {
+    id: number;
+    type: string;
+    illustrated_type: string;
+    param: number;
+    show_guarantee: boolean | null;
+    sort: number;
+}
+
+interface BuffConfigItem {
+    id: number;
+    source_type: string;
+    source_param: number;
+    attr_id: string;
+    attr_value: number;
+}
+
 // ============ 等级经验表 ============
 let roleLevelConfig: RoleLevelItem[] | null = null;
 let levelExpTable: number[] | null = null;
@@ -135,6 +152,10 @@ const landConfigMap = new Map<number, LandConfigItem>();
 const landCoordinateMap = new Map<string, LandConfigItem>();
 let mutantEffectConfig: MutantEffectItem[] | null = null;
 const mutantEffectMap = new Map<number, MutantEffectItem>();
+let illustratedConfig: IllustratedConfigItem[] | null = null;
+const illustratedItemMap = new Map<number, IllustratedConfigItem>();
+let buffConfig: BuffConfigItem[] | null = null;
+const buffConfigMap = new Map<number, BuffConfigItem>();
 
 // 官方活动说明确认：变异 13 为鹊羽活动效果，收获时会额外获得鹊羽。
 // 运行时 MutantEffect 暂未下发 tips/description，因此在展示 DTO 层补充说明。
@@ -252,6 +273,36 @@ function loadConfigs(): void {
         }
     } catch (e: any) {
         console.warn('[配置] 加载 MutantEffect.json 失败:', e.message);
+    }
+
+    try {
+        const illustratedPath = path.join(configDir, 'Illustrated.json');
+        if (fs.existsSync(illustratedPath)) {
+            illustratedConfig = JSON.parse(fs.readFileSync(illustratedPath, 'utf8'));
+            illustratedItemMap.clear();
+            for (const entry of illustratedConfig || []) {
+                const itemId = Number(entry && entry.param) || 0;
+                if (itemId > 0) illustratedItemMap.set(itemId, entry);
+            }
+            console.warn(`[配置] 已加载图鉴配置 (${illustratedItemMap.size} 项)`);
+        }
+    } catch (e: any) {
+        console.warn('[配置] 加载 Illustrated.json 失败:', e.message);
+    }
+
+    try {
+        const buffPath = path.join(configDir, 'BuffCfg.json');
+        if (fs.existsSync(buffPath)) {
+            buffConfig = JSON.parse(fs.readFileSync(buffPath, 'utf8'));
+            buffConfigMap.clear();
+            for (const entry of buffConfig || []) {
+                const id = Number(entry && entry.id) || 0;
+                if (id > 0) buffConfigMap.set(id, entry);
+            }
+            console.warn(`[配置] 已加载属性加成配置 (${buffConfigMap.size} 项)`);
+        }
+    } catch (e: any) {
+        console.warn('[配置] 加载 BuffCfg.json 失败:', e.message);
     }
 
 }
@@ -492,6 +543,7 @@ function toMutantEffectDto(effect: MutantEffectItem | undefined, id: number): Mu
             activityId: 0,
         };
     }
+
     return {
         id: numericId,
         // 土地效果以官方运行时配置的 effect_name 为准；name 可能是“喜鹊事件”等内部事件名。
@@ -530,6 +582,47 @@ function getMutantEffectsByIds(ids: Array<number | string> | undefined | null): 
 
 function getMutantTypeNames(ids: Array<number | string> | undefined | null): string[] {
     return getMutantEffectsByIds(ids).map(effect => effect.name);
+}
+
+function getIllustratedTypeByParam(param: number | string): string {
+    const entry = illustratedItemMap.get(Number(param) || 0);
+    return String(entry && entry.type || '');
+}
+
+function getIllustratedSortByParam(param: number | string): number {
+    const entry = illustratedItemMap.get(Number(param) || 0);
+    return Number(entry && entry.sort) || 0;
+}
+
+function illustratedBuffDto(entry: BuffConfigItem): any {
+    const value = Number(entry.attr_value) || 0;
+    return {
+        id: Number(entry.id) || 0,
+        level: Number(entry.source_param) || 0,
+        name: String(entry.attr_id || ''),
+        value,
+        valueType: value > 10 ? 'probability' : 'quantity',
+    };
+}
+
+function getIllustratedBuffsByLevel(level: number | string): any[] {
+    const maxLevel = Math.max(0, Number(level) || 0);
+    const latestByAttribute = new Map<string, any>();
+    [...buffConfigMap.values()]
+        .filter(entry => entry.source_type === '超变升级' && Number(entry.source_param) <= maxLevel)
+        .sort((a, b) => Number(a.source_param) - Number(b.source_param))
+        .forEach(entry => {
+            const name = String(entry.attr_id || '');
+            if (name) latestByAttribute.set(name, illustratedBuffDto(entry));
+        });
+    return [...latestByAttribute.values()].sort((a, b) => a.level - b.level);
+}
+
+function getIllustratedBuffs(): any[] {
+    return [...buffConfigMap.values()]
+        .filter(entry => entry.source_type === '超变升级')
+        .sort((a, b) => Number(a.source_param) - Number(b.source_param))
+        .map(illustratedBuffDto);
 }
 
 /**
@@ -608,5 +701,9 @@ module.exports = {
     getMutantEffectById,
     getMutantEffectsByIds,
     getMutantTypeNames,
+    getIllustratedTypeByParam,
+    getIllustratedSortByParam,
+    getIllustratedBuffsByLevel,
+    getIllustratedBuffs,
     getMutantDisplayPlantId,
 };

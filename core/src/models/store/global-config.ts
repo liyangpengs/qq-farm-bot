@@ -1,7 +1,6 @@
 import type { AccountConfig, OfflineReminder, SystemConfig, UIConfig } from '../../types/config';
 export {};
 
-const fs = require('node:fs');
 const { readTextFile, writeJsonFileAtomic } = require('../../services/json-db');
 const { DEFAULT_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone } = require('../../config/config');
 
@@ -11,7 +10,7 @@ const {
     STORE_FILE,
     PUSHOO_CHANNELS,
     DEFAULT_OFFLINE_REMINDER,
-    PREVIOUS_DEFAULT_CLIENT_VERSION,
+    isManagedDefaultClientVersion,
     globalConfig,
     normalizeAccountConfig,
     cloneAccountConfig,
@@ -139,8 +138,8 @@ function setSystemConfig(config: Partial<SystemConfig> | undefined): SystemConfi
     const srcDevice = (config.deviceInfo && typeof config.deviceInfo === 'object') ? config.deviceInfo : {};
     const topVersion = String(config.clientVersion || '').trim();
     const deviceVersion = String((srcDevice as any).clientVersion || '').trim();
-    const customDeviceVersion = deviceVersion && deviceVersion !== PREVIOUS_DEFAULT_CLIENT_VERSION ? deviceVersion : '';
-    const customTopVersion = topVersion && topVersion !== PREVIOUS_DEFAULT_CLIENT_VERSION ? topVersion : '';
+    const customDeviceVersion = deviceVersion && !isManagedDefaultClientVersion(deviceVersion) ? deviceVersion : '';
+    const customTopVersion = topVersion && !isManagedDefaultClientVersion(topVersion) ? topVersion : '';
     const clientVersion = customDeviceVersion || customTopVersion || DEFAULT_DEVICE_INFO.clientVersion;
     const deviceInfo = {
         os: String((srcDevice as any).os || DEFAULT_DEVICE_INFO.os).trim(),

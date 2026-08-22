@@ -9,6 +9,7 @@
 | `download-game-config.js` | 从微信小程序 CDN 定位、下载并校验游戏 JSON 配置 |
 | `download-game-images.js` | 根据游戏配置和 Cocos manifest 下载准确的 PNG 资源 |
 | `decode-latest-protocols.js` | 解码选定的 WebSocket 抓包并保留未知 protobuf 字段 |
+| `analyze-keepalive-capture.js` | 只输出非敏感的版本、心跳和 Gateway Token 形态统计 |
 | `decode-shop-protocols.js` | 解码神秘商人、商城列表、购买响应及相关通知 |
 | `audit-qingmei-flow.js` | 按时间顺序输出青梅活动抓包的精简审计记录 |
 
@@ -23,6 +24,8 @@
 - `RoleLevel.json`
 - `Land.json`
 - `MutantEffect.json`
+- `BuffCfg.json`
+- `Illustrated.json`
 
 工具完全独立于 `core` 和 `web`，只使用 Node.js 内置模块，不参与 bot 的构建或运行。
 
@@ -63,6 +66,9 @@ tools/json/Plant.json
 tools/json/RoleLevel.json
 tools/json/Land.json
 tools/json/MutantEffect.json
+tools/json/BuffCfg.json
+tools/json/Illustrated.json
+tools/json/allconfig/<其他配置名>.json
 ```
 
 它不会自动覆盖 `core/src/gameConfig`，也不会修改任何 `package.json` 或运行中的账号配置。需要正式更新 bot 配置时，应先人工检查新旧数据差异，再决定是否复制。
@@ -71,11 +77,11 @@ tools/json/MutantEffect.json
 
 1. 在反编译源码的 `src/settings.*.json` 中读取 CDN 地址和 `mainscene` bundle 版本。
 2. 下载 `mainscene` 的 Cocos bundle manifest。
-3. 从 manifest 中定位 `config/ItemInfo`、`config/Plant`、`config/RoleLevel`、`config/Land` 与运行时 `config/mutant_effect`，解析压缩 UUID 和 import hash。变异配置不使用滞后的宝典展示资源 `config/MutantEffect`。
-4. 下载对应的 `cc.TextAsset`。
+3. 扫描 manifest 中全部 `config/*` 资源，解析压缩 UUID 和 import hash。代码指定的 7 项写入 `tools/json` 根目录，其余配置写入 `tools/json/allconfig`。
+4. 并发下载对应的 `cc.TextAsset`。
 5. 对 `text` 先进行 Base64 解码，再使用小程序当前的配置密钥循环 XOR，得到原始 UTF-8 JSON。
-6. 校验五份配置的 ID、变异 `effect_name`、Plant 引用、等级连续性以及土地网格坐标唯一性。
-7. 五份资源全部成功后才替换输出文件；失败时保留上一次成功结果。
+6. 校验指定配置的 ID、变异 `effect_name`、Plant 引用、等级连续性以及土地网格坐标唯一性。
+7. 全部资源成功后才替换输出文件；失败时保留上一次成功结果。
 
 ### 常见错误
 
@@ -158,7 +164,7 @@ node tools/download-game-images.js --help
 
 ## 协议抓包分析
 
-这三个脚本需要先安装工作区依赖并编译后端，因为它们会加载 `protobufjs` 和 `core/dist/utils/crypto-wasm`：
+这些脚本需要先安装工作区依赖并编译后端，因为它们会加载 `protobufjs` 和 TSDK 运行时：
 
 ```bash
 pnpm install
@@ -172,6 +178,14 @@ pnpm -C core exec node ../tools/decode-latest-protocols.js "D:\path\to\captures"
 ```
 
 脚本会读取目录中的 `.bin` WebSocket 帧，解码背包、物品使用、任务、赛季和活动操作等已选协议，同时输出无法匹配到类型的原始 protobuf 字段。
+
+### 保活协议安全审计
+
+```bash
+pnpm -C core exec tsx ../tools/analyze-keepalive-capture.js "D:\path\to\captures"
+```
+
+脚本会严格比较完整握手中的非敏感参数、Login/Heartbeat 版本、Heartbeat wire 字段、25 秒间隔和 Token 形态。报告不会包含 Code、完整 URL、原始 Token、GID 或业务消息正文，适合直接用于版本与保活回归核对。
 
 ### 商城协议解码
 
