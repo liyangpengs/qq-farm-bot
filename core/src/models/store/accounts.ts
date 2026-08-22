@@ -81,10 +81,12 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
             touchedAccountId = String(data.accounts[idx].id || '');
         }
     } else {
-        // 检查账户数量上限（-1 表示不限制）
+        // 检查当前管理员名下账户数量上限（-1 表示不限制；按归属分别计数）
         const maxAccounts = Number(require('./global-config').getMaxAccounts());
-        if (maxAccounts !== -1 && data.accounts.length >= maxAccounts) {
-            const err: any = new Error(`农场账户数量已达上限 (${maxAccounts})，无法添加新账号`);
+        const ownerKey = String(acc.owner || '').trim();
+        const ownerCount = data.accounts.filter(a => String(a.owner || '').trim() === ownerKey).length;
+        if (maxAccounts !== -1 && ownerCount >= maxAccounts) {
+            const err: any = new Error(`当前管理员的农场账户数量已达上限 (${maxAccounts})，无法添加新账号`);
             (err as any).code = 'MAX_ACCOUNTS_REACHED';
             throw err;
         }
