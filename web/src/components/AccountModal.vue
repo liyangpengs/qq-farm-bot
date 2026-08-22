@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { NCard, NModal, NRadio, NRadioGroup, NTab, NTabs } from 'naive-ui'
-import { onBeforeUnmount, reactive, ref, watch } from 'vue'
+import {NCard, NModal, NRadio, NRadioGroup, NTab, NTabs} from 'naive-ui'
+import {onBeforeUnmount, reactive, ref, watch} from 'vue'
 import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseTextarea from '@/components/ui/BaseTextarea.vue'
-import { runWxLoginStatusPoll } from '@/utils/wx-login-poll'
+import {runWxLoginStatusPoll} from '@/utils/wx-login-poll'
 
 const props = defineProps<{
   show: boolean
@@ -45,15 +45,12 @@ async function addAccount(data: any) {
     if (res.data.ok) {
       emit('saved')
       close()
-    }
-    else {
+    } else {
       errorMessage.value = `保存失败: ${res.data.error}`
     }
-  }
-  catch (e: any) {
+  } catch (e: any) {
     errorMessage.value = `保存失败: ${e.response?.data?.error || e.message}`
-  }
-  finally {
+  } finally {
     loading.value = false
   }
 }
@@ -76,13 +73,12 @@ async function submitManual() {
   let payload: any = {}
   if (props.editData) {
     const onlyNameChanged = form.name !== props.editData.name
-      && form.code === (props.editData.code || '')
-      && form.platform === (props.editData.platform || 'qq')
+        && form.code === (props.editData.code || '')
+        && form.platform === (props.editData.platform || 'qq')
 
     if (onlyNameChanged) {
-      payload = { id: props.editData.id, name: form.name }
-    }
-    else {
+      payload = {id: props.editData.id, name: form.name}
+    } else {
       payload = {
         id: props.editData.id,
         name: form.name,
@@ -91,8 +87,7 @@ async function submitManual() {
         loginType: 'manual',
       }
     }
-  }
-  else {
+  } else {
     payload = {
       name: form.name,
       code,
@@ -118,7 +113,7 @@ function resetWxLogin() {
   wxFlowVersion += 1
   stopWxPolling()
   if (oldTaskId) {
-    void api.delete(`/api/wx-login/tasks/${oldTaskId}`, { skipErrorToast: true } as any).catch(() => undefined)
+    void api.delete(`/api/wx-login/tasks/${oldTaskId}`, {skipErrorToast: true} as any).catch(() => undefined)
   }
   if (wxQrObjectUrl) {
     URL.revokeObjectURL(wxQrObjectUrl)
@@ -146,7 +141,7 @@ async function getWxCodeAndAdd(taskId: string, flowVersion: number) {
     throw new Error('未获取到登录 Code')
 
   // Deliberately use the same account API and payload as the manual form.
-  await addAccount({ name: form.name, code, platform: 'wx', loginType: 'manual' })
+  await addAccount({name: form.name, code, platform: 'wx', loginType: 'manual'})
 }
 
 async function confirmWxLogin(taskId: string, flowVersion: number) {
@@ -176,27 +171,22 @@ async function pollWxLoginRequest(taskId: string, flowVersion: number) {
     const status = response.data?.data?.status
     if (status === 'waiting') {
       wxStatus.value = '等待微信扫码'
-    }
-    else if (status === 'scanned') {
+    } else if (status === 'scanned') {
       wxStatus.value = '已扫码，请在手机上确认'
-    }
-    else if (status === 'authorized') {
+    } else if (status === 'authorized') {
       stopWxPolling()
       await confirmWxLogin(taskId, flowVersion)
       return
-    }
-    else if (['cancelled', 'expired', 'failed'].includes(status)) {
+    } else if (['cancelled', 'expired', 'failed'].includes(status)) {
       wxError.value = '二维码已失效，请重新获取'
       return
     }
     wxPollTimer = setTimeout(() => void pollWxLogin(taskId, flowVersion), 1200)
-  }
-  catch (error: any) {
+  } catch (error: any) {
     if (!isWxFlowActive(taskId, flowVersion) || error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED')
       return
     wxError.value = error.response?.data?.error || error.message || '登录状态检查失败'
-  }
-  finally {
+  } finally {
     if (wxPollController === controller)
       wxPollController = undefined
   }
@@ -221,8 +211,7 @@ async function pollWxLogin(taskId: string, flowVersion: number) {
   wxPollKey = `${taskId}:${flowVersion}`
   try {
     await current
-  }
-  finally {
+  } finally {
     if (wxPollInFlight === current) {
       wxPollInFlight = undefined
       wxPollKey = ''
@@ -235,30 +224,28 @@ async function startWxLogin() {
   const flowVersion = wxFlowVersion
   wxLoading.value = true
   try {
-    const response = await api.post('/api/wx-login/tasks', { app_id: 'wx5306c5978fdb76e4' })
+    const response = await api.post('/api/wx-login/tasks', {app_id: 'wx5306c5978fdb76e4'})
     const task = response.data?.data
     const taskId = String(task?.task_id || '')
     if (!taskId)
       throw new Error('未创建登录任务')
     if (flowVersion !== wxFlowVersion) {
-      void api.delete(`/api/wx-login/tasks/${taskId}`, { skipErrorToast: true } as any).catch(() => undefined)
+      void api.delete(`/api/wx-login/tasks/${taskId}`, {skipErrorToast: true} as any).catch(() => undefined)
       return
     }
     wxTaskId.value = taskId
-    const qrResponse = await api.get(task.qr_url, { responseType: 'blob' })
+    const qrResponse = await api.get(task.qr_url, {responseType: 'blob'})
     if (!isWxFlowActive(taskId, flowVersion))
       return
     wxQrObjectUrl = URL.createObjectURL(qrResponse.data)
     wxQrUrl.value = wxQrObjectUrl
     wxStatus.value = '等待微信扫码'
     void pollWxLogin(taskId, flowVersion)
-  }
-  catch (error: any) {
+  } catch (error: any) {
     if (flowVersion !== wxFlowVersion)
       return
     wxError.value = error.response?.data?.error || error.message || '二维码获取失败'
-  }
-  finally {
+  } finally {
     if (flowVersion === wxFlowVersion)
       wxLoading.value = false
   }
@@ -278,8 +265,7 @@ watch(() => props.show, (newVal) => {
       form.name = props.editData.name || ''
       form.code = props.editData.code || ''
       form.platform = props.editData.platform || 'qq'
-    }
-    else {
+    } else {
       form.name = ''
       form.code = ''
       form.platform = 'qq'
@@ -299,25 +285,26 @@ onBeforeUnmount(resetWxLogin)
 
 <template>
   <NModal
-    :show="show"
-    :mask-closable="!loading && !wxLoading"
-    :close-on-esc="!loading && !wxLoading"
-    @update:show="value => !value && close()"
+      :show="show"
+      :mask-closable="!loading && !wxLoading"
+      :close-on-esc="!loading && !wxLoading"
+      @update:show="value => !value && close()"
   >
     <NCard
-      class="account-modal-card"
-      :title="editData ? '编辑账号' : '添加账号'"
-      :bordered="false"
-      :closable="!loading && !wxLoading"
-      @close="close"
+        class="account-modal-card"
+        :title="editData ? '编辑账号' : '添加账号'"
+        :bordered="false"
+        :closable="!loading && !wxLoading"
+        @close="close"
     >
       <div class="account-modal-content overflow-y-auto">
         <!-- 错误信息 -->
-        <div v-if="errorMessage" class="mb-4 rounded-xl p-3 text-sm" style="background: rgba(239, 68, 68, 0.1); color: #ef4444">
+        <div v-if="errorMessage" class="mb-4 rounded-xl p-3 text-sm"
+             style="background: rgba(239, 68, 68, 0.1); color: #ef4444">
           {{ errorMessage }}
         </div>
 
-        <NTabs v-if="!editData" v-model:value="activeLoginTab" class="mb-4" type="line">
+        <NTabs v-if="form.platform === 'wx'" v-model:value="activeLoginTab" class="mb-4" type="line">
           <NTab name="code">
             输入 Code 登录
           </NTab>
@@ -326,20 +313,20 @@ onBeforeUnmount(resetWxLogin)
           </NTab>
         </NTabs>
 
-        <div v-if="editData || activeLoginTab === 'code'" class="space-y-4">
+        <div v-if="activeLoginTab === 'code'" class="space-y-4">
           <BaseInput
-            v-model="form.name"
-            label="账号备注（可选）"
-            placeholder="留空默认账号"
-            class="farm-input"
+              v-model="form.name"
+              label="账号备注（可选）"
+              placeholder="留空默认账号"
+              class="farm-input"
           />
 
           <BaseTextarea
-            v-model="form.code"
-            label="Code"
-            placeholder="请输入登录 Code"
-            :rows="3"
-            class="farm-input"
+              v-model="form.code"
+              label="Code"
+              placeholder="请输入登录 Code"
+              :rows="3"
+              class="farm-input"
           />
 
           <NRadioGroup v-if="!editData" v-model:value="form.platform" name="account-platform">
@@ -364,10 +351,10 @@ onBeforeUnmount(resetWxLogin)
         </div>
         <div v-else class="space-y-4" role="tabpanel" aria-label="微信扫码登录">
           <BaseInput
-            v-model="form.name"
-            label="账号备注（可选）"
-            placeholder="留空使用默认账号"
-            class="farm-input"
+              v-model="form.name"
+              label="账号备注（可选）"
+              placeholder="留空使用默认账号"
+              class="farm-input"
           />
           <div class="min-h-64 flex flex-col items-center justify-center gap-3">
             <div v-if="wxQrUrl" class="bg-white p-2">
