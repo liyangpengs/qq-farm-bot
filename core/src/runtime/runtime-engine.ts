@@ -5,6 +5,7 @@ const { Worker } = require('node:worker_threads');
 const store = require('../models/store');
 const { updateRuntimeConfig, getRuntimeConfig, getDefaultSystemConfig } = require('../config/config');
 const { sendPushooMessage } = require('../services/push');
+const { reissueWxLoginCode, TARGET_APP_ID } = require('../services/wx-login/service');
 const { createDataProvider } = require('./data-provider');
 const { createReloginReminderService } = require('./relogin-reminder');
 const { createRuntimeState } = require('./runtime-state');
@@ -66,6 +67,22 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         sendConfiguredPush,
     } = reloginReminder;
 
+    // 使用账号持久化的 loginBuffer 免扫码续发一次性 wx.login code
+    async function refreshAccountCode(accountId: string): Promise<string | null> {
+        const data = store.getAccounts();
+        const acc = (data.accounts || []).find(a => String(a.id) === String(accountId));
+        if (!acc || !String(acc.loginBuffer || '').trim()) return null;
+        try {
+            const newCode = await reissueWxLoginCode(String(acc.loginBuffer), TARGET_APP_ID);
+            if (!newCode) return null;
+            store.addOrUpdateAccount({ id: String(acc.id), code: newCode });
+            return newCode;
+        } catch (e: any) {
+            log('错误', `账号 ${accountId} 自动续码失败: ${e && e.message ? e.message : e}`, { accountId });
+            return null;
+        }
+    }
+
     const { startWorker, stopWorker, restartWorker, callWorkerApi } = createWorkerManager({
         fork,
         WorkerThread: Worker,
@@ -84,6 +101,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         sendConfiguredPush,
         addOrUpdateAccount: store.addOrUpdateAccount,
         deleteAccount: store.deleteAccount,
+        refreshAccountCode,
         onStatusSync: (accountId: string, status: any, accountName?: string) => {
             runtimeEvents.emit('status', { accountId, status, accountName });
             if (onStatusSync) onStatusSync(accountId, status, accountName);

@@ -88,6 +88,18 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const payload = isUpdate
                 ? { ...body, id: resolvedUpdateId || String(updateRef), owner: username }
                 : { ...body, owner: username };
+
+            // 扫码换取的一次性 code 关联的 loginBuffer：挂到账号上用于后续自动续码
+            if (payload.code && !payload.loginBuffer) {
+                try {
+                    const { takeLoginBufferByCode } = require('../../services/wx-login/service');
+                    const loginBuffer = takeLoginBufferByCode(String(payload.code));
+                    if (loginBuffer) payload.loginBuffer = loginBuffer;
+                } catch {
+                    // 忽略：未配置 wx-login 服务时不影响添加账号
+                }
+            }
+
             let wasRunning = false;
             if (isUpdate && ctx.provider.isAccountRunning) {
                 wasRunning = ctx.provider.isAccountRunning(payload.id);

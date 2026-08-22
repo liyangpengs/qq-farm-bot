@@ -1,14 +1,13 @@
 import crypto from 'node:crypto';
 import type { Application, Request, Response } from 'express';
 import type { AdminContext } from './context';
-import { WxLoginService } from '../../services/wx-login/service';
+import { WxLoginService, TARGET_APP_ID, putLoginBufferByCode } from '../../services/wx-login/service';
 import type { ScanStatus, WxLoginSession } from '../../services/wx-login/service';
 
 export {};
 
 const { createAuthRequired } = require('./middleware');
 
-const TARGET_APP_ID = 'wx5306c5978fdb76e4';
 const TASK_TTL_MS = 110_000;
 type Status = ScanStatus | 'ready_for_code' | 'failed';
 interface Task { id: string; createdAt: number; status: Status; session: WxLoginSession; qr: Buffer; code?: string; pending?: Promise<void>; }
@@ -34,7 +33,7 @@ async function confirm(task: Task): Promise<void> {
     await wxLogin.confirm(task.session);
     task.status = 'ready_for_code';
 }
-async function consumeCode(task: Task): Promise<void> { if (task.status !== 'ready_for_code') throw new Error('Login code is not ready'); task.code = await wxLogin.issueCode(task.session, TARGET_APP_ID); }
+async function consumeCode(task: Task): Promise<void> { if (task.status !== 'ready_for_code') throw new Error('Login code is not ready'); task.code = await wxLogin.issueCode(task.session, TARGET_APP_ID); putLoginBufferByCode(task.code, task.session.loginBuffer || ''); }
 
 function mountWxLoginRoutes(app: Application, ctx: AdminContext): void {
     app.use('/api/wx-login', createAuthRequired(ctx));

@@ -7,8 +7,27 @@ const QR_POLL_URL = 'https://long.open.weixin.qq.com/connect/l/qrconnect';
 const CALLBACK_URL = 'https://yybadaccess.3g.qq.com/pc_yyb/pcyyb_oauth';
 const LOGIN_BUFFER_URL = 'https://yybadaccess.3g.qq.com/pc_yyb_auth/pcyyb_get_wx_login_buffer_auth';
 const OAUTH_APP_ID = 'wxd44977328b36e647';
+export const TARGET_APP_ID = 'wx5306c5978fdb76e4';
 const USER_AGENT = 'Mozilla/5.0';
 const LOGIN_BUFFER_ACCESS_KEY = 'wgrdg373hy26ww2';
+
+// 一次性 code → loginBuffer 缓存：扫码换取的 code 在添加账号时用于关联长效登录凭证
+const codeLoginBuffers = new Map<string, string>();
+
+export function putLoginBufferByCode(code: string, loginBuffer: string): void {
+    if (code && loginBuffer) codeLoginBuffers.set(code, loginBuffer);
+}
+
+export function takeLoginBufferByCode(code: string): string {
+    if (!code) return '';
+    const buffer = codeLoginBuffers.get(code);
+    codeLoginBuffers.delete(code);
+    return buffer || '';
+}
+
+export async function reissueWxLoginCode(loginBuffer: string, appId: string): Promise<string> {
+    return getNativeWxLoginCode(loginBuffer, appId);
+}
 
 export type ScanStatus = 'waiting' | 'scanned' | 'authorized' | 'cancelled' | 'expired';
 

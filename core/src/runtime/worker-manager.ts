@@ -19,6 +19,7 @@ interface WorkerManagerOptions {
     sendConfiguredPush?: (payload: any) => Promise<void> | void;
     addOrUpdateAccount: (acc: any) => any;
     deleteAccount: (id: string) => void;
+    refreshAccountCode?: (accountId: string) => Promise<string | null>;
     onStatusSync?: (accountId: string, status: any, accountName?: string) => void;
     onWorkerLog?: (entry: any, accountId: string, accountName?: string) => void;
 }
@@ -42,11 +43,46 @@ function createWorkerManager(options: WorkerManagerOptions) {
         sendConfiguredPush,
         addOrUpdateAccount,
         deleteAccount,
+        refreshAccountCode,
         onStatusSync,
         onWorkerLog,
     } = options;
     const managerScheduler = createScheduler('worker_manager');
     const useThreadRuntime = runtimeMode === 'thread' && !(processRef as any).pkg && typeof WorkerThread === 'function';
+    // 自动续码冷却（毫秒），避免 400 反复触发刷新重启风暴
+    const autoRefreshCooldowns = new Map<string, number>();
+    const AUTO_REFRESH_COOLDOWN_MS = 60_000;
+
+    function findStoredAccount(accountId: string): any {
+        try {
+            const store = require('../models/store');
+            const data = store.getAccounts ? store.getAccounts() : { accounts: [] };
+            return (Array.isArray(data.accounts) ? data.accounts : []).find(a => String(a.id) === String(accountId)) || null;
+        } catch {
+            return null;
+        }
+    }
+
+    function autoRefreshAndRestart(accountId: string): void {
+        if (typeof refreshAccountCode !== 'function') return;
+        const now = Date.now();
+        const last = autoRefreshCooldowns.get(accountId) || 0;
+        if (now - last < AUTO_REFRESH_COOLDOWN_MS) return;
+        autoRefreshCooldowns.set(accountId, now);
+        refreshAccountCode(accountId)
+            .then((newCode: string | null) => {
+                if (!newCode) {
+                    addAccountLog('refresh_failed', `账号 ${accountId} 自动续码失败，请手动刷新 Code 或重新扫码`, accountId);
+                    return;
+                }
+                log('系统', `账号 ${accountId} 已自动续码，正在重启...`, { accountId });
+                const acc = findStoredAccount(accountId);
+                if (acc) restartWorker(acc);
+            })
+            .catch((e: any) => {
+                log('错误', `账号 ${accountId} 自动续码失败: ${e && e.message ? e.message : e}`, { accountId });
+            });
+    }
 
     function createThreadWorker(account: any): any {
         const workerOptions: any = {
@@ -350,10 +386,11 @@ function createWorkerManager(options: WorkerManagerOptions) {
             if (code === 400) {
                 addAccountLog(
                     'ws_400',
-                    `账号 ${worker.name} 登录失效，请更新 Code`,
+                    `账号 ${worker.name} 登录失效，正在尝试自动续码`,
                     accountId,
                     worker.name,
                 );
+                autoRefreshAndRestart(accountId);
             }
         } else if (msg.type === 'account_kicked') {
             if (worker.terminalHandled) return;

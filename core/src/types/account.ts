@@ -3,6 +3,7 @@ export interface Account {
   id: string;
   name: string;
   code: string;
+  loginBuffer: string;
   platform: string;
   uin: string;
   qq: string;
