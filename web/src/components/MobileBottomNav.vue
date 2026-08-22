@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
 const items = [
   { path: '/', label: '首页', icon: 'i-carbon-home' },
   { path: '/game-mall', label: '商城', icon: 'i-carbon-shopping-cart' },
@@ -6,6 +10,14 @@ const items = [
   { path: '/activity', label: '活动', icon: 'i-carbon-events' },
   { path: '/settings', label: '设置', icon: 'i-carbon-settings' },
 ]
+
+function isActive(path: string) {
+  if (path === '/') {
+    // 首页仅精确匹配，避免 '/' 作为所有路径前缀导致一直高亮
+    return route.path === '/'
+  }
+  return route.path === path || route.path.startsWith(path)
+}
 </script>
 
 <template>
@@ -15,7 +27,10 @@ const items = [
       :key="item.path"
       :to="item.path"
       class="mobile-bottom-nav__item"
-      :class="{ 'mobile-bottom-nav__item--home': item.path === '/' }"
+      :class="{
+        'mobile-bottom-nav__item--active': isActive(item.path),
+        'mobile-bottom-nav__item--home': item.path === '/',
+      }"
     >
       <div :class="item.icon" class="mobile-bottom-nav__icon" />
       <span>{{ item.label }}</span>
@@ -72,15 +87,13 @@ const items = [
   height: 22px;
 }
 
-.mobile-bottom-nav__item.router-link-active,
-.mobile-bottom-nav__item.router-link-exact-active {
+.mobile-bottom-nav__item--active {
   color: var(--ui-primary);
   background: rgba(225, 241, 230, 0.82);
   box-shadow: none !important;
 }
 
-.mobile-bottom-nav__item--home.router-link-active,
-.mobile-bottom-nav__item--home.router-link-exact-active {
+.mobile-bottom-nav__item--home.mobile-bottom-nav__item--active {
   color: var(--ui-ink);
 }
 </style>
