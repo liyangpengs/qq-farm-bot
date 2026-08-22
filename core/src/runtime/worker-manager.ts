@@ -90,6 +90,8 @@ function createWorkerManager(options: WorkerManagerOptions) {
 
     function startWorker(account: any): boolean {
         if (!account || !account.id) return false;
+        // 无归属账号不允许运行
+        if (!String(account.owner || '').trim()) return false;
         if (workers[account.id]) return false;
 
         log('系统', `正在启动账号: ${account.name}`, { accountId: String(account.id), accountName: account.name });

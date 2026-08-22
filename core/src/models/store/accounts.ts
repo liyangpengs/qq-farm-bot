@@ -10,7 +10,19 @@ const { ACCOUNTS_FILE } = require('./shared-state');
 function loadAccounts(): AccountsData {
     ensureDataDir();
     const data = readJsonFile(ACCOUNTS_FILE, () => ({ accounts: [], nextId: 1 }));
-    return normalizeAccountsData(data);
+    const normalized = normalizeAccountsData(data);
+    // 迁移：清除无归属账号（不再运行，等待通过管理面板按归属重建）
+    const ownerless = normalized.accounts.filter(a => !String(a.owner || '').trim());
+    if (ownerless.length > 0) {
+        normalized.accounts = normalized.accounts.filter(a => String(a.owner || '').trim());
+        saveAccounts(normalized);
+        for (const removed of ownerless) {
+            try { require('./account-config').removeAccountConfig(removed.id); } catch {}
+            console.warn(`[账号] 已清除无归属账号: ${removed.id} (${removed.name})`);
+        }
+        console.warn(`[账号] 已清除 ${ownerless.length} 个无归属账号，不再运行`);
+    }
+    return normalized;
 }
 
 function saveAccounts(data: AccountsData): void {
@@ -43,6 +55,7 @@ function normalizeAccount(raw: any): Account {
         uin: String(source.uin || ''),
         qq: String(source.qq || source.uin || ''),
         avatar: String(source.avatar || source.avatarUrl || ''),
+        owner: String(source.owner || ''),
         createdAt: Number(source.createdAt) || Date.now(),
         updatedAt: Number(source.updatedAt) || Date.now(),
     };
@@ -57,7 +70,7 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
     let touchedAccountId = '';
     const source: any = acc || {};
     const cleanAccount: any = {};
-    for (const key of ['id', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick']) {
+    for (const key of ['id', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick', 'owner']) {
         if (source[key] !== undefined) cleanAccount[key] = source[key];
     }
     acc = cleanAccount;
@@ -86,6 +99,7 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
             uin: acc.uin ? String(acc.uin) : '',
             qq: acc.qq ? String(acc.qq) : (acc.uin ? String(acc.uin) : ''),
             avatar: acc.avatar || acc.avatarUrl || '',
+            owner: acc.owner ? String(acc.owner) : '',
             createdAt: Date.now(),
             updatedAt: Date.now(),
         });

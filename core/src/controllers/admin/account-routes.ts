@@ -16,6 +16,7 @@ const {
     getAccountIds,
     handleApiError,
     getAccountList,
+    requireAccountOwner,
     resolveAccId,
 } = require('./middleware');
 
@@ -24,7 +25,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
     // API: 账号管理
     app.get('/api/accounts', (req: Request, res: Response) => {
         try {
-            const data = ctx.provider.getAccounts();
+            const data = ctx.provider.getAccounts((req as any).adminUser);
             res.json({ ok: true, data });
         } catch (e: any) {
             res.status(500).json({ ok: false, error: e.message });
@@ -36,7 +37,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
         try {
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
             const rawRef = body.id || body.accountId || body.uin || req.headers['x-account-id'];
-            const accountList = getAccountList(ctx);
+            const accountList = getAccountList(ctx, (req as any).adminUser);
             const target = findAccountByRef(accountList, rawRef);
             if (!target || !target.id) {
                 return res.status(404).json({ ok: false, error: 'Account not found' });
@@ -66,7 +67,8 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const rawBody = (req.body && typeof req.body === 'object') ? req.body : {};
             const requestedName = typeof rawBody.name === 'string' ? rawBody.name.trim() : '';
             const body = typeof rawBody.name === 'string' ? { ...rawBody, name: requestedName } : rawBody;
-            const visibleAccounts = getAccountList(ctx);
+            const username = String((req as any).adminUser || '');
+            const visibleAccounts = getAccountList(ctx, username);
             const remarkMatchedAccount = !body.id && requestedName
                 ? visibleAccounts.find((account: any) => String(account.name || '').trim() === requestedName)
                 : null;
@@ -74,8 +76,18 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const updateRef = body.id || (remarkMatchedAccount && remarkMatchedAccount.id) || '';
             const isUpdate = !!updateRef;
 
+            // 更新已有账号时必须属于当前管理员
+            if (isUpdate) {
+                const owned = requireAccountOwner(ctx, req, updateRef);
+                if (owned.denied) {
+                    return res.status(403).json({ ok: false, error: '无权操作该账号' });
+                }
+            }
+
             const resolvedUpdateId = isUpdate ? resolveAccId(ctx, updateRef) : '';
-            const payload = isUpdate ? { ...body, id: resolvedUpdateId || String(updateRef) } : body;
+            const payload = isUpdate
+                ? { ...body, id: resolvedUpdateId || String(updateRef), owner: username }
+                : { ...body, owner: username };
             let wasRunning = false;
             if (isUpdate && ctx.provider.isAccountRunning) {
                 wasRunning = ctx.provider.isAccountRunning(payload.id);
@@ -84,11 +96,11 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             // 检查是否仅修改了备注信息
             let onlyRemarkChanged = false;
             if (isUpdate) {
-                const oldAccounts = ctx.provider.getAccounts();
+                const oldAccounts = ctx.provider.getAccounts(username);
                 const oldAccount = oldAccounts.accounts.find((a: any) => a.id === payload.id);
                 if (oldAccount) {
-                    // 检查 payload 中是否只包含 id 和 name 字段
-                    const payloadKeys = Object.keys(payload);
+                    // 检查 payload 中是否只包含 id 和 name 字段（owner 为内部字段，不计入）
+                    const payloadKeys = Object.keys(payload).filter((key: string) => key !== 'owner');
                     const onlyIdAndName = payloadKeys.length === 2 && payloadKeys.includes('id') && payloadKeys.includes('name');
                     if (onlyIdAndName) {
                         onlyRemarkChanged = true;
@@ -131,9 +143,13 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
 
     app.delete('/api/accounts/:id', (req: Request, res: Response) => {
         try {
-            const resolvedId = resolveAccId(ctx, req.params.id) || String(req.params.id || '');
+            const owned = requireAccountOwner(ctx, req, req.params.id);
+            if (owned.denied) {
+                return res.status(403).json({ ok: false, error: '无权操作该账号' });
+            }
+            const resolvedId = owned.id || String(req.params.id || '');
 
-            const before = ctx.provider.getAccounts();
+            const before = ctx.provider.getAccounts((req as any).adminUser);
             const target = findAccountByRef(before.accounts || [], req.params.id);
             ctx.provider.stopAccount(resolvedId);
             const data = deleteAccount(resolvedId);
@@ -153,6 +169,14 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             let list: any[] = ctx.provider.getAccountLogs ? ctx.provider.getAccountLogs(limit) : [];
             if (!Array.isArray(list)) list = [];
 
+            // 只返回当前管理员名下账号的日志
+            const username = String((req as any).adminUser || '');
+            const ownedIds = new Set(getAccountIds(ctx, username));
+            list = list.filter((entry: any) => {
+                const accId = String((entry && entry.accountId) || '');
+                return !accId || ownedIds.has(accId);
+            });
+
             // 与当前 web 前端保持一致：直接返回数组
             res.json(list);
         } catch (e: any) {
@@ -163,10 +187,24 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
     // API: 日志
     app.get('/api/logs', (req: Request, res: Response) => {
         const queryAccountIdRaw = (req.query.accountId || '').toString().trim();
-        const id = queryAccountIdRaw ? (queryAccountIdRaw === 'all' ? '' : resolveAccId(ctx, queryAccountIdRaw)) : getAccId(ctx, req);
-        // 如果没有指定账号ID，获取所有账号的日志
+        const username = String((req as any).adminUser || '');
+        let id = '';
+        if (queryAccountIdRaw) {
+            if (queryAccountIdRaw === 'all') {
+                id = '';
+            } else {
+                const owned = requireAccountOwner(ctx, req, queryAccountIdRaw);
+                if (owned.denied) {
+                    return res.status(403).json({ ok: false, error: '无权查看该账号' });
+                }
+                id = owned.id || '';
+            }
+        } else {
+            id = getAccId(ctx, req);
+        }
+        // 如果没有指定账号ID，获取当前管理员名下所有账号的日志
         if (!id) {
-            const accountIds = getAccountIds(ctx);
+            const accountIds = getAccountIds(ctx, username);
             const allLogs: any[] = [];
             const options = {
                 limit: Number.parseInt(req.query.limit as string) || 100,
@@ -210,10 +248,38 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
 
     // API: 清空当前账号运行日志
     app.delete('/api/logs', (req: Request, res: Response) => {
-        const id = getAccId(ctx, req);
-        if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
+        const username = String((req as any).adminUser || '');
+        const rawRef = String(req.headers['x-account-id'] || '').trim();
+        if (!rawRef) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
 
         try {
+            // accountId=all 只清空当前管理员名下账号的日志
+            if (rawRef === 'all') {
+                const ownedIds = getAccountIds(ctx, username);
+                for (const accId of ownedIds) {
+                    ctx.provider.clearLogs(accId);
+                }
+                if (ctx.io && ctx.provider && typeof ctx.provider.getLogs === 'function') {
+                    const allLogs: any[] = [];
+                    for (const accId of ownedIds) {
+                        const logs = ctx.provider.getLogs(accId, { limit: 100 });
+                        if (Array.isArray(logs)) allLogs.push(...logs);
+                    }
+                    ctx.io.to(`account:all:${username}`).emit('logs:snapshot', {
+                        accountId: 'all',
+                        logs: allLogs,
+                    });
+                }
+                return res.json({ ok: true, data: { cleared: 'all' } });
+            }
+
+            const owned = requireAccountOwner(ctx, req, rawRef);
+            if (owned.denied) {
+                return res.status(403).json({ ok: false, error: '无权操作该账号' });
+            }
+            const id = owned.id || '';
+            if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
+
             const data = ctx.provider.clearLogs(id);
 
             if (ctx.io && ctx.provider && typeof ctx.provider.getLogs === 'function') {
@@ -223,10 +289,14 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
                     logs: Array.isArray(accountLogs) ? accountLogs : [],
                 });
 
-                const allLogs = ctx.provider.getLogs('', { limit: 100 });
-                ctx.io.to('account:all').emit('logs:snapshot', {
+                const ownedAll: any[] = [];
+                for (const accId of getAccountIds(ctx, username)) {
+                    const logs = ctx.provider.getLogs(accId, { limit: 100 });
+                    if (Array.isArray(logs)) ownedAll.push(...logs);
+                }
+                ctx.io.to(`account:all:${username}`).emit('logs:snapshot', {
                     accountId: 'all',
-                    logs: Array.isArray(allLogs) ? allLogs : [],
+                    logs: ownedAll,
                 });
             }
 

@@ -323,9 +323,14 @@ function createDataProvider(options: DataProviderOptions) {
             }
         },
 
-        getAccounts: () => {
+        getAccounts: (owner?: string) => {
             const data = getAccounts();
-            data.accounts.forEach((a: any) => {
+            const ownerKey = owner ? String(owner) : '';
+            let accounts = Array.isArray(data.accounts) ? data.accounts : [];
+            if (ownerKey) {
+                accounts = accounts.filter((a: any) => String(a.owner || '') === ownerKey);
+            }
+            accounts.forEach((a: any) => {
                 const worker = workers[a.id];
                 a.running = !!worker;
                 if (worker && worker.status && worker.status.status && worker.status.status.name) {
@@ -335,7 +340,7 @@ function createDataProvider(options: DataProviderOptions) {
                     a.avatar = worker.status.status.avatarUrl;
                 }
             });
-            return data;
+            return { ...data, accounts };
         },
 
         startAccount: (accountRef: string) => {

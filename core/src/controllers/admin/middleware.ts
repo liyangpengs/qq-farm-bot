@@ -4,7 +4,7 @@ export {};
 
 const crypto = require('node:crypto');
 const store = require('../../models/store');
-const { normalizeAccountRef, resolveAccountId } = require('../../services/account-resolver');
+const { normalizeAccountRef, resolveAccountId, findAccountByRef } = require('../../services/account-resolver');
 
 interface AuthenticatedRequest extends Request {
     adminToken?: string;
@@ -41,21 +41,24 @@ function createAuthRequired(ctx: AdminContext) {
     };
 }
 
-function getAccountList(ctx: AdminContext): any[] {
-    try {
-        if (ctx.provider && typeof ctx.provider.getAccounts === 'function') {
-            const data = ctx.provider.getAccounts();
+function getAccountList(ctx: AdminContext, owner?: string): any[] {
+    const ownerKey = owner ? String(owner) : '';
+    if (ctx.provider && typeof ctx.provider.getAccounts === 'function') {
+        try {
+            const data = ctx.provider.getAccounts(ownerKey);
             if (Array.isArray(data?.accounts)) return data.accounts;
+        } catch {
+            // Fall back to persistent storage.
         }
-    } catch {
-        // Fall back to persistent storage.
     }
     const data = store.getAccounts ? store.getAccounts() : { accounts: [] };
-    return Array.isArray(data.accounts) ? data.accounts : [];
+    let list = Array.isArray(data.accounts) ? data.accounts : [];
+    if (ownerKey) list = list.filter((account: any) => String(account.owner || '') === ownerKey);
+    return list;
 }
 
-function getAccountIds(ctx: AdminContext): string[] {
-    return getAccountList(ctx).map((account: any) => String(account.id || '')).filter(Boolean);
+function getAccountIds(ctx: AdminContext, owner?: string): string[] {
+    return getAccountList(ctx, owner).map((account: any) => String(account.id || '')).filter(Boolean);
 }
 
 const isSoftRuntimeError = (err: any): boolean => {
@@ -81,8 +84,34 @@ function resolveAccId(ctx: AdminContext, rawRef: any): string {
     return resolveAccountId(getAccountList(ctx), input) || input;
 }
 
+/**
+ * 校验账号归属：解析 rawRef 指向的账号，若存在但不属于当前登录管理员则返回 denied。
+ * 不存在的引用返回 id（交给上游处理）。
+ */
+function requireAccountOwner(ctx: AdminContext, req: Request, rawRef: any): { denied?: boolean; id?: string; account?: any } {
+    const input = normalizeAccountRef(rawRef);
+    if (!input) return {};
+    const username = String((req as any).adminUser || '');
+    const account = findAccountByRef(getAccountList(ctx), input);
+    if (!account) {
+        return { id: resolveAccId(ctx, input) || input };
+    }
+    if (String(account.owner || '') !== username) {
+        return { denied: true };
+    }
+    return { id: String(account.id || ''), account };
+}
+
 function getAccId(ctx: AdminContext, req: Request): string {
-    return resolveAccId(ctx, req.headers['x-account-id']);
+    const input = normalizeAccountRef(req.headers['x-account-id']);
+    if (!input) return '';
+    const accountId = resolveAccId(ctx, input);
+    if (!accountId) return '';
+    // 归属校验：解析出的账号必须属于当前登录管理员
+    const account = findAccountByRef(getAccountList(ctx), accountId);
+    const username = String((req as any).adminUser || '');
+    if (account && String(account.owner || '') !== username) return '';
+    return accountId;
 }
 
 function buildKnownFriendGidSettings(accountId: string): {
@@ -110,6 +139,7 @@ module.exports = {
     isSoftRuntimeError,
     handleApiError,
     resolveAccId,
+    requireAccountOwner,
     getAccId,
     buildKnownFriendGidSettings,
 };

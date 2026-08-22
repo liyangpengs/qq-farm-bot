@@ -8,34 +8,52 @@ const { Server } = require('socket.io');
 const SocketIOServer = Server;
 
 const {
-    resolveAccId,
+    getAccountList,
+    getAccountIds,
 } = require('./middleware');
+const { findAccountByRef } = require('../../services/account-resolver');
 
 function applySocketSubscription(ctx: AdminContext, socket: any, accountRef: string = ''): void {
     const incoming = String(accountRef || '').trim();
-    const resolved = incoming && incoming !== 'all' ? resolveAccId(ctx, incoming) : '';
+    const username = String(ctx.tokens.get(String(socket.data.adminToken || '')) || '');
 
     for (const room of socket.rooms) {
         if (room.startsWith('account:')) socket.leave(room);
     }
-    if (resolved) {
-        socket.join(`account:${resolved}`);
-        socket.data.accountId = resolved;
-    } else {
-        socket.join('account:all');
-        socket.data.accountId = '';
+    socket.data.accountId = '';
+
+    if (incoming && incoming !== 'all') {
+        // 只允许订阅自己名下的账号
+        const account = findAccountByRef(getAccountList(ctx, username), incoming);
+        if (account && String(account.owner || '') === username) {
+            socket.join(`account:${account.id}`);
+            socket.data.accountId = String(account.id);
+        }
+    } else if (username) {
+        // “全部”改为归属限定房间，仅聚合当前管理员名下账号
+        socket.join(`account:all:${username}`);
+        socket.data.accountId = 'all';
     }
+
     socket.emit('subscribed', { accountId: socket.data.accountId || 'all' });
 
     try {
         const targetId = socket.data.accountId || '';
-        if (targetId && ctx.provider && typeof ctx.provider.getStatus === 'function') {
+        if (targetId && targetId !== 'all' && ctx.provider && typeof ctx.provider.getStatus === 'function') {
             const currentStatus = ctx.provider.getStatus(targetId);
             socket.emit('status:update', { accountId: targetId, status: currentStatus });
         }
         if (ctx.provider && typeof ctx.provider.getLogs === 'function') {
-            let currentLogs: any[] = ctx.provider.getLogs(targetId, { limit: 100 });
-            if (!Array.isArray(currentLogs)) currentLogs = [];
+            let currentLogs: any[] = [];
+            if (targetId === 'all') {
+                for (const accId of getAccountIds(ctx, username)) {
+                    const logs = ctx.provider.getLogs(accId, { limit: 100 });
+                    if (Array.isArray(logs)) currentLogs.push(...logs);
+                }
+            } else {
+                const logs = ctx.provider.getLogs(targetId, { limit: 100 });
+                if (Array.isArray(logs)) currentLogs = logs;
+            }
 
             socket.emit('logs:snapshot', {
                 accountId: targetId || 'all',
@@ -45,6 +63,11 @@ function applySocketSubscription(ctx: AdminContext, socket: any, accountRef: str
         if (ctx.provider && typeof ctx.provider.getAccountLogs === 'function') {
             let currentAccountLogs: any[] = ctx.provider.getAccountLogs(100);
             if (!Array.isArray(currentAccountLogs)) currentAccountLogs = [];
+            const ownedIds = new Set(getAccountIds(ctx, username));
+            currentAccountLogs = currentAccountLogs.filter((entry: any) => {
+                const accId = String((entry && entry.accountId) || '');
+                return !accId || ownedIds.has(accId);
+            });
 
             socket.emit('account-logs:snapshot', {
                 logs: currentAccountLogs,

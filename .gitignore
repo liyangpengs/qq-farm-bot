@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 bun.lock
+.pnpm-store
 
 # Build output
 core/dist/

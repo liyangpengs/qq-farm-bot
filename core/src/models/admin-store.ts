@@ -54,14 +54,7 @@ function loadAdmins(): AdminRecord[] {
         admins = [];
     }
     if (admins.length === 0) {
-        admins = [{
-            username: 'admin',
-            password: security.hashPassword('admin'),
-            createdAt: Date.now(),
-            mustChangePassword: true,
-        }];
-        saveAdmins();
-        console.log('[管理员] 已创建默认账号 admin，默认密码 admin');
+        console.warn('[管理员] 未配置管理员账号，请手动运行 add-admin.js 创建');
     }
     return admins;
 }
@@ -85,6 +78,9 @@ function validateAdmin(username: string, password: string, ip: string = 'unknown
     if (lockout.locked) return { error: 'locked', ...lockout };
 
     const current = loadAdmins();
+    if (current.length === 0) {
+        return { error: 'no_admin', message: '系统尚未创建管理员账号，请先在项目根目录运行 add-admin.js 创建' };
+    }
     const target = current.find(a => a.username === username);
     if (!target || !security.verifyPassword(password, target.password)) {
         const attempt = security.recordFailedAttempt();

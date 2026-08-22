@@ -79,7 +79,7 @@
 
 ## 修改管理员密码
 
-`data/admin.json` 中存储的是 bcrypt 哈希，无法直接修改明文。如需重置密码，删除 `admin.json` 后重启服务，系统会自动创建默认账号 `admin` / `admin`。
+`data/admin.json` 中存储的是 bcrypt 哈希，无法直接修改明文。如需重置密码，删除 `admin.json` 后重启服务，再运行 `node add-admin.js <用户名> <密码>` 创建新的管理员账号（系统不会再自动创建默认账号）。
 
 ## 管理面板多管理员
 

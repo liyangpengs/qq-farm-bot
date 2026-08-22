@@ -14,7 +14,7 @@ const {
     createAuthRequired,
     getAccId,
     handleApiError,
-    resolveAccId,
+    requireAccountOwner,
 } = require('./middleware');
 
 function mountFarmRoutes(app: Application, ctx: AdminContext): void {
@@ -487,7 +487,11 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
     // API: 启动账号
     app.post('/api/accounts/:id/start', (req: Request, res: Response) => {
         try {
-            const accountId = resolveAccId(ctx, req.params.id);
+            const owned = requireAccountOwner(ctx, req, req.params.id);
+            if (owned.denied) {
+                return res.status(403).json({ ok: false, error: '无权操作该账号' });
+            }
+            const accountId = owned.id || '';
 
             const ok = ctx.provider.startAccount(accountId);
             if (!ok) {
@@ -502,7 +506,11 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
     // API: 停止账号
     app.post('/api/accounts/:id/stop', (req: Request, res: Response) => {
         try {
-            const accountId = resolveAccId(ctx, req.params.id);
+            const owned = requireAccountOwner(ctx, req, req.params.id);
+            if (owned.denied) {
+                return res.status(403).json({ ok: false, error: '无权操作该账号' });
+            }
+            const accountId = owned.id || '';
 
             const ok = ctx.provider.stopAccount(accountId);
             if (!ok) {
