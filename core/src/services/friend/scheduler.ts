@@ -62,6 +62,8 @@ let badOperationLimitReached: boolean = false;
 // PutInsects additionally reports 10004, but 10003 is the shared daily quota.
 const BAD_SHARED_LIMIT_ID: number = 10003;
 const BAD_DAILY_STATE_VERSION: number = 1;
+// 帮助经验相关操作 ID（除草/除虫/浇水）
+const HELP_EXP_LIMIT_IDS: number[] = [10005, 10006, 10007];
 
 const OP_NAMES: Record<number, string> = {
     10001: '浇水',
@@ -174,6 +176,9 @@ export function updateOperationLimits(limits: any[]): void {
             operationLimits.set(id, data);
             if (id === BAD_SHARED_LIMIT_ID && data.dayTimesLimit > 0 && data.dayTimes >= data.dayTimesLimit) {
                 markBadOperationLimitReached('operation_limit');
+            }
+            if (HELP_EXP_LIMIT_IDS.includes(id) && data.dayExpTimesLimit > 0 && data.dayExpTimes >= data.dayExpTimesLimit) {
+                autoDisableHelpByExpLimit();
             }
         }
     }
