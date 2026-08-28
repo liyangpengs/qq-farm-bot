@@ -156,3 +156,109 @@ test('friend weather scan keeps the five-friend batch contract', () => {
         { code: 'WEATHER_SCAN_BATCH_TOO_LARGE' },
     );
 });
+
+test('friend weather scans submit one account task per farm visit', async (t) => {
+    const runner = require('../dist/app/account-task-runner');
+    const friendApi = require('../dist/services/friend/api');
+    const network = require('../dist/utils/network');
+    const utils = require('../dist/utils/utils');
+    const weatherModulePath = require.resolve('../dist/services/weather-activity');
+    const originals = {
+        submitAccountTask: runner.submitAccountTask,
+        enterFriendFarm: friendApi.enterFriendFarm,
+        leaveFriendFarm: friendApi.leaveFriendFarm,
+        getUserState: network.getUserState,
+        sleep: utils.sleep,
+    };
+    t.after(() => {
+        Object.assign(runner, { submitAccountTask: originals.submitAccountTask });
+        Object.assign(friendApi, {
+            enterFriendFarm: originals.enterFriendFarm,
+            leaveFriendFarm: originals.leaveFriendFarm,
+        });
+        Object.assign(network, { getUserState: originals.getUserState });
+        Object.assign(utils, { sleep: originals.sleep });
+        delete require.cache[weatherModulePath];
+    });
+
+    const submissions = [];
+    const visits = [];
+    runner.submitAccountTask = async (name, run, options) => {
+        submissions.push({ name, options });
+        return run();
+    };
+    friendApi.enterFriendFarm = async (gid) => {
+        visits.push(`enter:${gid}`);
+        return { basic: { name: `friend-${gid}` }, lands: [], weather: {} };
+    };
+    friendApi.leaveFriendFarm = async (gid) => {
+        visits.push(`leave:${gid}`);
+    };
+    network.getUserState = () => ({ gid: 99 });
+    utils.sleep = async () => {};
+
+    delete require.cache[weatherModulePath];
+    const { scanWeatherFriends } = require(weatherModulePath);
+    const result = await scanWeatherFriends([11, 12]);
+
+    assert.deepEqual(submissions, [
+        {
+            name: 'weather.friend-inspect:11',
+            options: { priority: 'interactive', dedupeKey: 'weather.friend-inspect:11' },
+        },
+        {
+            name: 'weather.friend-inspect:12',
+            options: { priority: 'interactive', dedupeKey: 'weather.friend-inspect:12' },
+        },
+    ]);
+    assert.deepEqual(visits, ['enter:11', 'leave:11', 'enter:12', 'leave:12']);
+    assert.deepEqual(result.friends.map(entry => entry.gid), ['11', '12']);
+});
+
+test('friend weather scans yield the account queue between two farm visits', async (t) => {
+    const runner = require('../dist/app/account-task-runner');
+    const friendApi = require('../dist/services/friend/api');
+    const network = require('../dist/utils/network');
+    const utils = require('../dist/utils/utils');
+    const weatherModulePath = require.resolve('../dist/services/weather-activity');
+    const originals = {
+        enterFriendFarm: friendApi.enterFriendFarm,
+        leaveFriendFarm: friendApi.leaveFriendFarm,
+        getUserState: network.getUserState,
+        sleep: utils.sleep,
+    };
+    t.after(() => {
+        Object.assign(friendApi, {
+            enterFriendFarm: originals.enterFriendFarm,
+            leaveFriendFarm: originals.leaveFriendFarm,
+        });
+        Object.assign(network, { getUserState: originals.getUserState });
+        Object.assign(utils, { sleep: originals.sleep });
+        runner.clearPendingAccountTasks('test cleanup');
+        delete require.cache[weatherModulePath];
+    });
+
+    const events = [];
+    friendApi.enterFriendFarm = async gid => events.push(`enter:${gid}`);
+    friendApi.leaveFriendFarm = async gid => events.push(`leave:${gid}`);
+    network.getUserState = () => ({ gid: 99 });
+    utils.sleep = async () => {};
+
+    delete require.cache[weatherModulePath];
+    const { scanWeatherFriends } = require(weatherModulePath);
+    const scan = scanWeatherFriends([11, 12]);
+    const manual = runner.submitAccountTask(
+        'manual.operation',
+        () => events.push('manual'),
+        { priority: 'interactive' },
+    );
+
+    await Promise.all([scan, manual]);
+    assert.deepEqual(events, [
+        'enter:11',
+        'leave:11',
+        'manual',
+        'enter:12',
+        'leave:12',
+    ]);
+});

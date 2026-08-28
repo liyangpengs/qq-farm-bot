@@ -7,6 +7,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
 import AccountModal from '@/components/AccountModal.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import RemarkModal from '@/components/RemarkModal.vue'
 import { menuRoutes } from '@/router/menu'
 import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/account'
@@ -41,6 +42,7 @@ const showAccountModal = ref(false)
 const showRemarkModal = ref(false)
 const tokenVisible = ref(false)
 const tokenCopied = ref(false)
+const showTokenResetConfirm = ref(false)
 const accountToEdit = ref<any>(null)
 const wsErrorNotifiedAt = ref<Record<string, number>>({})
 const accountAvatarErrors = ref<Set<string>>(new Set())
@@ -138,11 +140,13 @@ function toggleAccountDropdown() {
   }
 }
 
-function toggleTokenDropdown() {
+async function toggleTokenDropdown() {
   showTokenDropdown.value = !showTokenDropdown.value
   if (showTokenDropdown.value) {
     showUserDropdown.value = false
     showAccountDropdown.value = false
+    if (!userStore.apiToken)
+      await userStore.fetchApiToken()
   }
 }
 
@@ -305,7 +309,7 @@ async function handleLogout() {
 }
 
 async function copyToken() {
-  const tokenValue = userStore.token
+  const tokenValue = userStore.apiToken
   if (!tokenValue)
     return
 
@@ -318,6 +322,15 @@ async function copyToken() {
   }
   catch (e) {
     console.error('复制失败', e)
+  }
+}
+
+async function resetApiToken() {
+  const result = await userStore.resetApiToken()
+  if (result?.ok) {
+    tokenVisible.value = true
+    tokenCopied.value = false
+    showTokenResetConfirm.value = false
   }
 }
 </script>
@@ -661,8 +674,15 @@ async function copyToken() {
           </button>
         </div>
         <div class="break-all rounded-xl bg-gray-100/50 px-2 py-1.5 text-[10px] text-gray-600 font-mono dark:bg-gray-700/50 dark:text-gray-400">
-          {{ tokenVisible ? userStore.token : '••••••••••••••••' }}
+          {{ userStore.apiTokenLoading ? '加载中...' : tokenVisible ? userStore.apiToken : '••••••••••••••••' }}
         </div>
+        <button
+          type="button"
+          class="mt-1 w-full rounded-lg px-2 py-1 text-left text-[11px] text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
+          @click="showTokenResetConfirm = true"
+        >
+          重置 Token
+        </button>
       </div>
     </div>
 
@@ -769,6 +789,17 @@ async function copyToken() {
     :account="accountToEdit"
     @close="showRemarkModal = false"
     @saved="handleAccountSaved"
+  />
+
+  <ConfirmModal
+    :show="showTokenResetConfirm"
+    title="重置 API Token"
+    message="旧 Token 将立即失效，所有外部调用都需要更新。"
+    confirm-text="生成新 Token"
+    type="danger"
+    :loading="userStore.apiTokenLoading"
+    @confirm="resetApiToken"
+    @cancel="showTokenResetConfirm = false"
   />
 </template>
 

@@ -1,6 +1,6 @@
 import { useStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import api from '@/api'
 
 export interface AdminInfo {
@@ -25,6 +25,8 @@ export interface LoginResult {
 
 export const useUserStore = defineStore('user', () => {
   const token = useStorage('admin_token', '')
+  const apiToken = ref('')
+  const apiTokenLoading = ref(false)
   const userInfo = useStorage<AdminInfo | null>('user_info', null)
   const isLoggedIn = computed(() => !!token.value)
   const username = computed(() => userInfo.value?.username || '')
@@ -57,6 +59,7 @@ export const useUserStore = defineStore('user', () => {
     }
     finally {
       token.value = ''
+      apiToken.value = ''
       userInfo.value = null
     }
   }
@@ -78,8 +81,40 @@ export const useUserStore = defineStore('user', () => {
     return res.data
   }
 
+  async function fetchApiToken() {
+    apiTokenLoading.value = true
+    try {
+      const res = await api.get('/api/user/api-token')
+      apiToken.value = String(res.data?.data?.token || '')
+      return res.data
+    }
+    catch (error: any) {
+      return { ok: false, error: error.message || '获取 Token 失败' }
+    }
+    finally {
+      apiTokenLoading.value = false
+    }
+  }
+
+  async function resetApiToken() {
+    apiTokenLoading.value = true
+    try {
+      const res = await api.post('/api/user/api-token/reset')
+      apiToken.value = String(res.data?.data?.token || '')
+      return res.data
+    }
+    catch (error: any) {
+      return { ok: false, error: error.message || '重置 Token 失败' }
+    }
+    finally {
+      apiTokenLoading.value = false
+    }
+  }
+
   return {
     token,
+    apiToken,
+    apiTokenLoading,
     userInfo,
     isLoggedIn,
     username,
@@ -88,5 +123,7 @@ export const useUserStore = defineStore('user', () => {
     logout,
     fetchUserInfo,
     changePassword,
+    fetchApiToken,
+    resetApiToken,
   }
 })

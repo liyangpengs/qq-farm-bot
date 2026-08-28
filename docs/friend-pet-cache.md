@@ -37,16 +37,12 @@
 | `SYNC_BATCH_GAP_MS` | `1000` | 批与批之间再等 1 秒 |
 | `SYNC_CHECK_INTERVAL_MS` | `10 * 60 * 1000` | 每 10 分钟检查一次当天是否还有未确认的好友 |
 | `SYNC_STARTUP_DELAY_MS` | `90 * 1000` | 启动错峰 90 秒后才跑第一轮 |
-| `FRIEND_TASK_WAIT_MAX_MS` | `10000` | 进每位好友前给好友巡检让路的最长等待 |
-| `FRIEND_TASK_POLL_MS` | `250` | 让路等待的轮询间隔 |
 
-整体约 3 RPC/s，58 位好友一轮 40 秒左右，和天气扫描同一量级。启动延迟 90 秒是为了避开登录关键路径上已有的排期：农场 2 秒 / 好友 8 秒 / 每日领取 45 秒 / 神秘商店 60 秒。10 分钟的定时检查同时兼顾三种情况——开关中途打开、让路后补扫、跨日重新开始。这些常量以 `FRIEND_PET_SYNC_TUNING` 导出，便于测试和排查时读取。
+整体约 3 RPC/s，58 位好友一轮 40 秒左右，和天气扫描同一量级。启动延迟 90 秒是为了避开登录关键路径上已有的排期：农场 2 秒 / 好友 8 秒 / 每日领取 45 秒 / 神秘商店 60 秒。10 分钟的定时检查同时兼顾开关中途打开、未完成补扫和跨日重新开始。这些常量以 `FRIEND_PET_SYNC_TUNING` 导出，便于测试和排查时读取。
 
-## 让路门控
+## 账号队列
 
-好友任务的优先级高于宠物同步，门控是单向的：同步让位好友巡检，好友巡检不会等同步。
-
-进入每一位好友之前，`waitForFriendTaskIdle()` 会轮询 `scheduler.isFriendCheckRunning()`（对应 `isCheckingFriends`），最多等 `FRIEND_TASK_WAIT_MAX_MS = 10000` 毫秒、每 `FRIEND_TASK_POLL_MS = 250` 毫秒一次。等不到空闲就立刻中断本轮，把剩下的好友计入 `deferred` 留给下一次定时检查，不会逐批硬碰。同一处还会重新核对开关，运行中被关掉也会当场停下。
+好友列表读取和每位好友的 `Enter → 探测 → Leave` 都提交到账号任务队列。宠物同步使用 `maintenance` 优先级，好友巡检使用 `scheduled`，界面操作使用 `interactive`；每位好友是一个完整事务，事务之间自然让出执行权，不再维护独立轮询门控。
 
 只有 `deferred === 0`（真正跑完整轮）才 `markFullSyncDone()`，否则下一次定时检查继续补剩下的。已经在当天有结论的好友由 `collectPendingFriends()` 提前过滤掉，黑名单和失效好友（`getInvalidKnownFriendGidSet()`）同样不进名单。进农场失败时复用现成的 `handleFriendEnterError()`，封禁加黑和失效好友清理逻辑不重复实现。
 
@@ -81,7 +77,7 @@
 ## 相关文件
 
 - `core/src/services/friend/pet-cache.ts` — 三态缓存、落盘、跨日作废
-- `core/src/services/friend/pet-sync.ts` — 每日分片同步、让路门控、节奏参数
+- `core/src/services/friend/pet-sync.ts` — 每日分片同步、账号队列接入、节奏参数
 - `core/src/services/friend/api.ts` — `enterFriendFarm` 里的 write-through 写入点
 - `core/src/services/friend/visit-strategy.ts` — 经验满时按缓存决定是否进农场
 - `core/src/services/friend/scheduler.ts` — 批量帮助的缓存过滤、同步定时器挂载与停机 flush

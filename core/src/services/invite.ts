@@ -1,6 +1,6 @@
 export {};
 /**
- * 邀请码处理模块 - 读取 share.txt 并通过 ReportArkClick 申请好友
+ * 邀请码处理模块 - 处理主进程分配的 share.txt 批次
  * 注意：此功能仅在微信环境下有效
  *
  * 原理：
@@ -12,70 +12,14 @@ export {};
  */
 
 const { CONFIG } = require('../config/config');
-const { getShareFilePath } = require('../config/runtime-paths');
 const { sendMsgAsync } = require('../utils/network');
 const { types } = require('../utils/proto');
 const { toLong, log, logWarn, sleep } = require('../utils/utils');
-const { readTextFile, writeTextFileAtomic } = require('./json-db');
 
 interface ParsedShareLink {
-    uid: string | null;
-    openid: string | null;
-    shareSource: string | null;
-    docId: string | null;
-}
-
-/**
- * 解析分享链接，提取 uid 和 openid
- * 格式: ?uid=xxx&openid=xxx&share_source=xxx&doc_id=xxx
- */
-function parseShareLink(link: string): ParsedShareLink {
-    const result: ParsedShareLink = { uid: null, openid: null, shareSource: null, docId: null };
-
-    // 移除开头的 ? 如果有
-    const queryStr: string = link.startsWith('?') ? link.slice(1) : link;
-
-    // 解析参数
-    const params = new URLSearchParams(queryStr);
-    result.uid = params.get('uid');
-    result.openid = params.get('openid');
-    result.shareSource = params.get('share_source');
-    result.docId = params.get('doc_id');
-
-    return result;
-}
-
-/**
- * 读取 share.txt 文件并去重
- */
-function readShareFile(): ParsedShareLink[] {
-    const shareFilePath: string = getShareFilePath();
-
-    try {
-        const content: string = readTextFile(shareFilePath, '');
-        const lines: string[] = content.split('\n')
-            .map((line: string) => line.trim())
-            .filter((line: string) => line.length > 0 && line.includes('openid='));
-
-        const invites: ParsedShareLink[] = [];
-        const seenUids: Set<string> = new Set();  // 用于去重
-
-        for (const line of lines) {
-            const parsed: ParsedShareLink = parseShareLink(line);
-            if (parsed.openid && parsed.uid) {
-                // 按 uid 去重，同一个用户只处理一次
-                if (!seenUids.has(parsed.uid)) {
-                    seenUids.add(parsed.uid);
-                    invites.push(parsed);
-                }
-            }
-        }
-
-        return invites;
-    } catch (e: any) {
-        logWarn('邀请', `读取 share.txt 失败: ${e.message}`);
-        return [];
-    }
+    uid: string;
+    openid: string;
+    shareSource: string;
 }
 
 /**
@@ -101,19 +45,25 @@ const INVITE_REQUEST_DELAY: number = 2000;
  * 处理邀请码列表
  * 仅在微信环境下执行
  */
-async function processInviteCodes(): Promise<void> {
+async function processInviteCodes(invitesInput: unknown): Promise<void> {
     // 检查是否为微信环境
     if (CONFIG.platform !== 'wx') {
         log('邀请', '当前为 QQ 环境，跳过邀请码处理（仅微信支持）');
         return;
     }
 
-    const invites: ParsedShareLink[] = readShareFile();
+    const invites: ParsedShareLink[] = Array.isArray(invitesInput)
+        ? invitesInput.map((invite: any) => ({
+            uid: String(invite?.uid || '').trim(),
+            openid: String(invite?.openid || '').trim(),
+            shareSource: String(invite?.shareSource || '').trim(),
+        })).filter((invite: ParsedShareLink) => invite.uid && invite.openid)
+        : [];
     if (invites.length === 0) {
         return;
     }
 
-    log('邀请', `读取到 ${invites.length} 个邀请码（已去重），开始逐个处理...`);
+    log('邀请', `接收到 ${invites.length} 个邀请码（已去重），开始逐个处理...`);
 
     let successCount: number = 0;
     let failCount: number = 0;
@@ -139,27 +89,9 @@ async function processInviteCodes(): Promise<void> {
 
     log('邀请', `处理完成: 成功 ${successCount}, 失败 ${failCount}`);
 
-    // 处理完成后清空文件
-    clearShareFile();
-}
-
-/**
- * 清空已处理的邀请码文件
- */
-function clearShareFile(): void {
-    const shareFilePath: string = getShareFilePath();
-    try {
-        writeTextFileAtomic(shareFilePath, '');
-        log('邀请', '已清空 share.txt');
-    } catch {
-        // 静默失败
-    }
 }
 
 module.exports = {
-    parseShareLink,
-    readShareFile,
     sendReportArkClick,
     processInviteCodes,
-    clearShareFile,
 };

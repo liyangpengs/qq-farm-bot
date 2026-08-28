@@ -3,6 +3,7 @@
  */
 
 const { parentPort } = require('node:worker_threads');
+const { KnownFriendGidSync } = require('../../app/known-friend-gid-sync');
 const { sendMsgAsync } = require('../../utils/network');
 const { types } = require('../../utils/proto');
 const { toNum, toLong, log, logWarn, randomDelay } = require('../../utils/utils');
@@ -23,6 +24,7 @@ const INVALID_KNOWN_FRIEND_GID_COOLDOWN_MS: number = 24 * 60 * 60 * 1000;
 
 let lastVisitorGidSyncAt: number = 0;
 const invalidKnownFriendGidCooldownUntil: Map<number, number> = new Map();
+const knownFriendGidSync = new KnownFriendGidSync();
 
 // ============ 内部工具函数 ============
 
@@ -38,6 +40,39 @@ export function postToMaster(payload: any): boolean {
         }
     } catch {}
     return false;
+}
+
+export function flushPendingKnownFriendGids(): boolean {
+    const pending = knownFriendGidSync.getPending();
+    if (!pending) return false;
+    return postToMaster({
+        type: 'known_friend_gids_sync',
+        revision: pending.revision,
+        baseGids: pending.baseGids,
+        gids: pending.gids,
+    });
+}
+
+export function acknowledgeKnownFriendGids(revision: any, gids?: unknown): boolean {
+    if (!knownFriendGidSync.acknowledge(Number(revision) || 0)) return false;
+    if (Array.isArray(gids)) {
+        const accountId: string = process.env.FARM_ACCOUNT_ID || '';
+        applyConfigSnapshot({ knownFriendGids: normalizeFriendGids(gids) }, { persist: false, accountId });
+    }
+    return true;
+}
+
+export function reapplyPendingKnownFriendGids(): boolean {
+    const pending = knownFriendGidSync.getPending();
+    if (!pending) return false;
+    const accountId: string = process.env.FARM_ACCOUNT_ID || '';
+    applyConfigSnapshot({ knownFriendGids: pending.gids }, { persist: false, accountId });
+    return true;
+}
+
+function publishKnownFriendGids(baseGids: number[], gids: number[]): void {
+    knownFriendGidSync.update(baseGids, gids);
+    flushPendingKnownFriendGids();
 }
 
 export function pruneInvalidKnownFriendGidCooldown(nowMs: number = Date.now()): void {
@@ -129,14 +164,9 @@ export function syncKnownFriendGidsFromFriends(friends: any[]): number[] {
         return merged;
     }
 
-    applyConfigSnapshot({ knownFriendGids: merged }, { persist: false });
-    const sent: boolean = postToMaster({
-        type: 'known_friend_gids_sync',
-        gids: merged,
-    });
-    if (!sent) {
-        applyConfigSnapshot({ knownFriendGids: merged }, { persist: true });
-    }
+    const accountId: string = process.env.FARM_ACCOUNT_ID || '';
+    applyConfigSnapshot({ knownFriendGids: merged }, { persist: false, accountId });
+    publishKnownFriendGids(current, merged);
     return merged;
 }
 
@@ -171,21 +201,15 @@ export async function syncKnownFriendGidsFromRecentVisitors(force: boolean = fal
             return getEffectiveKnownQqFriendGids();
         }
 
+        const current: number[] = normalizeFriendGids(getKnownFriendGids());
         const merged: number[] = normalizeFriendGids([
-            ...getKnownFriendGids(),
+            ...current,
             ...visitorGids,
         ]);
-        const current: number[] = normalizeFriendGids(getKnownFriendGids());
         const addedCount: number = merged.filter((gid: number) => !current.includes(gid)).length;
         if (addedCount > 0) {
             applyConfigSnapshot({ knownFriendGids: merged }, { persist: false, accountId });
-            const sent: boolean = postToMaster({
-                type: 'known_friend_gids_sync',
-                gids: merged,
-            });
-            if (!sent) {
-                applyConfigSnapshot({ knownFriendGids: merged }, { persist: true, accountId });
-            }
+            publishKnownFriendGids(current, merged);
             log('好友', `已从最近访客自动补充 ${addedCount} 个 GID，当前已知好友 GID 共 ${merged.length} 个`, {
                 module: 'friend',
                 event: '访客补充好友GID',
@@ -221,18 +245,11 @@ export function removeKnownFriendGid(friendGid: any, friendName?: string, reason
     const next: number[] = current.filter((item: number) => item !== gid);
     markKnownFriendGidInvalid(gid);
     if (next.length !== current.length) {
-        applyConfigSnapshot({ knownFriendGids: next }, { persist: false });
+        const accountId: string = process.env.FARM_ACCOUNT_ID || '';
+        applyConfigSnapshot({ knownFriendGids: next }, { persist: false, accountId });
     }
 
-    const sent: boolean = postToMaster({
-        type: 'known_friend_gid_remove',
-        gid,
-        friendName: friendName || `GID:${gid}`,
-        reason: String(reason || ''),
-    });
-    if (!sent && next.length !== current.length) {
-        applyConfigSnapshot({ knownFriendGids: next }, { persist: true });
-    }
+    publishKnownFriendGids(current, next);
 
     logWarn('好友', `检测到失效好友 GID，已自动移除: ${friendName || `GID:${gid}`}`, {
         module: 'friend',

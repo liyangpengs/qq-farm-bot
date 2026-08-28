@@ -685,26 +685,6 @@ async function performSelfInteractionItemBatch(itemIdInput: unknown, landIdsInpu
     };
 }
 
-let mutationTail: Promise<void> = Promise.resolve();
-
-function serializeMutation<T>(operation: () => Promise<T>): Promise<T> {
-    const run = mutationTail.then(operation, operation);
-    mutationTail = run.then(() => undefined, () => undefined);
-    return run;
-}
-
-function useFriendInteractionItemBatch(friendGidInput: unknown, itemIdInput: unknown, landIdsInput: unknown): Promise<any> {
-    return serializeMutation(() => performFriendInteractionItemBatch(friendGidInput, itemIdInput, landIdsInput));
-}
-
-function useFriendFarmInteractionItem(friendGidInput: unknown, itemIdInput: unknown): Promise<any> {
-    return serializeMutation(() => performFriendFarmInteractionItem(friendGidInput, itemIdInput));
-}
-
-function useSelfInteractionItemBatch(itemIdInput: unknown, landIdsInput: unknown): Promise<any> {
-    return serializeMutation(() => performSelfInteractionItemBatch(itemIdInput, landIdsInput));
-}
-
 module.exports = {
     MAX_BATCH_LANDS,
     SELF_USABLE_INTERACTION_ITEM_IDS,
@@ -712,7 +692,7 @@ module.exports = {
     isSelfLandInteractionMetadata,
     getFriendInteractionItems,
     getSelfInteractionItems,
-    useFriendInteractionItemBatch,
-    useFriendFarmInteractionItem,
-    useSelfInteractionItemBatch,
+    useFriendInteractionItemBatch: performFriendInteractionItemBatch,
+    useFriendFarmInteractionItem: performFriendFarmInteractionItem,
+    useSelfInteractionItemBatch: performSelfInteractionItemBatch,
 };

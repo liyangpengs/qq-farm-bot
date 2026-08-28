@@ -5,8 +5,6 @@ const { getServerTimeSec, toNum } = require('../utils/utils');
 const mallService = require('./mall');
 const mysteryShopService = require('./mystery-shop');
 
-let purchaseTail: Promise<void> = Promise.resolve();
-
 function businessError(code: string, message: string): Error {
     const error: any = new Error(message);
     error.code = code;
@@ -117,40 +115,32 @@ async function getMallCatalog(slotTypeInput: unknown = 1, subSlotTypeInput: unkn
     };
 }
 
-function serializePurchase<T>(operation: () => Promise<T>): Promise<T> {
-    const result = purchaseTail.then(operation, operation);
-    purchaseTail = result.then(() => undefined, () => undefined);
-    return result;
-}
-
 async function purchaseMallProduct(goodsIdInput: unknown, countInput: unknown): Promise<any> {
     const goodsId = positiveInteger(goodsIdInput, 'INVALID_GOODS_ID', 'goodsId');
     const count = positiveInteger(countInput, 'INVALID_PURCHASE_COUNT', 'count');
     if (count > 9999) throw businessError('INVALID_PURCHASE_COUNT', 'count exceeds 9999');
 
-    return serializePurchase(async () => {
-        const before = await getMallCatalog(1, 0);
-        const goods = before.goods.find((entry: any) => entry.id === goodsId);
-        if (!goods) throw businessError('GOODS_NOT_FOUND', 'Mall goods not found');
-        if (!goods.purchasable) throw businessError('GOODS_UNAVAILABLE', 'Mall goods is unavailable');
-        if (goods.limit?.remaining !== null && goods.limit?.remaining < count) {
-            throw businessError('PURCHASE_LIMIT_EXCEEDED', 'Purchase count exceeds the remaining limit');
-        }
-        if (!goods.isFree && goods.price.balance !== null && goods.price.balance < goods.price.count * count) {
-            throw businessError('INSUFFICIENT_BALANCE', 'Insufficient currency balance');
-        }
+    const before = await getMallCatalog(1, 0);
+    const goods = before.goods.find((entry: any) => entry.id === goodsId);
+    if (!goods) throw businessError('GOODS_NOT_FOUND', 'Mall goods not found');
+    if (!goods.purchasable) throw businessError('GOODS_UNAVAILABLE', 'Mall goods is unavailable');
+    if (goods.limit?.remaining !== null && goods.limit?.remaining < count) {
+        throw businessError('PURCHASE_LIMIT_EXCEEDED', 'Purchase count exceeds the remaining limit');
+    }
+    if (!goods.isFree && goods.price.balance !== null && goods.price.balance < goods.price.count * count) {
+        throw businessError('INSUFFICIENT_BALANCE', 'Insufficient currency balance');
+    }
 
-        const reply = await mallService.purchaseMallGoods(goodsId, count);
-        return {
-            purchase: {
-                goodsId: Math.max(0, toNum(reply?.goods_id)),
-                count: Math.max(0, toNum(reply?.count)),
-                rewards: (Array.isArray(reply?.reward_items) ? reply.reward_items : []).map((item: any) => itemDto(item)),
-                limit: limitDto(reply?.purchase_limit),
-            },
-            catalog: await getMallCatalog(1, 0),
-        };
-    });
+    const reply = await mallService.purchaseMallGoods(goodsId, count);
+    return {
+        purchase: {
+            goodsId: Math.max(0, toNum(reply?.goods_id)),
+            count: Math.max(0, toNum(reply?.count)),
+            rewards: (Array.isArray(reply?.reward_items) ? reply.reward_items : []).map((item: any) => itemDto(item)),
+            limit: limitDto(reply?.purchase_limit),
+        },
+        catalog: await getMallCatalog(1, 0),
+    };
 }
 
 async function getMysteryShop(): Promise<any> {
@@ -183,32 +173,30 @@ async function getMysteryShop(): Promise<any> {
 
 async function purchaseMysteryOffer(npcIdInput: unknown): Promise<any> {
     const npcId = positiveInteger(npcIdInput, 'INVALID_MYSTERY_NPC_ID', 'npcId');
-    return serializePurchase(async () => {
-        const before = await getMysteryShop();
-        const offer = before.npc;
-        if (!before.active || !offer || offer.id !== npcId) {
-            throw businessError('MYSTERY_OFFER_STALE', 'Mystery shop offer is no longer available');
-        }
-        if (offer.price.balance !== null && offer.price.balance < offer.price.count) {
-            throw businessError('INSUFFICIENT_BALANCE', 'Insufficient currency balance');
-        }
+    const before = await getMysteryShop();
+    const offer = before.npc;
+    if (!before.active || !offer || offer.id !== npcId) {
+        throw businessError('MYSTERY_OFFER_STALE', 'Mystery shop offer is no longer available');
+    }
+    if (offer.price.balance !== null && offer.price.balance < offer.price.count) {
+        throw businessError('INSUFFICIENT_BALANCE', 'Insufficient currency balance');
+    }
 
-        await mysteryShopService.buy(npcId);
-        const shop = await getMysteryShop();
-        if (shop.active && shop.npc?.id === npcId && shop.npc.reward.count >= offer.reward.count) {
-            throw businessError('MYSTERY_PURCHASE_NOT_CONFIRMED', 'Mystery shop purchase was not confirmed');
-        }
-        return {
-            purchase: {
-                npcId,
-                reward: offer.reward,
-                price: offer.price,
-                originalPrice: offer.originalPrice,
-                discountPercent: offer.discountPercent,
-            },
-            shop,
-        };
-    });
+    await mysteryShopService.buy(npcId);
+    const shop = await getMysteryShop();
+    if (shop.active && shop.npc?.id === npcId && shop.npc.reward.count >= offer.reward.count) {
+        throw businessError('MYSTERY_PURCHASE_NOT_CONFIRMED', 'Mystery shop purchase was not confirmed');
+    }
+    return {
+        purchase: {
+            npcId,
+            reward: offer.reward,
+            price: offer.price,
+            originalPrice: offer.originalPrice,
+            discountPercent: offer.discountPercent,
+        },
+        shop,
+    };
 }
 
 module.exports = {

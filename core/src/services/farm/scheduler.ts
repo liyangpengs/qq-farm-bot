@@ -3,6 +3,7 @@ export {};
  * 农场循环调度 - 循环管理、可变状态
  */
 
+const { runAccountTaskStep, submitAccountTask } = require('../../app/account-task-runner');
 const { CONFIG } = require('../../config/config');
 const { isAutomationOn, getAutomation, getFertilizerBuyOrganicCount, getFertilizerBuyOrganicThresholdHours, getFertilizerBuyNormalCount, getFertilizerBuyNormalThresholdHours, getFertilizerBuyCheckIntervalMinutes } = require('../../models/store');
 const { getUserState, networkEvents } = require('../../utils/network');
@@ -22,22 +23,23 @@ function inFarmQuietHours() {
     return require('../friend/visit-strategy').inFarmQuietHours();
 }
 
+function runFarmPhase<T>(name: string, run: () => Promise<T> | T): Promise<T> {
+    return runAccountTaskStep(`farm.phase.${name}`, run);
+}
+
 // ============ 内部状态 ============
-let isCheckingFarm: boolean = false;
 let isFirstFarmCheck: boolean = true;
 let farmLoopRunning: boolean = false;
 let externalSchedulerMode: boolean = false;
-let fertilizerBuyCheckTimer: ReturnType<typeof setInterval> | null = null;
 const farmScheduler = createScheduler('farm');
 let lastPushTime: number = 0;
 
 // ============ 农场循环 ============
 
-async function checkFarm(): Promise<boolean> {
+async function runFarmCheck(): Promise<boolean> {
     const state = getUserState();
-    if (isCheckingFarm || !state.gid || !isAutomationOn('farm')) return false;
+    if (!state.gid || !isAutomationOn('farm')) return false;
     if (inFarmQuietHours()) return false;
-    isCheckingFarm = true;
 
     try {
         // 复用手动操作逻辑
@@ -47,9 +49,14 @@ async function checkFarm(): Promise<boolean> {
     } catch (err: any) {
         logWarn('巡田', `检查失败: ${err.message}`);
         return false;
-    } finally {
-        isCheckingFarm = false;
     }
+}
+
+async function checkFarm(options: { priority?: 'event' | 'scheduled' } = {}): Promise<boolean> {
+    return submitAccountTask('farm.check', runFarmCheck, {
+        priority: options.priority || 'scheduled',
+        dedupeKey: 'farm.check',
+    });
 }
 
 /**
@@ -58,7 +65,7 @@ async function checkFarm(): Promise<boolean> {
 async function harvestMatureOwnLandsOnce(actions: string[]): Promise<number> {
     let latest: any;
     try {
-        latest = await getAllLands();
+        latest = await runFarmPhase('post-fertilizer-get-lands', getAllLands);
     } catch (e: any) {
         logWarn('收获', `施肥后刷新土地失败: ${e.message}`);
         return 0;
@@ -72,7 +79,7 @@ async function harvestMatureOwnLandsOnce(actions: string[]): Promise<number> {
     if (harvestable.length === 0) return 0;
 
     try {
-        await harvest(harvestable);
+        await runFarmPhase('post-fertilizer-harvest', () => harvest(harvestable));
         actions.push(`施肥后收获${harvestable.length}`);
         recordOperation('harvest', harvestable.length);
         networkEvents.emit('farmHarvested', {
@@ -106,7 +113,7 @@ async function runFarmOperation(
     opType: string,
     targetLandIdInput: unknown = null,
 ): Promise<{ hadWork: boolean; actions: string[] }> {
-    const landsReply = await getAllLands();
+    const landsReply: any = await runFarmPhase<any>('get-lands', getAllLands);
     if (!landsReply.lands || landsReply.lands.length === 0) {
         if (opType !== 'all') {
             log('农场', '没有土地数据');
@@ -175,7 +182,7 @@ async function runFarmOperation(
 
         if (!skipOwnWeedBug && farmingLandIds.length > 0) {
             try {
-                await farming(farmingLandIds, socialEventItemIds);
+                await runFarmPhase('farming', () => farming(farmingLandIds, socialEventItemIds));
                 const parts: string[] = [];
                 if (status.needWeed.length) parts.push(`草${status.needWeed.length}`);
                 if (status.needBug.length) parts.push(`虫${status.needBug.length}`);
@@ -200,7 +207,7 @@ async function runFarmOperation(
     if (opType === 'all' || opType === 'harvest') {
         if (status.harvestable.length > 0) {
             try {
-                harvestReply = await harvest(status.harvestable);
+                harvestReply = await runFarmPhase('harvest', () => harvest(status.harvestable));
                 log('收获', `收获完成 ${status.harvestable.length} 块土地`, {
                     module: 'farm',
                     event: '收获作物',
@@ -232,16 +239,17 @@ async function runFarmOperation(
         let allDeadLands: number[] = [...new Set(status.dead)] as number[];
 
         if (opType === 'all' && harvestedLandIds.length > 0) {
-            // 收获后延迟再铲除枯地
-            await randomDelay(1000, 1500);
-            postHarvest = await resolveRemovableHarvestedLands(harvestedLandIds, harvestReply);
+            postHarvest = await runFarmPhase('post-harvest', async () => {
+                await randomDelay(1000, 1500);
+                return resolveRemovableHarvestedLands(harvestedLandIds, harvestReply);
+            });
             allDeadLands = [...new Set([...allDeadLands, ...postHarvest.removable])];
         }
         // 注意：如果是单纯点"一键种植"，harvestedLandIds 为空，只种当前的空地/死地
         if (allDeadLands.length > 0 || allEmptyLands.length > 0) {
             try {
                 const plantCount = allDeadLands.length + allEmptyLands.length;
-                await autoPlantEmptyLands(allDeadLands, allEmptyLands);
+                await runFarmPhase('plant', () => autoPlantEmptyLands(allDeadLands, allEmptyLands));
                 actions.push(`种植${plantCount}`);
                 recordOperation('plant', plantCount);
             } catch (e: any) { logWarn('种植', e.message); }
@@ -258,7 +266,10 @@ async function runFarmOperation(
                 landIds: multiSeasonTargets,
             });
             try {
-                await runFertilizerByConfig(multiSeasonTargets, { reason: 'multi_season' });
+                await runFarmPhase(
+                    'fertilize-multi-season',
+                    () => runFertilizerByConfig(multiSeasonTargets, { reason: 'multi_season' }),
+                );
             } catch (e: any) {
                 logWarn('施肥', `多季补肥执行失败: ${e.message}`, {
                     module: 'farm',
@@ -274,20 +285,22 @@ async function runFarmOperation(
     if (shouldAutoUpgrade || opType === 'upgrade') {
         if (status.unlockable.length > 0) {
             let unlocked: number = 0;
-            for (const landId of status.unlockable) {
-                try {
-                    await unlockLand(landId, false);
-                    log('解锁', `土地#${landId} 解锁成功`, {
-                        module: 'farm', event: '解锁土地', result: 'ok', landId
-                    });
-                    unlocked++;
-                } catch (e: any) {
-                    logWarn('解锁', `土地#${landId} 解锁失败: ${e.message}`, {
-                        module: 'farm', event: '解锁土地', result: 'error', landId
-                    });
+            await runFarmPhase('unlock', async () => {
+                for (const landId of status.unlockable) {
+                    try {
+                        await unlockLand(landId, false);
+                        log('解锁', `土地#${landId} 解锁成功`, {
+                            module: 'farm', event: '解锁土地', result: 'ok', landId
+                        });
+                        unlocked++;
+                    } catch (e: any) {
+                        logWarn('解锁', `土地#${landId} 解锁失败: ${e.message}`, {
+                            module: 'farm', event: '解锁土地', result: 'error', landId
+                        });
+                    }
+                    await randomDelay(1000, 1500);
                 }
-                await randomDelay(1000, 1500);
-            }
+            });
             if (unlocked > 0) {
                 actions.push(`解锁${unlocked}`);
             }
@@ -295,21 +308,23 @@ async function runFarmOperation(
 
         if (status.upgradable.length > 0) {
             let upgraded: number = 0;
-            for (const landId of status.upgradable) {
-                try {
-                    const reply = await upgradeLand(landId);
-                    const newLevel = reply.land ? toNum(reply.land.level) : '?';
-                    log('升级', `土地#${landId} 升级成功 → 等级${newLevel}`, {
-                        module: 'farm', event: '升级土地', result: 'ok', landId, level: newLevel
-                    });
-                    upgraded++;
-                } catch (e: any) {
-                    log('升级', `土地#${landId} 升级失败: ${e.message}`, {
-                        module: 'farm', event: '升级土地', result: 'error', landId
-                    });
+            await runFarmPhase('upgrade', async () => {
+                for (const landId of status.upgradable) {
+                    try {
+                        const reply = await upgradeLand(landId);
+                        const newLevel = reply.land ? toNum(reply.land.level) : '?';
+                        log('升级', `土地#${landId} 升级成功 → 等级${newLevel}`, {
+                            module: 'farm', event: '升级土地', result: 'ok', landId, level: newLevel
+                        });
+                        upgraded++;
+                    } catch (e: any) {
+                        log('升级', `土地#${landId} 升级失败: ${e.message}`, {
+                            module: 'farm', event: '升级土地', result: 'error', landId
+                        });
+                    }
+                    await randomDelay(1000, 1500);
                 }
-                await randomDelay(1000, 1500);
-            }
+            });
             if (upgraded > 0) {
                 actions.push(`升级${upgraded}`);
                 recordOperation('upgrade', upgraded);
@@ -321,7 +336,10 @@ async function runFarmOperation(
         const fertilizerConfig = getAutomation().fertilizer || 'none';
         if (fertilizerConfig === 'smart') {
             try {
-                const result = await runFertilizerByConfig([], { skipNormal: true });
+                const result = await runFarmPhase(
+                    'fertilize-smart',
+                    () => runFertilizerByConfig([], { skipNormal: true }),
+                );
                 if (result.organic > 0) {
                     actions.push(`有机肥${result.organic}`);
                     await harvestMatureOwnLandsOnce(actions);
@@ -369,7 +387,6 @@ function onLandsChangedPush(lands: any[]): void {
     if (!isAutomationOn('farm_push')) {
         return;
     }
-    if (isCheckingFarm) return;
     const now: number = Date.now();
     if (now - lastPushTime < 500) return;
     lastPushTime = now;
@@ -377,13 +394,12 @@ function onLandsChangedPush(lands: any[]): void {
         module: 'farm', event: '土地推送通知', result: 'trigger_check', count: lands.length
     });
     farmScheduler.setTimeoutTask('farm_push_check', 100, async () => {
-        if (!isCheckingFarm) await checkFarm();
+        await checkFarm({ priority: 'event' });
     });
 }
 
 function onFarmSocialEventsChangedPush(events: any[]): void {
     if (!isAutomationOn('farm_push')) return;
-    if (isCheckingFarm) return;
     const now: number = Date.now();
     if (now - lastPushTime < 500) return;
     lastPushTime = now;
@@ -392,7 +408,7 @@ function onFarmSocialEventsChangedPush(events: any[]): void {
         module: 'farm', event: '农场社交事件通知', result: 'trigger_check', count
     });
     farmScheduler.setTimeoutTask('farm_push_check', 100, async () => {
-        if (!isCheckingFarm) await checkFarm();
+        await checkFarm({ priority: 'event' });
     });
 }
 
@@ -413,9 +429,7 @@ function refreshFarmCheckLoop(delayMs: number = 200): void {
 
 // ============ 化肥自动购买定时检测 ============
 function startFertilizerBuyCheckTimer(): void {
-    if (fertilizerBuyCheckTimer) {
-        clearInterval(fertilizerBuyCheckTimer);
-    }
+    farmScheduler.clear('fertilizer_buy_check');
 
     // 检查是否有开启的化肥购买功能
     if (!isAutomationOn('fertilizer_buy_organic') && !isAutomationOn('fertilizer_buy_normal')) {
@@ -426,9 +440,9 @@ function startFertilizerBuyCheckTimer(): void {
     const intervalMinutes: number = getFertilizerBuyCheckIntervalMinutes();
     const intervalMs: number = intervalMinutes * 60 * 1000;
 
-    fertilizerBuyCheckTimer = setInterval(() => {
-        checkFertilizerBuyOnce();
-    }, intervalMs);
+    farmScheduler.setIntervalTask('fertilizer_buy_check', intervalMs, checkFertilizerBuyOnce, {
+        preventOverlap: true,
+    });
 
     log('农场', `化肥自动购买检测定时器已启动，间隔 ${intervalMinutes} 分钟`, {
         module: 'farm',
@@ -439,10 +453,7 @@ function startFertilizerBuyCheckTimer(): void {
 }
 
 function stopFertilizerBuyCheckTimer(): void {
-    if (fertilizerBuyCheckTimer) {
-        clearInterval(fertilizerBuyCheckTimer);
-        fertilizerBuyCheckTimer = null;
-    }
+    farmScheduler.clear('fertilizer_buy_check');
     log('农场', '化肥自动购买检测定时器已停止', {
         module: 'farm',
         event: '购买化肥计时器',
@@ -450,7 +461,7 @@ function stopFertilizerBuyCheckTimer(): void {
     });
 }
 
-async function checkFertilizerBuyOnce(): Promise<void> {
+async function runFertilizerBuyCheck(): Promise<void> {
     if (!isAutomationOn('fertilizer_buy_organic') && !isAutomationOn('fertilizer_buy_normal')) {
         return;
     }
@@ -474,6 +485,13 @@ async function checkFertilizerBuyOnce(): Promise<void> {
             error: e.message,
         });
     }
+}
+
+async function checkFertilizerBuyOnce(): Promise<void> {
+    return submitAccountTask('farm.fertilizer-buy', runFertilizerBuyCheck, {
+        priority: 'maintenance',
+        dedupeKey: 'farm.fertilizer-buy',
+    });
 }
 
 module.exports = {

@@ -1,4 +1,4 @@
-/** 活动中心协议查询、写操作串行化与稳定 JSON DTO。 */
+/** 活动中心协议查询与稳定 JSON DTO。 */
 
 import type Long from 'long';
 import constellationCatalog from '../activity-data/constellation-2026072701.json';
@@ -85,7 +85,6 @@ function positiveDecimal(value: unknown, code: string, fieldName: string): strin
     return normalized;
 }
 
-let mutationTail: Promise<void> = Promise.resolve();
 let pendingSnapshotRequest: Promise<any> | null = null;
 let qingMeiSeedClaimedDateKey = '';
 const lastConstellationState = new Map<string, any>();
@@ -1148,153 +1147,143 @@ async function getActivityDirectorySnapshot() {
 }
 
 async function claimQingMeiDailySeed() {
-    return serializeMutation(async () => {
-        let reply: any = null;
-        let alreadyClaimed = false;
-        try {
-            reply = await operateQingMei(types.ClaimQingMeiDailySeedRequest, {
-                activity_id: QINGMEI_DAILY_ACTIVITY_ID,
-                operate_type: CLAIM_QINGMEI_SEED_OPERATE_TYPE,
-                params: { grant_id: QINGMEI_DAILY_GRANT_ID },
-            }, [QINGMEI_DAILY_ALREADY_CLAIMED_CODE]);
-        } catch (error: any) {
-            if (!(error instanceof GatewayError) || error.code !== QINGMEI_DAILY_ALREADY_CLAIMED_CODE) {
-                throw error;
-            }
-            alreadyClaimed = true;
+    let reply: any = null;
+    let alreadyClaimed = false;
+    try {
+        reply = await operateQingMei(types.ClaimQingMeiDailySeedRequest, {
+            activity_id: QINGMEI_DAILY_ACTIVITY_ID,
+            operate_type: CLAIM_QINGMEI_SEED_OPERATE_TYPE,
+            params: { grant_id: QINGMEI_DAILY_GRANT_ID },
+        }, [QINGMEI_DAILY_ALREADY_CLAIMED_CODE]);
+    } catch (error: any) {
+        if (!(error instanceof GatewayError) || error.code !== QINGMEI_DAILY_ALREADY_CLAIMED_CODE) {
+            throw error;
         }
-        qingMeiSeedClaimedDateKey = getSystemDateKey();
-        return {
-            rewards: (Array.isArray(reply?.rewards) ? reply.rewards : []).map(itemDto),
-            message: alreadyClaimed ? '今日青梅种子已经领取，无需重复领取' : '青梅种子领取成功',
-            snapshot: await getActivityCenterSnapshot(),
-        };
-    });
+        alreadyClaimed = true;
+    }
+    qingMeiSeedClaimedDateKey = getSystemDateKey();
+    return {
+        rewards: (Array.isArray(reply?.rewards) ? reply.rewards : []).map(itemDto),
+        message: alreadyClaimed ? '今日青梅种子已经领取，无需重复领取' : '青梅种子领取成功',
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 async function startQingMeiBrew(input: unknown) {
-    return serializeMutation(async () => {
-        const bagReply = await getBag();
-        const candidates = qingMeiIngredients(bagReply);
-        let requested: any[];
-        if (Array.isArray(input)) {
-            requested = input;
-        } else {
-            const legacyCount = positiveDecimal(input, 'INVALID_QINGMEI_COUNT', 'count');
-            const candidate = candidates.find((item: any) => BigInt(item.count) >= BigInt(legacyCount));
-            requested = [{ uid: candidate?.uid, count: legacyCount }];
+    const bagReply = await getBag();
+    const candidates = qingMeiIngredients(bagReply);
+    let requested: any[];
+    if (Array.isArray(input)) {
+        requested = input;
+    } else {
+        const legacyCount = positiveDecimal(input, 'INVALID_QINGMEI_COUNT', 'count');
+        const candidate = candidates.find((item: any) => BigInt(item.count) >= BigInt(legacyCount));
+        requested = [{ uid: candidate?.uid, count: legacyCount }];
+    }
+    if (requested.length === 0) throw businessError('INVALID_QINGMEI_INGREDIENTS', '至少选择一组青梅');
+    const seenUids = new Set<string>();
+    const ingredients = requested.map((entry: any) => {
+        const uid = positiveDecimal(entry?.uid, 'INVALID_QINGMEI_UID', 'uid');
+        const count = positiveDecimal(entry?.count, 'INVALID_QINGMEI_COUNT', 'count');
+        if (seenUids.has(uid)) throw businessError('DUPLICATE_QINGMEI_UID', `青梅 UID ${uid} 重复`);
+        seenUids.add(uid);
+        const candidate = candidates.find((item: any) => item.uid === uid);
+        if (!candidate || BigInt(candidate.count) < BigInt(count)) {
+            throw businessError('INSUFFICIENT_QINGMEI', `青梅 UID ${uid} 数量不足`);
         }
-        if (requested.length === 0) throw businessError('INVALID_QINGMEI_INGREDIENTS', '至少选择一组青梅');
-        const seenUids = new Set<string>();
-        const ingredients = requested.map((entry: any) => {
-            const uid = positiveDecimal(entry?.uid, 'INVALID_QINGMEI_UID', 'uid');
-            const count = positiveDecimal(entry?.count, 'INVALID_QINGMEI_COUNT', 'count');
-            if (seenUids.has(uid)) throw businessError('DUPLICATE_QINGMEI_UID', `青梅 UID ${uid} 重复`);
-            seenUids.add(uid);
-            const candidate = candidates.find((item: any) => item.uid === uid);
-            if (!candidate || BigInt(candidate.count) < BigInt(count)) {
-                throw businessError('INSUFFICIENT_QINGMEI', `青梅 UID ${uid} 数量不足`);
-            }
-            return { uid, count };
-        });
-        const totalCount = ingredients.reduce((sum: bigint, item: any) => sum + BigInt(item.count), 0n).toString();
-        const reply = await operateQingMei(types.StartQingMeiBrewRequest, {
-            activity_id: QINGMEI_BREW_ACTIVITY_ID,
-            operate_type: START_QINGMEI_BREW_OPERATE_TYPE,
-            params: { ingredients },
-        });
-        return {
-            activity: qingMeiDto(reply),
-            message: `已投入 ${totalCount} 个青梅开始酿造`,
-            snapshot: await getActivityCenterSnapshot(),
-        };
+        return { uid, count };
     });
+    const totalCount = ingredients.reduce((sum: bigint, item: any) => sum + BigInt(item.count), 0n).toString();
+    const reply = await operateQingMei(types.StartQingMeiBrewRequest, {
+        activity_id: QINGMEI_BREW_ACTIVITY_ID,
+        operate_type: START_QINGMEI_BREW_OPERATE_TYPE,
+        params: { ingredients },
+    });
+    return {
+        activity: qingMeiDto(reply),
+        message: `已投入 ${totalCount} 个青梅开始酿造`,
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 async function continueQingMeiBrew() {
-    return serializeMutation(async () => {
-        const reply = await operateQingMei(types.ContinueQingMeiBrewRequest, {
-            activity_id: QINGMEI_BREW_ACTIVITY_ID,
-            operate_type: CONTINUE_QINGMEI_BREW_OPERATE_TYPE,
-            params: {},
-        });
-        const quote = reply?.qingmei_quote || reply?.data?.qingmei_quote;
-        return {
-            quote: quote ? {
-                round: int64Number(quote.round),
-                unitPrice: int64String(quote.unit_price),
-                totalGold: int64String(quote.total_gold),
-                doubled: !!quote.doubled,
-            } : null,
-            message: quote ? `第 ${int64Number(quote.round)} 轮报价：${int64String(quote.total_gold)} 金币` : '酿造进度已更新',
-            snapshot: await getActivityCenterSnapshot(),
-        };
+    const reply = await operateQingMei(types.ContinueQingMeiBrewRequest, {
+        activity_id: QINGMEI_BREW_ACTIVITY_ID,
+        operate_type: CONTINUE_QINGMEI_BREW_OPERATE_TYPE,
+        params: {},
     });
+    const quote = reply?.qingmei_quote || reply?.data?.qingmei_quote;
+    return {
+        quote: quote ? {
+            round: int64Number(quote.round),
+            unitPrice: int64String(quote.unit_price),
+            totalGold: int64String(quote.total_gold),
+            doubled: !!quote.doubled,
+        } : null,
+        message: quote ? `第 ${int64Number(quote.round)} 轮报价：${int64String(quote.total_gold)} 金币` : '酿造进度已更新',
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 async function settleQingMeiBrew() {
-    return serializeMutation(async () => {
-        await reportActivityShare(QINGMEI_SHARE_SOURCE, QINGMEI_SHARE_SCENE);
-        const reply = await operateQingMei(types.SettleQingMeiBrewRequest, {
-            activity_id: QINGMEI_BREW_ACTIVITY_ID,
-            operate_type: SELL_QINGMEI_BREW_OPERATE_TYPE,
-            params: { settlement_mode: QINGMEI_SHARED_SETTLEMENT_MODE },
-        });
-        const settlement = reply?.qingmei_settlement || null;
-        const settlementReward = settlement?.reward ? [itemDto(settlement.reward)] : [];
-        return {
-            rewards: settlementReward.length > 0 ? settlementReward : (Array.isArray(reply.rewards) ? reply.rewards : []).map(itemDto),
-            settlement: settlement ? {
-                mode: int64Number(settlement.settlement_mode),
-                totalGold: int64String(settlement.total_gold),
-            } : { mode: QINGMEI_SHARED_SETTLEMENT_MODE, totalGold: '0' },
-            message: settlement
-                ? `分享出售成功（1.5倍），获得 ${int64String(settlement.total_gold)} 金币`
-                : '青梅酿已按分享奖励出售（1.5倍）',
-            snapshot: await getActivityCenterSnapshot(),
-        };
+    await reportActivityShare(QINGMEI_SHARE_SOURCE, QINGMEI_SHARE_SCENE);
+    const reply = await operateQingMei(types.SettleQingMeiBrewRequest, {
+        activity_id: QINGMEI_BREW_ACTIVITY_ID,
+        operate_type: SELL_QINGMEI_BREW_OPERATE_TYPE,
+        params: { settlement_mode: QINGMEI_SHARED_SETTLEMENT_MODE },
     });
+    const settlement = reply?.qingmei_settlement || null;
+    const settlementReward = settlement?.reward ? [itemDto(settlement.reward)] : [];
+    return {
+        rewards: settlementReward.length > 0 ? settlementReward : (Array.isArray(reply.rewards) ? reply.rewards : []).map(itemDto),
+        settlement: settlement ? {
+            mode: int64Number(settlement.settlement_mode),
+            totalGold: int64String(settlement.total_gold),
+        } : { mode: QINGMEI_SHARED_SETTLEMENT_MODE, totalGold: '0' },
+        message: settlement
+            ? `分享出售成功（1.5倍），获得 ${int64String(settlement.total_gold)} 金币`
+            : '青梅酿已按分享奖励出售（1.5倍）',
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 async function claimQixiBridgeRewards() {
-    return serializeMutation(async () => {
-        const activity = await getCurrentQixiActivity();
-        if (!activity.actions.bridge.enabled) {
-            throw businessError('QIXI_BRIDGE_UNAVAILABLE', '当前没有可领取的鹊桥奖励');
-        }
+    const activity = await getCurrentQixiActivity();
+    if (!activity.actions.bridge.enabled) {
+        throw businessError('QIXI_BRIDGE_UNAVAILABLE', '当前没有可领取的鹊桥奖励');
+    }
 
-        const request = types.ClaimQixiBridgeRewardsRequest.create({
-            activity_id: activity.bridgeActivityId,
-            operate_type: QIXI_BRIDGE_OPERATE_TYPE,
-            params: { step: 0 },
-        });
-        const body = Buffer.from(types.ClaimQixiBridgeRewardsRequest.encode(request).finish());
-        const { body: replyBody } = await sendMsgAsync(
-            'gamepb.activitypb.ActivityService',
-            'Operate',
-            body,
-        );
-        const reply = types.ActivityOperateReply.decode(replyBody);
-        if (int64String(reply.activity_id) !== activity.bridgeActivityId) {
-            throw businessError('QIXI_RESPONSE_INVALID', '鹊桥奖励回包的活动 ID 不匹配');
-        }
-        if (int64String(reply.operate_type) !== String(QIXI_BRIDGE_OPERATE_TYPE)) {
-            throw businessError('QIXI_RESPONSE_INVALID', '鹊桥奖励回包的操作类型不匹配');
-        }
-        const result = reply.qixi_bridge_result;
-        const rewards = (Array.isArray(result?.awards) ? result.awards : (Array.isArray(reply.rewards) ? reply.rewards : []))
-            .map(itemDto);
-        const claimedStages = (Array.isArray(result?.unlocked_steps) ? result.unlocked_steps : []).map(int64String);
-        return {
-            claimedStages,
-            rewards,
-            completed: !!result?.completed,
-            message: claimedStages.length > 0
-                ? `已完成第 ${claimedStages.join('、')} 阶段鹊桥并领取奖励`
-                : '鹊桥奖励领取成功',
-            snapshot: await getActivityCenterSnapshot(),
-        };
+    const request = types.ClaimQixiBridgeRewardsRequest.create({
+        activity_id: activity.bridgeActivityId,
+        operate_type: QIXI_BRIDGE_OPERATE_TYPE,
+        params: { step: 0 },
     });
+    const body = Buffer.from(types.ClaimQixiBridgeRewardsRequest.encode(request).finish());
+    const { body: replyBody } = await sendMsgAsync(
+        'gamepb.activitypb.ActivityService',
+        'Operate',
+        body,
+    );
+    const reply = types.ActivityOperateReply.decode(replyBody);
+    if (int64String(reply.activity_id) !== activity.bridgeActivityId) {
+        throw businessError('QIXI_RESPONSE_INVALID', '鹊桥奖励回包的活动 ID 不匹配');
+    }
+    if (int64String(reply.operate_type) !== String(QIXI_BRIDGE_OPERATE_TYPE)) {
+        throw businessError('QIXI_RESPONSE_INVALID', '鹊桥奖励回包的操作类型不匹配');
+    }
+    const result = reply.qixi_bridge_result;
+    const rewards = (Array.isArray(result?.awards) ? result.awards : (Array.isArray(reply.rewards) ? reply.rewards : []))
+        .map(itemDto);
+    const claimedStages = (Array.isArray(result?.unlocked_steps) ? result.unlocked_steps : []).map(int64String);
+    return {
+        claimedStages,
+        rewards,
+        completed: !!result?.completed,
+        message: claimedStages.length > 0
+            ? `已完成第 ${claimedStages.join('、')} 阶段鹊桥并领取奖励`
+            : '鹊桥奖励领取成功',
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 async function giftQixiSachet(friendGidInput: unknown, messageTextIdInput: unknown = QIXI_DEFAULT_GIFT_MESSAGE_TEXT_ID) {
@@ -1305,45 +1294,43 @@ async function giftQixiSachet(friendGidInput: unknown, messageTextIdInput: unkno
         'messageTextId',
     );
 
-    return serializeMutation(async () => {
-        const activity = await getCurrentQixiActivity();
-        if (!activity.actions.gift.enabled) {
-            throw businessError('QIXI_GIFT_UNAVAILABLE', '当前无法赠送鹊羽香囊');
-        }
-        if (activity.balances.known && BigInt(activity.balances.sachet || '0') < 1n) {
-            throw businessError('INSUFFICIENT_QIXI_SACHET', '鹊羽香囊数量不足');
-        }
+    const activity = await getCurrentQixiActivity();
+    if (!activity.actions.gift.enabled) {
+        throw businessError('QIXI_GIFT_UNAVAILABLE', '当前无法赠送鹊羽香囊');
+    }
+    if (activity.balances.known && BigInt(activity.balances.sachet || '0') < 1n) {
+        throw businessError('INSUFFICIENT_QIXI_SACHET', '鹊羽香囊数量不足');
+    }
 
-        const request = types.GiftQixiSachetRequest.create({
-            activity_id: activity.giftActivityId,
-            operate_type: QIXI_GIFT_OPERATE_TYPE,
-            params: {
-                target_gid: friendGid,
-                msg_text_id: messageTextId,
-            },
-        });
-        const body = Buffer.from(types.GiftQixiSachetRequest.encode(request).finish());
-        const { body: replyBody } = await sendMsgAsync(
-            'gamepb.activitypb.ActivityService',
-            'Operate',
-            body,
-        );
-        const reply = types.ActivityOperateReply.decode(replyBody);
-        if (int64String(reply.activity_id) !== activity.giftActivityId) {
-            throw businessError('QIXI_RESPONSE_INVALID', '鹊羽香囊回包的活动 ID 不匹配');
-        }
-        if (int64String(reply.operate_type) !== String(QIXI_GIFT_OPERATE_TYPE)) {
-            throw businessError('QIXI_RESPONSE_INVALID', '鹊羽香囊回包的操作类型不匹配');
-        }
-        return {
-            friendGid,
-            count: 1,
-            messageTextId,
-            totalSendCount: int64String(reply.qixi_gift_result?.total_send_count),
-            message: `已向好友 ${friendGid} 赠送 1 个鹊羽香囊`,
-            snapshot: await getActivityCenterSnapshot(),
-        };
+    const request = types.GiftQixiSachetRequest.create({
+        activity_id: activity.giftActivityId,
+        operate_type: QIXI_GIFT_OPERATE_TYPE,
+        params: {
+            target_gid: friendGid,
+            msg_text_id: messageTextId,
+        },
     });
+    const body = Buffer.from(types.GiftQixiSachetRequest.encode(request).finish());
+    const { body: replyBody } = await sendMsgAsync(
+        'gamepb.activitypb.ActivityService',
+        'Operate',
+        body,
+    );
+    const reply = types.ActivityOperateReply.decode(replyBody);
+    if (int64String(reply.activity_id) !== activity.giftActivityId) {
+        throw businessError('QIXI_RESPONSE_INVALID', '鹊羽香囊回包的活动 ID 不匹配');
+    }
+    if (int64String(reply.operate_type) !== String(QIXI_GIFT_OPERATE_TYPE)) {
+        throw businessError('QIXI_RESPONSE_INVALID', '鹊羽香囊回包的操作类型不匹配');
+    }
+    return {
+        friendGid,
+        count: 1,
+        messageTextId,
+        totalSendCount: int64String(reply.qixi_gift_result?.total_send_count),
+        message: `已向好友 ${friendGid} 赠送 1 个鹊羽香囊`,
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 async function getCurrentSeasonEvent() {
@@ -1413,212 +1400,167 @@ async function getCurrentStellarActivity() {
     };
 }
 
-function serializeMutation<T>(operation: () => Promise<T>): Promise<T> {
-    const result = mutationTail.then(operation, operation);
-    mutationTail = result.then(() => undefined, () => undefined);
-    return result;
-}
-
 async function claimBattlePassRewards() {
-    return serializeMutation(async () => {
-        const seasonReply = await querySeason();
-        const pass = passDto(seasonReply?.season_info?.pass);
-        if (!pass) throw new Error('服务端未发现可用游记');
-        if (!pass.nodes.some((node: any) => node.claimable)) {
-            throw new Error('当前没有可领取的游记奖励');
-        }
+    const seasonReply = await querySeason();
+    const pass = passDto(seasonReply?.season_info?.pass);
+    if (!pass) throw new Error('服务端未发现可用游记');
+    if (!pass.nodes.some((node: any) => node.claimable)) {
+        throw new Error('当前没有可领取的游记奖励');
+    }
 
-        const body = Buffer.from(types.ClaimBattlePassRewardsRequest.encode(
-            types.ClaimBattlePassRewardsRequest.create({})
-        ).finish());
-        const { body: replyBody } = await sendMsgAsync(
-            'gamepb.seasonpb.SeasonService',
-            'ClaimBattlePassRewards',
-            body
-        );
-        const reply = types.ClaimBattlePassRewardsReply.decode(replyBody);
-        return {
-            rewards: (Array.isArray(reply.rewards) ? reply.rewards : []).map(itemDto),
-            field2Codes: (Array.isArray(reply.field_2) ? reply.field_2 : []).map(int64String),
-            pass: passDto(reply.pass),
-            snapshot: await getActivityCenterSnapshot(),
-        };
-    });
+    const body = Buffer.from(types.ClaimBattlePassRewardsRequest.encode(
+        types.ClaimBattlePassRewardsRequest.create({})
+    ).finish());
+    const { body: replyBody } = await sendMsgAsync(
+        'gamepb.seasonpb.SeasonService',
+        'ClaimBattlePassRewards',
+        body
+    );
+    const reply = types.ClaimBattlePassRewardsReply.decode(replyBody);
+    return {
+        rewards: (Array.isArray(reply.rewards) ? reply.rewards : []).map(itemDto),
+        field2Codes: (Array.isArray(reply.field_2) ? reply.field_2 : []).map(int64String),
+        pass: passDto(reply.pass),
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 async function exchangeStarSandGoods(goodsIdInput: unknown, countInput: unknown) {
     const goodsId = positiveDecimal(goodsIdInput, 'INVALID_SHOP_GOODS_ID', 'goodsId');
     const count = positiveDecimal(countInput, 'INVALID_EXCHANGE_COUNT', 'count');
 
-    return serializeMutation(async () => {
-        const seasonReply = await querySeason();
-        const shopActivity = findSeasonActivity(seasonReply, SHOP_ACTIVITY_TYPE);
-        if (!shopActivity) throw businessError('SHOP_UNAVAILABLE', '当前赛季未发现活动商店');
+    const seasonReply = await querySeason();
+    const shopActivity = findSeasonActivity(seasonReply, SHOP_ACTIVITY_TYPE);
+    if (!shopActivity) throw businessError('SHOP_UNAVAILABLE', '当前赛季未发现活动商店');
 
-        const catalogReply = await queryShopCatalog(shopActivity);
-        const catalogGoods = catalogReply.data.catalog.goods;
-        const rawGoods = catalogGoods.find((entry: any) => int64String(entry?.goods_id) === goodsId);
-        if (!rawGoods) throw businessError('SHOP_GOODS_NOT_FOUND', '活动商店中未找到指定商品');
+    const catalogReply = await queryShopCatalog(shopActivity);
+    const catalogGoods = catalogReply.data.catalog.goods;
+    const rawGoods = catalogGoods.find((entry: any) => int64String(entry?.goods_id) === goodsId);
+    if (!rawGoods) throw businessError('SHOP_GOODS_NOT_FOUND', '活动商店中未找到指定商品');
 
-        const currencyId = int64String(rawGoods?.cost?.item_id);
-        const unitCostText = int64String(rawGoods?.cost?.count);
-        const unitCost = BigInt(unitCostText);
-        if (currencyId === '0' || unitCost <= 0n) {
-            throw businessError('SHOP_RESPONSE_INVALID', '商品兑换成本无效，请刷新商店后重试');
-        }
+    const currencyId = int64String(rawGoods?.cost?.item_id);
+    const unitCostText = int64String(rawGoods?.cost?.count);
+    const unitCost = BigInt(unitCostText);
+    if (currencyId === '0' || unitCost <= 0n) {
+        throw businessError('SHOP_RESPONSE_INVALID', '商品兑换成本无效，请刷新商店后重试');
+    }
 
-        let balances: Map<string, string>;
-        try {
-            balances = readBagBalances(await getBag(), [currencyId]);
-        } catch {
-            throw businessError('SHOP_BALANCE_UNAVAILABLE', '无法确认当前星砂余额，请稍后重试');
-        }
-        const shopBefore = normalizeShopFromReply(seasonReply, shopActivity, catalogReply, balances);
-        const normalizedGoods = shopBefore.goods.find((entry: any) => entry.id === goodsId);
-        if (!normalizedGoods) throw businessError('SHOP_GOODS_NOT_FOUND', '活动商店中未找到指定商品');
-        if (!normalizedGoods.exchangeable || normalizedGoods.soldOut) {
-            throw businessError('SHOP_GOODS_UNAVAILABLE', '该商品当前不可兑换，请刷新商店后重试');
-        }
+    let balances: Map<string, string>;
+    try {
+        balances = readBagBalances(await getBag(), [currencyId]);
+    } catch {
+        throw businessError('SHOP_BALANCE_UNAVAILABLE', '无法确认当前星砂余额，请稍后重试');
+    }
+    const shopBefore = normalizeShopFromReply(seasonReply, shopActivity, catalogReply, balances);
+    const normalizedGoods = shopBefore.goods.find((entry: any) => entry.id === goodsId);
+    if (!normalizedGoods) throw businessError('SHOP_GOODS_NOT_FOUND', '活动商店中未找到指定商品');
+    if (!normalizedGoods.exchangeable || normalizedGoods.soldOut) {
+        throw businessError('SHOP_GOODS_UNAVAILABLE', '该商品当前不可兑换，请刷新商店后重试');
+    }
 
-        const purchaseCount = BigInt(count);
-        const totalCost = unitCost * purchaseCount;
-        const balance = BigInt(balances.get(currencyId) || '0');
-        if (balance < totalCost) {
-            throw businessError('INSUFFICIENT_STAR_SAND', '星砂余额不足，无法完成本次兑换');
-        }
+    const purchaseCount = BigInt(count);
+    const totalCost = unitCost * purchaseCount;
+    const balance = BigInt(balances.get(currencyId) || '0');
+    if (balance < totalCost) {
+        throw businessError('INSUFFICIENT_STAR_SAND', '星砂余额不足，无法完成本次兑换');
+    }
 
-        const request = types.ExchangeShopRequest.create({
-            activity_id: shopActivity.activity_id,
-            operate_type: EXCHANGE_SHOP_OPERATE_TYPE,
-            exchange_shop_operate: {
-                goods_id: goodsId,
-                count,
-            },
-        });
-        const body = Buffer.from(types.ExchangeShopRequest.encode(request).finish());
-        // 写操作只发送一次；任何超时或网络错误均直接返回，不自动重试。
-        const { body: replyBody } = await sendMsgAsync('gamepb.activitypb.ActivityService', 'Operate', body);
-        const reply = types.ActivityOperateReply.decode(replyBody);
-        if (int64String(reply.activity_id) !== int64String(shopActivity.activity_id)) {
-            throw businessError('SHOP_RESPONSE_INVALID', '活动商店兑换返回了不匹配的活动 ID');
-        }
-        if (int64String(reply.operate_type) !== String(EXCHANGE_SHOP_OPERATE_TYPE)) {
-            throw businessError('SHOP_RESPONSE_INVALID', `活动商店兑换返回了未知操作类型: ${int64String(reply.operate_type)}`);
-        }
-        if (!reply.data?.catalog || !Array.isArray(reply.data.catalog.goods)) {
-            throw businessError('SHOP_RESPONSE_INVALID', '活动商店兑换回包缺少最新商品目录');
-        }
-
-        const responseCurrencyIds: string[] = Array.from(new Set<string>(reply.data.catalog.goods
-            .map((entry: any) => int64String(entry?.cost?.item_id))
-            .filter((id: string) => id !== '0')));
-        let latestBalances: Map<string, string> | null = null;
-        try {
-            latestBalances = readBagBalances(await getBag(), responseCurrencyIds);
-        } catch {
-            // 兑换已经由服务端确认成功；刷新背包失败不能把写操作伪装成失败，以免诱导重试。
-        }
-        const shop = normalizeShopFromReply(seasonReply, shopActivity, reply, latestBalances);
-        const snapshot = await getActivityCenterSnapshot(shop);
-        const unitItemCount = BigInt(int64String(rawGoods?.item?.count));
-        const totalItemCount = (unitItemCount > 0n ? unitItemCount * purchaseCount : 0n).toString();
-        const receivedItem = itemDto({
-            item_id: rawGoods?.item?.item_id,
-            count: totalItemCount,
-        });
-        const rewards = receivedItem.id !== '0' && totalItemCount !== '0' ? [receivedItem] : [];
-        return {
-            purchaseCount: count,
-            totalItemCount,
-            totalCost: totalCost.toString(),
-            rewards,
-            receivedItems: rewards,
-            message: `兑换成功，共消耗 ${totalCost.toString()} ${normalizedGoods.cost.name || '星砂'}`,
-            shop,
-            snapshot,
-        };
+    const request = types.ExchangeShopRequest.create({
+        activity_id: shopActivity.activity_id,
+        operate_type: EXCHANGE_SHOP_OPERATE_TYPE,
+        exchange_shop_operate: {
+            goods_id: goodsId,
+            count,
+        },
     });
+    const body = Buffer.from(types.ExchangeShopRequest.encode(request).finish());
+    // 写操作只发送一次；任何超时或网络错误均直接返回，不自动重试。
+    const { body: replyBody } = await sendMsgAsync('gamepb.activitypb.ActivityService', 'Operate', body);
+    const reply = types.ActivityOperateReply.decode(replyBody);
+    if (int64String(reply.activity_id) !== int64String(shopActivity.activity_id)) {
+        throw businessError('SHOP_RESPONSE_INVALID', '活动商店兑换返回了不匹配的活动 ID');
+    }
+    if (int64String(reply.operate_type) !== String(EXCHANGE_SHOP_OPERATE_TYPE)) {
+        throw businessError('SHOP_RESPONSE_INVALID', `活动商店兑换返回了未知操作类型: ${int64String(reply.operate_type)}`);
+    }
+    if (!reply.data?.catalog || !Array.isArray(reply.data.catalog.goods)) {
+        throw businessError('SHOP_RESPONSE_INVALID', '活动商店兑换回包缺少最新商品目录');
+    }
+
+    const responseCurrencyIds: string[] = Array.from(new Set<string>(reply.data.catalog.goods
+        .map((entry: any) => int64String(entry?.cost?.item_id))
+        .filter((id: string) => id !== '0')));
+    let latestBalances: Map<string, string> | null = null;
+    try {
+        latestBalances = readBagBalances(await getBag(), responseCurrencyIds);
+    } catch {
+        // 兑换已经由服务端确认成功；刷新背包失败不能把写操作伪装成失败，以免诱导重试。
+    }
+    const shop = normalizeShopFromReply(seasonReply, shopActivity, reply, latestBalances);
+    const snapshot = await getActivityCenterSnapshot(shop);
+    const unitItemCount = BigInt(int64String(rawGoods?.item?.count));
+    const totalItemCount = (unitItemCount > 0n ? unitItemCount * purchaseCount : 0n).toString();
+    const receivedItem = itemDto({
+        item_id: rawGoods?.item?.item_id,
+        count: totalItemCount,
+    });
+    const rewards = receivedItem.id !== '0' && totalItemCount !== '0' ? [receivedItem] : [];
+    return {
+        purchaseCount: count,
+        totalItemCount,
+        totalCost: totalCost.toString(),
+        rewards,
+        receivedItems: rewards,
+        message: `兑换成功，共消耗 ${totalCost.toString()} ${normalizedGoods.cost.name || '星砂'}`,
+        shop,
+        snapshot,
+    };
 }
 
 async function lightConstellation() {
-    return serializeMutation(async () => {
-        const seasonReply = await querySeason();
-        const activity = findSeasonActivity(seasonReply, CONSTELLATION_ACTIVITY_TYPE);
-        if (!activity) throw new Error('服务端未发现星座活动');
+    const seasonReply = await querySeason();
+    const activity = findSeasonActivity(seasonReply, CONSTELLATION_ACTIVITY_TYPE);
+    if (!activity) throw new Error('服务端未发现星座活动');
 
-        const identity = constellationStateIdentity(seasonReply, activity);
-        const stateKey = stateRecordKey(identity);
-        const serverTime = int64String(seasonReply?.season_info?.server_time);
-        const startTime = int64Number(activity.begin_time);
-        const serverTimeNumber = int64Number(serverTime);
-        const currentDay = constellationDayFromBeijingMidnight(startTime, serverTimeNumber) ?? 0;
-        const activityEndTime = int64Number(activity.end_time);
-        const activityActive = serverTimeNumber > 0
-            && startTime > 0
-            && serverTimeNumber >= startTime
-            && (activityEndTime <= 0 || serverTimeNumber <= activityEndTime);
-        const request = types.OperateConstellationRequest.create({
-            activity_id: activity.activity_id,
-            operate_type: LIGHT_CONSTELLATION_OPERATE_TYPE,
-            field_119: {},
-        });
-        const body = Buffer.from(types.OperateConstellationRequest.encode(request).finish());
-        let replyBody: Buffer;
-        try {
-            ({ body: replyBody } = await sendMsgAsync(
-                'gamepb.activitypb.ActivityService',
-                'Operate',
-                body,
-                { expectedErrorCodes: [1034038] }
-            ));
-        } catch (error: any) {
-            if (!(error instanceof GatewayError)
-                || error.code !== 1034038
-                || !activityActive
-                || currentDay < 1
-                || currentDay > 28) {
-                throw error;
-            }
-
-            const rejectionState = stateWithNoClaimableDay(identity, currentDay, serverTime);
-            const mergedState = mergeConstellationStates(
-                identity,
-                loadMergedConstellationState(seasonReply, activity),
-                rejectionState
-            );
-            lastConstellationState.set(stateKey, mergedState);
-            let persistenceWarning: string | undefined;
-            try {
-                lastConstellationState.set(stateKey, persistConstellationState(mergedState, identity));
-            } catch (persistenceError: any) {
-                persistenceWarning = String(persistenceError?.message || persistenceError || '观星状态持久化失败');
-            }
-            const snapshot = await getActivityCenterSnapshot();
-            return {
-                outcome: 'nothingToClaim' as const,
-                noClaimable: true,
-                message: '今日星宿奖励已经领取，无需重复操作',
-                snapshot,
-                ...(persistenceWarning ? { persistenceWarning } : {}),
-            };
+    const identity = constellationStateIdentity(seasonReply, activity);
+    const stateKey = stateRecordKey(identity);
+    const serverTime = int64String(seasonReply?.season_info?.server_time);
+    const startTime = int64Number(activity.begin_time);
+    const serverTimeNumber = int64Number(serverTime);
+    const currentDay = constellationDayFromBeijingMidnight(startTime, serverTimeNumber) ?? 0;
+    const activityEndTime = int64Number(activity.end_time);
+    const activityActive = serverTimeNumber > 0
+        && startTime > 0
+        && serverTimeNumber >= startTime
+        && (activityEndTime <= 0 || serverTimeNumber <= activityEndTime);
+    const request = types.OperateConstellationRequest.create({
+        activity_id: activity.activity_id,
+        operate_type: LIGHT_CONSTELLATION_OPERATE_TYPE,
+        field_119: {},
+    });
+    const body = Buffer.from(types.OperateConstellationRequest.encode(request).finish());
+    let replyBody: Buffer;
+    try {
+        ({ body: replyBody } = await sendMsgAsync(
+            'gamepb.activitypb.ActivityService',
+            'Operate',
+            body,
+            { expectedErrorCodes: [1034038] }
+        ));
+    } catch (error: any) {
+        if (!(error instanceof GatewayError)
+            || error.code !== 1034038
+            || !activityActive
+            || currentDay < 1
+            || currentDay > 28) {
+            throw error;
         }
 
-        const reply = types.ActivityOperateReply.decode(replyBody!);
-        if (int64String(reply.activity_id) !== identity.activityId) {
-            throw new Error('星座操作返回了不匹配的活动 ID');
-        }
-        if (int64String(reply.operate_type) !== String(LIGHT_CONSTELLATION_OPERATE_TYPE)) {
-            throw new Error(`星座操作返回了未知操作类型: ${int64String(reply.operate_type)}`);
-        }
-        const constellationState = reply.data?.constellation;
-        if (!constellationState) throw new Error('星座操作成功但回包缺少动态状态');
-
-        // 回包 field_2/field_3 的 true 单调并入内存与持久状态；false 不覆盖既有确认。
-        lastConstellationDynamicState.set(stateKey, constellationState);
+        const rejectionState = stateWithNoClaimableDay(identity, currentDay, serverTime);
         const mergedState = mergeConstellationStates(
             identity,
             loadMergedConstellationState(seasonReply, activity),
-            stateFromDynamicNodes(identity, constellationState.nodes)
+            rejectionState
         );
         lastConstellationState.set(stateKey, mergedState);
         let persistenceWarning: string | undefined;
@@ -1629,40 +1571,71 @@ async function lightConstellation() {
         }
         const snapshot = await getActivityCenterSnapshot();
         return {
-            outcome: 'lighted' as const,
-            rewards: [],
-            activity: reply.data?.activity ? activityDto(reply.data.activity) : activityDto(activity),
-            constellation: snapshot.constellation,
+            outcome: 'nothingToClaim' as const,
+            noClaimable: true,
+            message: '今日星宿奖励已经领取，无需重复操作',
             snapshot,
             ...(persistenceWarning ? { persistenceWarning } : {}),
         };
-    });
+    }
+
+    const reply = types.ActivityOperateReply.decode(replyBody!);
+    if (int64String(reply.activity_id) !== identity.activityId) {
+        throw new Error('星座操作返回了不匹配的活动 ID');
+    }
+    if (int64String(reply.operate_type) !== String(LIGHT_CONSTELLATION_OPERATE_TYPE)) {
+        throw new Error(`星座操作返回了未知操作类型: ${int64String(reply.operate_type)}`);
+    }
+    const constellationState = reply.data?.constellation;
+    if (!constellationState) throw new Error('星座操作成功但回包缺少动态状态');
+
+    // 回包 field_2/field_3 的 true 单调并入内存与持久状态；false 不覆盖既有确认。
+    lastConstellationDynamicState.set(stateKey, constellationState);
+    const mergedState = mergeConstellationStates(
+        identity,
+        loadMergedConstellationState(seasonReply, activity),
+        stateFromDynamicNodes(identity, constellationState.nodes)
+    );
+    lastConstellationState.set(stateKey, mergedState);
+    let persistenceWarning: string | undefined;
+    try {
+        lastConstellationState.set(stateKey, persistConstellationState(mergedState, identity));
+    } catch (persistenceError: any) {
+        persistenceWarning = String(persistenceError?.message || persistenceError || '观星状态持久化失败');
+    }
+    const snapshot = await getActivityCenterSnapshot();
+    return {
+        outcome: 'lighted' as const,
+        rewards: [],
+        activity: reply.data?.activity ? activityDto(reply.data.activity) : activityDto(activity),
+        constellation: snapshot.constellation,
+        snapshot,
+        ...(persistenceWarning ? { persistenceWarning } : {}),
+    };
 }
 
 async function claimSolarTerm(termId: string) {
-    return serializeMutation(async () => {
-        if (!/^[1-9]\d*$/.test(termId)) throw new Error('termId 必须是正十进制整数');
-        const solarReply = await querySolarTerms();
-        const term = (Array.isArray(solarReply?.terms) ? solarReply.terms : [])
-            .find((entry: any) => int64String(entry?.term_id) === termId);
-        if (!term) throw new Error('服务端未发现指定节令');
-        if (int64String(term.status) !== '2') throw new Error('指定节令当前不可领取');
+    if (!/^[1-9]\d*$/.test(termId)) throw new Error('termId 必须是正十进制整数');
+    const solarReply = await querySolarTerms();
+    const term = (Array.isArray(solarReply?.terms) ? solarReply.terms : [])
+        .find((entry: any) => int64String(entry?.term_id) === termId);
+    if (!term) throw new Error('服务端未发现指定节令');
+    if (int64String(term.status) !== '2') throw new Error('指定节令当前不可领取');
 
-        const body = Buffer.from(types.ClaimSolarTermsRequest.encode(
-            types.ClaimSolarTermsRequest.create({ term_id: term.term_id })
-        ).finish());
-        const { body: replyBody } = await sendMsgAsync(
-            'gamepb.solartermspb.SolarTermsService',
-            'ClaimSolarTerms',
-            body
-        );
-        const reply = types.ClaimSolarTermsReply.decode(replyBody);
-        return {
-            rewards: (Array.isArray(reply.rewards) ? reply.rewards : []).map(itemDto),
-            term: solarTermDto(reply.term),
-            snapshot: await getActivityCenterSnapshot(),
-        };
-    });
+    const body = Buffer.from(types.ClaimSolarTermsRequest.encode(
+        types.ClaimSolarTermsRequest.create({ term_id: term.term_id })
+    ).finish());
+    const { body: replyBody } = await sendMsgAsync(
+        'gamepb.solartermspb.SolarTermsService',
+        'ClaimSolarTerms',
+        body
+    );
+    const reply = types.ClaimSolarTermsReply.decode(replyBody);
+    return {
+        rewards: (Array.isArray(reply.rewards) ? reply.rewards : []).map(itemDto),
+        term: solarTermDto(reply.term),
+        snapshot: await getActivityCenterSnapshot(),
+    };
 }
 
 module.exports = {

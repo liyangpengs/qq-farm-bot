@@ -1,15 +1,4 @@
-/**
- * 好友宠物每日同步 - 把护主犬探测从“每轮帮忙”改成“每天一轮”
- *
- * 护主犬只能从 VisitService.Enter 回包的 brief_dog_info 读到，所以本模块是唯一为了拿宠物
- * 信息而额外发 RPC 的地方；其余时候全靠 api.ts 里 Enter 回包的顺手写入。
- *
- * 网关约束（参见 utils/network.ts 的 takeDispatchableRequest 与 docs/weather-activity.md）：
- * - 全部请求走 low 优先级，low 只有队列里没有 high/normal 时才会发出，在协议层就不会挤压主流程；
- * - 串行 + 分批 + 固定间隔，节奏对齐已在生产验证过的好友天气扫描；
- * - 进每位好友前先给好友巡查让路，等不到空闲就把剩下的好友留给下一轮（单向门控）。
- */
-
+const { submitAccountTask } = require('../../app/account-task-runner');
 const { isAutomationOn, getFriendBlacklist } = require('../../models/store');
 const { getUserState } = require('../../utils/network');
 const { toNum, log, logWarn, sleep } = require('../../utils/utils');
@@ -23,13 +12,6 @@ const {
     getFriendPetCacheStats,
 } = require('./pet-cache');
 
-// 延迟引用，避开 scheduler / visit-strategy 之间已有的循环依赖
-let _scheduler: any = null;
-function schedulerRef(): any {
-    if (!_scheduler) _scheduler = require('./scheduler');
-    return _scheduler;
-}
-
 let _visitStrategy: any = null;
 function visitStrategyRef(): any {
     if (!_visitStrategy) _visitStrategy = require('./visit-strategy');
@@ -40,8 +22,6 @@ function visitStrategyRef(): any {
 const SYNC_BATCH_SIZE: number = 5;
 const SYNC_GAP_MS: number = 300;
 const SYNC_BATCH_GAP_MS: number = 1000;
-const FRIEND_TASK_WAIT_MAX_MS: number = 10000;
-const FRIEND_TASK_POLL_MS: number = 250;
 // 每 10 分钟看一眼当天还有没有未确认的好友；开关中途打开、让路后补扫、跳日都靠它兼容
 const SYNC_CHECK_INTERVAL_MS: number = 10 * 60 * 1000;
 // 不参与登录关键路径：农场 2s / 好友 8s / 每日领取 45s / 神秘商店 60s 之后再排
@@ -68,15 +48,6 @@ function isSyncEnabled(): { enabled: boolean; reason: string } {
         return { enabled: false, reason: 'protect_dog_bypass_off' };
     }
     return { enabled: true, reason: '' };
-}
-
-async function waitForFriendTaskIdle(): Promise<boolean> {
-    const deadline: number = Date.now() + FRIEND_TASK_WAIT_MAX_MS;
-    while (schedulerRef().isFriendCheckRunning()) {
-        if (Date.now() >= deadline) return false;
-        await sleep(FRIEND_TASK_POLL_MS);
-    }
-    return true;
 }
 
 async function probeFriendDog(gid: number, name: string): Promise<boolean> {
@@ -134,8 +105,10 @@ export async function runFriendPetSync(): Promise<FriendPetSyncResult> {
 
     syncRunning = true;
     try {
-        const reply: any = await getAllFriends(false, 'low');
-        const friends: any[] = extractReplyFriends(reply);
+        const cachedFriends: any[] = visitStrategyRef().getFreshFriendsListCacheOnly();
+        const friends: any[] = cachedFriends.length > 0
+            ? cachedFriends
+            : extractReplyFriends(await getAllFriends(false, 'low'));
         const accountId: string = process.env.FARM_ACCOUNT_ID || '';
         const blacklist: Set<number> = new Set(getFriendBlacklist(accountId));
         const invalid: Set<number> = getInvalidKnownFriendGidSet();
@@ -164,13 +137,12 @@ export async function runFriendPetSync(): Promise<FriendPetSyncResult> {
                     yielded = true;
                     break;
                 }
-                if (!await waitForFriendTaskIdle()) {
-                    // 好友巡查正在占着进农场这个状态，把剩下的好友留给下一次定时检查
-                    deferred = pending.length - checked - failed;
-                    yielded = true;
-                    break;
-                }
-                if (await probeFriendDog(friend.gid, friend.name)) checked += 1;
+                const probed = await submitAccountTask(
+                    `friend.pet-sync:${friend.gid}`,
+                    () => probeFriendDog(friend.gid, friend.name),
+                    { priority: 'maintenance', dedupeKey: `friend.pet-sync:${friend.gid}` },
+                );
+                if (probed) checked += 1;
                 else failed += 1;
                 await sleep(SYNC_GAP_MS);
             }
@@ -233,8 +205,6 @@ export const FRIEND_PET_SYNC_TUNING = {
     SYNC_BATCH_SIZE,
     SYNC_GAP_MS,
     SYNC_BATCH_GAP_MS,
-    FRIEND_TASK_WAIT_MAX_MS,
-    FRIEND_TASK_POLL_MS,
     SYNC_CHECK_INTERVAL_MS,
     SYNC_STARTUP_DELAY_MS,
 };

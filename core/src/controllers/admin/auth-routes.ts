@@ -7,6 +7,7 @@ const { getRuntimeConfig } = require('../../config/config');
 const { getSchedulerRegistrySnapshot } = require('../../services/scheduler');
 const { createModuleLogger } = require('../../services/logger');
 const adminStore = require('../../models/admin-store');
+const { getApiToken, rotateApiToken } = require('../../models/api-token-store');
 
 const {
     getClientIp,
@@ -114,6 +115,21 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
 
     app.get('/api/user/me', (_req: Request, res: Response) => {
         res.json({ ok: true, data: adminStore.getAdminInfo() });
+    });
+
+    app.get('/api/user/api-token', (_req: Request, res: Response) => {
+        res.json({ ok: true, data: { token: getApiToken() } });
+    });
+
+    app.post('/api/user/api-token/reset', (_req: Request, res: Response) => {
+        const previousToken = getApiToken();
+        const token = rotateApiToken();
+        if (ctx.io) {
+            for (const socket of ctx.io.sockets.sockets.values()) {
+                if (String((socket.data as any).adminToken || '') === previousToken) socket.disconnect(true);
+            }
+        }
+        res.json({ ok: true, data: { token } });
     });
 }
 

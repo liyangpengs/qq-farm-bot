@@ -1,0 +1,33 @@
+[
+  {
+    "gameplayKey": "stellar",
+    "bindings": [
+      { "detailTarget": "travel", "priority": 10, "activityIds": ["2026072700", "2026072701"] },
+      { "detailTarget": "constellation", "priority": 20, "activityIds": [] },
+      { "detailTarget": "shop", "priority": 30, "activityIds": [] },
+      { "detailTarget": "solar", "priority": 40, "activityIds": [] }
+    ]
+  },
+  {
+    "gameplayKey": "qixi",
+    "bindings": [
+      { "detailTarget": "qixi", "priority": 50, "activityIds": ["2026081800", "2026081801", "2026081802"] }
+    ]
+  },
+  {
+    "gameplayKey": "qingmei",
+    "bindings": [
+      { "detailTarget": "qingmei", "priority": 60, "activityIds": ["2026081200", "2026081201", "2026081202"] }
+    ]
+  },
+  {
+    "gameplayKey": "weather",
+    "bindings": [
+      {
+        "detailTarget": "weather",
+        "priority": 70,
+        "activityIds": ["2026070300", "2026070301", "2026070302", "2026070303", "2026070304", "2026070305"]
+      }
+    ]
+  }
+]

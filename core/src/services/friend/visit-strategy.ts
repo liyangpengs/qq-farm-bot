@@ -2,6 +2,7 @@
  * 拜访好友策略 - 访问逻辑、好友分析、错误处理、安静时段
  */
 
+const { runAccountTaskStep } = require('../../app/account-task-runner');
 const { PlantPhase } = require('../../config/config');
 const { getPlantName, getPlantById } = require('../../config/gameConfig');
 const {
@@ -49,6 +50,10 @@ let _scheduler: any = null;
 function schedulerRef(): any {
     if (!_scheduler) _scheduler = require('./scheduler');
     return _scheduler;
+}
+
+function runFriendPhase<T>(name: string, run: () => Promise<T> | T): Promise<T> {
+    return runAccountTaskStep(`friend.phase.${name}`, run);
 }
 
 // ============ 内部状态 ============
@@ -478,13 +483,19 @@ export function getFriendsListCacheOnly(): any[] {
     return withFriendPetView(friendsListCache);
 }
 
+export function getFreshFriendsListCacheOnly(): any[] {
+    if (!Array.isArray(friendsListCache)) return [];
+    if ((Date.now() - friendsListCacheTime) >= getFriendsListCacheTtlMs()) return [];
+    return withFriendPetView(friendsListCache);
+}
+
 /**
  * 获取指定好友的农田详情 (进入-获取-离开)
  */
 export async function getFriendLandsDetail(friendGid: number): Promise<any> {
     let entered = false;
     try {
-        const enterReply: any = await enterFriendFarm(friendGid);
+        const enterReply: any = await runFriendPhase('enter', () => enterFriendFarm(friendGid));
         entered = true;
         const lands: any[] = enterReply.lands || [];
         const state: any = getUserState();
@@ -505,7 +516,7 @@ export async function getFriendLandsDetail(friendGid: number): Promise<any> {
             career: await getCareerInfoOrNull(friendGid),
         };
     } finally {
-        if (entered) await leaveFriendFarm(friendGid);
+        if (entered) await runFriendPhase('leave', () => leaveFriendFarm(friendGid));
     }
 }
 
@@ -553,7 +564,7 @@ async function runFarmingWithFallback(hostGid: number, ids: number[], stopWhenEx
     if (target.length === 0) return emptyFarmingOutcome();
     markRecentHelp(hostGid, target, 'in_flight', HELP_IN_FLIGHT_TTL_MS, snapshotKey);
     try {
-        const batch: FarmingOutcome = await helpFarming(hostGid, target, stopWhenExpLimit);
+        const batch: FarmingOutcome = await runFriendPhase('help', () => helpFarming(hostGid, target, stopWhenExpLimit));
         if (batch.effect === 'noop') {
             markRecentHelp(hostGid, target, 'noop', HELP_RESULT_TTL_MS, snapshotKey);
             return batch;
@@ -570,7 +581,7 @@ async function runFarmingWithFallback(hostGid: number, ids: number[], stopWhenEx
         for (const landId of target) {
             markRecentHelp(hostGid, [landId], 'in_flight', HELP_IN_FLIGHT_TTL_MS, snapshotKey);
             try {
-                const outcome: FarmingOutcome = await helpFarming(hostGid, [landId], stopWhenExpLimit);
+                const outcome: FarmingOutcome = await runFriendPhase('help', () => helpFarming(hostGid, [landId], stopWhenExpLimit));
                 outcomes.push(outcome);
                 if (outcome.effect === 'noop') markRecentHelp(hostGid, [landId], 'noop', HELP_RESULT_TTL_MS, snapshotKey);
                 else if (outcome.effect === 'confirmed') markRecentHelp(hostGid, outcome.landIds, 'confirmed', HELP_RESULT_TTL_MS, snapshotKey);
@@ -604,7 +615,7 @@ export async function doFriendOperation(friendGid: any, opType: string): Promise
 
     let enterReply: any;
     try {
-        enterReply = await enterFriendFarm(gid);
+        enterReply = await runFriendPhase('enter', () => enterFriendFarm(gid));
     } catch (e: any) {
         const handled: { handled: boolean; kind: string } = handleFriendEnterError(gid, `GID:${gid}`, e);
         if (handled.handled && handled.kind === 'blacklist') {
@@ -626,7 +637,11 @@ export async function doFriendOperation(friendGid: any, opType: string): Promise
         if (opType === 'steal') {
             if (!status.stealable.length) return { ok: true, opType, count: 0, message: '没有可偷取土地' };
             const target: number[] = status.stealable;
-            count = await runBatchWithFallback(target, (ids: number[]) => stealHarvest(gid, ids), (ids: number[]) => stealHarvest(gid, ids));
+            count = await runBatchWithFallback(
+                target,
+                (ids: number[]) => runFriendPhase('steal', () => stealHarvest(gid, ids)),
+                (ids: number[]) => runFriendPhase('steal', () => stealHarvest(gid, ids)),
+            );
             if (count > 0) {
                 recordOperation('steal', count);
                 // 手动偷取成功后立即尝试出售一次果实
@@ -675,13 +690,19 @@ export async function doFriendOperation(friendGid: any, opType: string): Promise
             // 手动捣乱不依赖预检查，逐块执行（与 terminal-farm-main 保持一致）
             let failDetails: string[] = [];
             if (status.canPutWeed.length) {
-                const weedRet: { ok: number; failed: any[]; limitReached?: boolean } = await putWeedsDetailed(gid, status.canPutWeed);
+                const weedRet: { ok: number; failed: any[]; limitReached?: boolean } = await runFriendPhase(
+                    'bad',
+                    () => putWeedsDetailed(gid, status.canPutWeed),
+                );
                 weedCount = weedRet.ok;
                 failDetails = failDetails.concat((weedRet.failed || []).map((f: any) => `放草#${f.landId}:${f.reason}`));
                 if (weedCount > 0) recordOperation('weed', weedCount);
             }
             if (!schedulerRef().isBadOperationLimitReached() && status.canPutBug.length) {
-                const bugRet: { ok: number; failed: any[]; limitReached?: boolean } = await putInsectsDetailed(gid, status.canPutBug);
+                const bugRet: { ok: number; failed: any[]; limitReached?: boolean } = await runFriendPhase(
+                    'bad',
+                    () => putInsectsDetailed(gid, status.canPutBug),
+                );
                 bugCount = bugRet.ok;
                 failDetails = failDetails.concat((bugRet.failed || []).map((f: any) => `放虫#${f.landId}:${f.reason}`));
                 if (bugCount > 0) recordOperation('bug', bugCount);
@@ -715,7 +736,7 @@ export async function doFriendOperation(friendGid: any, opType: string): Promise
     } catch (e: any) {
         return { ok: false, opType, count: 0, message: e.message || '操作失败' };
     } finally {
-        try { await leaveFriendFarm(gid); } catch { /* ignore */ }
+        try { await runFriendPhase('leave', () => leaveFriendFarm(gid)); } catch { /* ignore */ }
     }
 }
 
@@ -733,7 +754,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
 
     let enterReply: any;
     try {
-        enterReply = await enterFriendFarm(gid);
+        enterReply = await runFriendPhase('enter', () => enterFriendFarm(gid));
     } catch (e: any) {
         const handled: { handled: boolean; kind: string } = handleFriendEnterError(gid, name, e);
         if (handled.handled && handled.kind === 'blacklist') {
@@ -750,7 +771,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
 
     const lands: any[] = enterReply.lands || [];
     if (lands.length === 0) {
-        await leaveFriendFarm(gid);
+        await runFriendPhase('leave', () => leaveFriendFarm(gid));
         return { acted: false, entered: true };
     }
 
@@ -798,7 +819,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
 
         // 尝试批量偷取
         try {
-            await stealHarvest(gid, targetLands);
+            await runFriendPhase('steal', () => stealHarvest(gid, targetLands));
             ok = targetLands.length;
             targetLands.forEach((id: number) => {
                 const info: any = status.stealableInfo.find((x: any) => x.landId === id);
@@ -808,7 +829,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
             // 批量失败，降级为单个
             for (const landId of targetLands) {
                 try {
-                    await stealHarvest(gid, [landId]);
+                    await runFriendPhase('steal', () => stealHarvest(gid, [landId]));
                     ok++;
                     const info: any = status.stealableInfo.find((x: any) => x.landId === landId);
                     if (info) stolenPlants.push(info.name);
@@ -832,7 +853,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
         if (status.canPutWeed.length > 0) {
             const remaining: number = schedulerRef().getRemainingBadOperationTimes();
             const toProcess: number[] = status.canPutWeed.slice(0, remaining);
-            const ok: number = await putWeeds(gid, toProcess);
+            const ok: number = await runFriendPhase('bad', () => putWeeds(gid, toProcess));
             if (ok > 0) { actions.push(`放草${ok}`); totalActions.putWeed += ok; }
             if (!schedulerRef().isBadOperationLimitReached()) await randomDelay(500, 800);
         }
@@ -840,7 +861,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
         if (!schedulerRef().isBadOperationLimitReached() && status.canPutBug.length > 0) {
             const remaining: number = schedulerRef().getRemainingBadOperationTimes();
             const toProcess: number[] = status.canPutBug.slice(0, remaining);
-            const ok: number = await putInsects(gid, toProcess);
+            const ok: number = await runFriendPhase('bad', () => putInsects(gid, toProcess));
             if (ok > 0) { actions.push(`放虫${ok}`); totalActions.putBug += ok; }
             await randomDelay(500, 800);
         }
@@ -852,7 +873,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
         });
     }
 
-    await leaveFriendFarm(gid);
+    await runFriendPhase('leave', () => leaveFriendFarm(gid));
     return { acted: actions.length > 0, entered: true };
 }
 
@@ -863,7 +884,7 @@ export async function visitFriendForSteal(friend: any, totalActions: any, myGid:
 
     let enterReply: any;
     try {
-        enterReply = await enterFriendFarm(gid);
+        enterReply = await runFriendPhase('enter', () => enterFriendFarm(gid));
     } catch (e: any) {
         const handled: { handled: boolean; kind: string } = handleFriendEnterError(gid, name, e);
         if (handled.handled) {
@@ -877,7 +898,7 @@ export async function visitFriendForSteal(friend: any, totalActions: any, myGid:
 
     const lands: any[] = enterReply.lands || [];
     if (lands.length === 0) {
-        await leaveFriendFarm(gid);
+        await runFriendPhase('leave', () => leaveFriendFarm(gid));
         return { acted: false, entered: true };
     }
 
@@ -922,7 +943,7 @@ export async function visitFriendForSteal(friend: any, totalActions: any, myGid:
         // log('好友', `${name}: 跳过，所有可偷蔬菜都被黑名单过滤`, {
         //     module: 'friend', event: '偷菜全部过滤', friendName: name, friendGid: gid
         // });
-        await leaveFriendFarm(gid);
+        await runFriendPhase('leave', () => leaveFriendFarm(gid));
         return;
     }
 
@@ -935,7 +956,7 @@ export async function visitFriendForSteal(friend: any, totalActions: any, myGid:
 
         // 尝试批量偷取
         try {
-            await stealHarvest(gid, targetLands);
+            await runFriendPhase('steal', () => stealHarvest(gid, targetLands));
             ok = targetLands.length;
             targetLands.forEach((id: number) => {
                 const info: any = status.stealableInfo.find((x: any) => x.landId === id);
@@ -945,7 +966,7 @@ export async function visitFriendForSteal(friend: any, totalActions: any, myGid:
             // 批量失败，降级为单个
             for (const landId of targetLands) {
                 try {
-                    await stealHarvest(gid, [landId]);
+                    await runFriendPhase('steal', () => stealHarvest(gid, [landId]));
                     ok++;
                     const info: any = status.stealableInfo.find((x: any) => x.landId === landId);
                     if (info) stolenPlants.push(info.name);
@@ -969,7 +990,7 @@ export async function visitFriendForSteal(friend: any, totalActions: any, myGid:
         });
     }
 
-    await leaveFriendFarm(gid);
+    await runFriendPhase('leave', () => leaveFriendFarm(gid));
     return { acted: actions.length > 0, entered: true };
 }
 
@@ -993,7 +1014,7 @@ export async function visitFriendForHelp(friend: any, totalActions: any, myGid: 
 
     let enterReply: any;
     try {
-        enterReply = await enterFriendFarm(gid);
+        enterReply = await runFriendPhase('enter', () => enterFriendFarm(gid));
     } catch (e: any) {
         const handled: { handled: boolean; kind: string } = handleFriendEnterError(gid, name, e);
         if (handled.handled) {
@@ -1007,7 +1028,7 @@ export async function visitFriendForHelp(friend: any, totalActions: any, myGid: 
 
     const lands: any[] = enterReply.lands || [];
     if (lands.length === 0) {
-        await leaveFriendFarm(gid);
+        await runFriendPhase('leave', () => leaveFriendFarm(gid));
         return { acted: false, entered: true, status: 'no_action' };
     }
 
@@ -1017,7 +1038,7 @@ export async function visitFriendForHelp(friend: any, totalActions: any, myGid: 
     const effectiveStopWhenExpLimit: boolean = stopWhenExpLimit && !protectDogBypass;
 
     if (effectiveStopWhenExpLimit && !schedulerRef().getCanGetHelpExp()) {
-        await leaveFriendFarm(gid);
+        await runFriendPhase('leave', () => leaveFriendFarm(gid));
         return {
             acted: false,
             entered: true,
@@ -1057,7 +1078,7 @@ export async function visitFriendForHelp(friend: any, totalActions: any, myGid: 
         });
     }
 
-    await leaveFriendFarm(gid);
+    await runFriendPhase('leave', () => leaveFriendFarm(gid));
     return { acted, entered: true, status: resultStatus, protectDogBypass: expLimitBypassed };
 }
 

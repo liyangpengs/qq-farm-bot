@@ -1,4 +1,7 @@
 export {};
+const { applyKnownFriendGidChange } = require('../app/known-friend-gid-sync');
+const { getHttpRequestId } = require('../app/http-request-context');
+const { sharedInviteBatch } = require('../app/shared-invite-batch');
 const { createScheduler } = require('../services/scheduler');
 
 const DEFAULT_API_CALL_TIMEOUT_MS = 10000;
@@ -6,6 +9,7 @@ const DEFAULT_API_CALL_TIMEOUT_MS = 10000;
 // 好友列表只读缓存或拉一次名单，给的余量少一些。
 const API_CALL_TIMEOUTS_MS: Record<string, number> = {
     scanWeatherFriends: 60000,
+    getFriends: 30000,
     getWeatherFriends: 30000,
 };
 
@@ -27,8 +31,10 @@ interface WorkerManagerOptions {
     sendConfiguredPush?: (payload: any) => Promise<void> | void;
     addOrUpdateAccount: (acc: any) => any;
     deleteAccount: (id: string) => void;
+    defaultApiCallTimeoutMs?: number;
     onStatusSync?: (accountId: string, status: any, accountName?: string) => void;
     onWorkerLog?: (entry: any, accountId: string, accountName?: string) => void;
+    onTaskMetrics?: (accountId: string, snapshot: any) => void;
 }
 
 function createWorkerManager(options: WorkerManagerOptions) {
@@ -52,9 +58,14 @@ function createWorkerManager(options: WorkerManagerOptions) {
         deleteAccount,
         onStatusSync,
         onWorkerLog,
+        onTaskMetrics,
     } = options;
     const managerScheduler = createScheduler('worker_manager');
     const useThreadRuntime = runtimeMode === 'thread' && !(processRef as any).pkg && typeof WorkerThread === 'function';
+    const defaultApiCallTimeoutMs = Math.max(
+        1,
+        Number(options.defaultApiCallTimeoutMs) || DEFAULT_API_CALL_TIMEOUT_MS,
+    );
 
     function createThreadWorker(account: any): any {
         const workerOptions: any = {
@@ -112,6 +123,9 @@ function createWorkerManager(options: WorkerManagerOptions) {
             return false;
         }
 
+        const inviteBatchClaim = String(account.platform || '').toLowerCase() === 'wx'
+            ? sharedInviteBatch.claim(account.id)
+            : null;
         workers[account.id] = {
             process: child,
             status: null,
@@ -126,6 +140,8 @@ function createWorkerManager(options: WorkerManagerOptions) {
             autoDeleteTriggered: false,
             terminalHandled: false,
             wsError: null,
+            knownFriendGidsRevision: 0,
+            inviteBatchClaim,
         };
 
         const initialConfigSnapshot = buildConfigSnapshotForAccount(account.id);
@@ -137,6 +153,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 systemTimeZone: initialConfigSnapshot.systemTimeZone,
                 systemServerUrl: initialConfigSnapshot.systemServerUrl,
                 systemClientVersion: initialConfigSnapshot.systemClientVersion,
+                inviteBatch: inviteBatchClaim,
             },
         });
         child.send({ type: 'config_sync', config: initialConfigSnapshot });
@@ -160,7 +177,10 @@ function createWorkerManager(options: WorkerManagerOptions) {
             });
 
             managerScheduler.clear(`force_kill_${account.id}`);
-            managerScheduler.clear(`restart_fallback_${account.id}`);
+            if (current.inviteBatchClaim) {
+                sharedInviteBatch.release(account.id, current.inviteBatchClaim.claimId);
+                current.inviteBatchClaim = null;
+            }
 
             if (current && current.requests && current.requests.size > 0) {
                 for (const [reqId, req] of current.requests.entries()) {
@@ -190,7 +210,6 @@ function createWorkerManager(options: WorkerManagerOptions) {
             const current = workers[accountId];
             if (current && current.process === proc) {
                 current.process.kill();
-                delete workers[accountId];
             }
         });
     }
@@ -201,25 +220,12 @@ function createWorkerManager(options: WorkerManagerOptions) {
         const worker = workers[accountId];
         if (!worker) { startWorker(account); return; }
         const proc = worker.process;
-        let started = false;
         const startOnce = () => {
-            if (started) return;
-            started = true;
-            managerScheduler.clear(`restart_fallback_${accountId}`);
             const current = workers[accountId];
             if (!current) { startWorker(account); return; }
             if (current.process !== proc) return;
             delete workers[accountId];
             startWorker(account);
-        };
-        const killIfStale = () => {
-            const current = workers[accountId];
-            if (!current || current.process !== proc) return false;
-            try {
-                current.process.kill();
-            } catch {}
-            delete workers[accountId];
-            return true;
         };
         if (typeof proc.exitCode === 'number' || proc.signalCode) {
             startOnce();
@@ -227,11 +233,6 @@ function createWorkerManager(options: WorkerManagerOptions) {
         }
         proc.once('exit', startOnce);
         stopWorker(accountId);
-        managerScheduler.setTimeoutTask(`restart_fallback_${accountId}`, 1500, () => {
-            if (started) return;
-            killIfStale();
-            startOnce();
-        });
     }
 
     function errorFromWorkerPayload(payload: any): Error & { code?: string | number } {
@@ -335,6 +336,8 @@ function createWorkerManager(options: WorkerManagerOptions) {
             if (typeof onWorkerLog === 'function') {
                 onWorkerLog(logEntry, accountId, worker.name);
             }
+        } else if (msg.type === 'task_metrics') {
+            if (typeof onTaskMetrics === 'function') onTaskMetrics(accountId, msg.data);
         } else if (msg.type === 'error') {
             const workerError = errorFromWorkerPayload(msg.error);
             log('错误', `账号[${accountId}]进程报错: ${workerError.message}`, {
@@ -404,6 +407,17 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 { source, code, reason, phase, connectionId: Number(msg.connectionId) || 0 },
             );
             stopWorker(accountId);
+        } else if (msg.type === 'api_call_started') {
+            const id = Number(msg.id) || 0;
+            const req = worker.requests.get(id);
+            if (!req || req.started) return;
+            req.started = true;
+            managerScheduler.setTimeoutTask(`api_timeout_${accountId}_${id}`, req.timeoutMs, () => {
+                if (worker.requests.has(id)) {
+                    worker.requests.delete(id);
+                    req.reject(new Error('API Timeout'));
+                }
+            });
         } else if (msg.type === 'api_response') {
             const { id, result, error } = msg;
             managerScheduler.clear(`api_timeout_${accountId}_${id}`);
@@ -431,20 +445,49 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 }
             }
         } else if (msg.type === 'known_friend_gids_sync') {
-            const { setKnownFriendGids } = require('../models/store');
+            const { getKnownFriendGids, setKnownFriendGids } = require('../models/store');
+            const revision = Number(msg.revision) || 0;
+            const baseGids: number[] = Array.isArray(msg.baseGids)
+                ? msg.baseGids.map(Number).filter((gid: number) => Number.isFinite(gid) && gid > 0)
+                : [];
             const gids: number[] = Array.isArray(msg.gids)
                 ? msg.gids.map(Number).filter((gid: number) => Number.isFinite(gid) && gid > 0)
                 : [];
-            const saved: number[] = setKnownFriendGids(accountId, gids);
-            worker.process.send({
-                type: 'config_sync',
-                config: buildConfigSnapshotForAccount(accountId),
-            });
-            log('好友', `已同步并持久化 ${saved.length} 个好友 GID`, {
-                accountId: String(accountId),
-                accountName: worker.name,
-                friendCount: saved.length,
-            });
+            let saved: number[] = getKnownFriendGids(accountId);
+            if (revision > worker.knownFriendGidsRevision) {
+                saved = setKnownFriendGids(accountId, applyKnownFriendGidChange(saved, baseGids, gids));
+                worker.knownFriendGidsRevision = revision;
+                log('好友', `已同步并持久化 ${saved.length} 个好友 GID`, {
+                    accountId: String(accountId),
+                    accountName: worker.name,
+                    friendCount: saved.length,
+                });
+            }
+            worker.process.send({ type: 'known_friend_gids_ack', revision, gids: saved });
+        } else if (msg.type === 'invite_batch_complete') {
+            const claim = worker.inviteBatchClaim;
+            if (!claim || Number(msg.claimId) !== Number(claim.claimId)) return;
+            try {
+                const cleared = sharedInviteBatch.complete(accountId, claim.claimId);
+                if (!cleared) {
+                    log('邀请', 'share.txt 在处理期间发生变化，已保留文件内容', {
+                        accountId: String(accountId),
+                        accountName: worker.name,
+                    });
+                }
+            } catch (error: any) {
+                log('错误', `清空 share.txt 失败: ${error?.message || error}`, {
+                    accountId: String(accountId),
+                    accountName: worker.name,
+                });
+            } finally {
+                worker.inviteBatchClaim = null;
+            }
+        } else if (msg.type === 'invite_batch_release') {
+            const claim = worker.inviteBatchClaim;
+            if (!claim || Number(msg.claimId) !== Number(claim.claimId)) return;
+            sharedInviteBatch.release(accountId, claim.claimId);
+            worker.inviteBatchClaim = null;
         } else if (msg.type === 'push_notify') {
             const title = String(msg.title || '').trim();
             const content = String(msg.content || '').trim();
@@ -457,17 +500,6 @@ function createWorkerManager(options: WorkerManagerOptions) {
             })).catch((e: any) => {
                 log('错误', `事件提醒发送异常: ${e && e.message ? e.message : e}`);
             });
-        } else if (msg.type === 'known_friend_gid_remove') {
-            const { getKnownFriendGids, setKnownFriendGids } = require('../models/store');
-            const gid: number = Number(msg.gid) || 0;
-            if (gid > 0) {
-                const current: number[] = getKnownFriendGids(accountId);
-                setKnownFriendGids(accountId, current.filter((item: number) => Number(item) !== gid));
-                worker.process.send({
-                    type: 'config_sync',
-                    config: buildConfigSnapshotForAccount(accountId),
-                });
-            }
         }
     }
 
@@ -478,17 +510,21 @@ function createWorkerManager(options: WorkerManagerOptions) {
 
         return new Promise((resolve, reject) => {
             const id = worker.reqId++;
-            worker.requests.set(id, { resolve, reject });
-
-            const timeoutMs = API_CALL_TIMEOUTS_MS[method] || DEFAULT_API_CALL_TIMEOUT_MS;
-            managerScheduler.setTimeoutTask(`api_timeout_${accountId}_${id}`, timeoutMs, () => {
-                if (worker.requests.has(id)) {
-                    worker.requests.delete(id);
-                    reject(new Error('API Timeout'));
-                }
+            const requestId = getHttpRequestId();
+            worker.requests.set(id, {
+                resolve,
+                reject,
+                started: false,
+                timeoutMs: API_CALL_TIMEOUTS_MS[method] || defaultApiCallTimeoutMs,
             });
 
-            worker.process.send({ type: 'api_call', id, method, args });
+            worker.process.send({
+                type: 'api_call',
+                id,
+                method,
+                args,
+                ...(requestId ? { requestId } : {}),
+            });
         });
     }
 

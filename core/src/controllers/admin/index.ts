@@ -20,6 +20,7 @@ const { mountFarmRoutes } = require('./farm-routes');
 const { mountFriendRoutes } = require('./friend-routes');
 const { mountActivityCenterRoutes } = require('./activity-center-routes');
 const { mountCommerceRoutes } = require('./commerce-routes');
+const { createPerformanceMiddleware, mountPerformanceRoutes } = require('./performance-routes');
 const { mountWxLoginRoutes } = require('./wx-login-routes');
 const {
     setupSocketIO,
@@ -40,6 +41,7 @@ function startAdminServer(dataProvider: any): void {
     const app = express();
     app.set('trust proxy', true);
     app.use(express.json());
+    app.use('/api', createPerformanceMiddleware());
 
     ctx.app = app;
 
@@ -79,6 +81,7 @@ function startAdminServer(dataProvider: any): void {
     mountAccountRoutes(app, ctx);
     mountActivityCenterRoutes(app, ctx);
     mountCommerceRoutes(app, ctx);
+    mountPerformanceRoutes(app);
 
     // SPA fallback
     app.get('*', (req: any, res: any) => {

@@ -1,6 +1,6 @@
-export {};
+import activityGameplayManifests from '../activity-data/activity-gameplays.json';
 
-type ActivityDetailTarget = 'travel' | 'constellation' | 'shop' | 'solar' | 'qixi' | 'qingmei' | 'weather';
+export {};
 
 interface ActivityGameplayContext {
     season?: any;
@@ -14,98 +14,68 @@ interface ActivityGameplayContext {
 
 interface ActivityGameplayAdapter {
     gameplayKey: string;
-    detailTarget: ActivityDetailTarget;
+    detailTarget: string;
     priority: number;
     activityIds: (context: ActivityGameplayContext) => unknown[];
 }
 
 interface ActivityGameplayBinding {
     gameplayKey: string;
-    detailTarget: ActivityDetailTarget;
+    detailTarget: string;
     priority: number;
 }
 
-const GAMEPLAY_ADAPTERS: readonly ActivityGameplayAdapter[] = [
-    {
-        gameplayKey: 'stellar',
-        detailTarget: 'travel',
-        priority: 10,
-        activityIds: context => [
-            '2026072700',
-            '2026072701',
-            context.season?.pass?.activityId,
-        ],
-    },
-    {
-        gameplayKey: 'stellar',
-        detailTarget: 'constellation',
-        priority: 20,
-        activityIds: context => [context.constellation?.activityId],
-    },
-    {
-        gameplayKey: 'stellar',
-        detailTarget: 'shop',
-        priority: 30,
-        activityIds: context => [context.shop?.activityId],
-    },
-    {
-        gameplayKey: 'stellar',
-        detailTarget: 'solar',
-        priority: 40,
-        activityIds: context => [
-            context.solarTerms?.currentConfig?.activityId,
-            ...(Array.isArray(context.solarTerms?.configs)
-                ? context.solarTerms.configs.map((config: any) => config?.activityId)
-                : []),
-        ],
-    },
-    {
-        gameplayKey: 'qixi',
-        detailTarget: 'qixi',
-        priority: 50,
-        activityIds: context => [
-            '2026081800',
-            '2026081801',
-            '2026081802',
-            context.qixi?.groupId,
-            context.qixi?.bridgeActivityId,
-            context.qixi?.giftActivityId,
-        ],
-    },
-    {
-        gameplayKey: 'qingmei',
-        detailTarget: 'qingmei',
-        priority: 60,
-        activityIds: context => [
-            '2026081200',
-            '2026081201',
-            '2026081202',
-            context.qingMei?.dailyActivityId,
-            context.qingMei?.activityId,
-        ],
-    },
-    {
-        gameplayKey: 'weather',
-        detailTarget: 'weather',
-        priority: 70,
-        activityIds: context => [
-            '2026070300',
-            '2026070301',
-            '2026070302',
-            '2026070303',
-            '2026070304',
-            '2026070305',
-            context.weather?.groupId,
-            context.weather?.shop?.activityId,
-            context.weather?.mutation?.activityId,
-            context.weather?.collector?.activityId,
-            context.weather?.research?.activityId,
-            context.weather?.catalogActivityId,
-            context.weather?.taskActivityId,
-            context.weather?.researchActivityId,
-        ],
-    },
-];
+interface ActivityGameplayManifest {
+    gameplayKey: string;
+    bindings: Array<{
+        detailTarget: string;
+        priority: number;
+        activityIds: string[];
+    }>;
+}
+
+const dynamicActivityIds: Record<string, (context: ActivityGameplayContext) => unknown[]> = {
+    'stellar:travel': context => [context.season?.pass?.activityId],
+    'stellar:constellation': context => [context.constellation?.activityId],
+    'stellar:shop': context => [context.shop?.activityId],
+    'stellar:solar': context => [
+        context.solarTerms?.currentConfig?.activityId,
+        ...(Array.isArray(context.solarTerms?.configs)
+            ? context.solarTerms.configs.map((config: any) => config?.activityId)
+            : []),
+    ],
+    'qixi:qixi': context => [
+        context.qixi?.groupId,
+        context.qixi?.bridgeActivityId,
+        context.qixi?.giftActivityId,
+    ],
+    'qingmei:qingmei': context => [
+        context.qingMei?.dailyActivityId,
+        context.qingMei?.activityId,
+    ],
+    'weather:weather': context => [
+        context.weather?.groupId,
+        context.weather?.shop?.activityId,
+        context.weather?.mutation?.activityId,
+        context.weather?.collector?.activityId,
+        context.weather?.research?.activityId,
+        context.weather?.catalogActivityId,
+        context.weather?.taskActivityId,
+        context.weather?.researchActivityId,
+    ],
+};
+
+const GAMEPLAY_ADAPTERS: readonly ActivityGameplayAdapter[] = (
+    activityGameplayManifests as ActivityGameplayManifest[]
+).flatMap(manifest => manifest.bindings.map(binding => ({
+    gameplayKey: manifest.gameplayKey,
+    detailTarget: binding.detailTarget,
+    priority: binding.priority,
+    activityIds: (context: ActivityGameplayContext) => [
+        ...binding.activityIds,
+        ...(dynamicActivityIds[`${manifest.gameplayKey}:${binding.detailTarget}`]?.(context) || []),
+    ],
+})));
 
 function normalizeActivityId(value: unknown): string {
     if (value == null) return '';

@@ -196,7 +196,6 @@ function persistConstellationState(
     const file = normalizeStateFile(readJsonFile(filePath, emptyStateFile));
     const key = stateRecordKey(identity);
     const merged = mergeConstellationStates(identity, file.records[key], stateValue);
-    // 读-并-写在同一 worker 的串行 mutation 队列内调用；writeJsonFileAtomic 保证文件替换原子性。
     file.records[key] = merged;
     writeJsonFileAtomic(filePath, file);
     return merged;

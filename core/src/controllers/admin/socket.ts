@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const SocketIOServer = Server;
 
 const {
+    isAdminTokenValid,
     resolveAccId,
 } = require('./middleware');
 
@@ -73,7 +74,7 @@ function setupSocketIO(ctx: AdminContext): void {
             ? String(socket.handshake.headers['x-admin-token'])
             : '';
         const token = authToken || headerToken;
-        if (!token || !ctx.tokens.has(token)) {
+        if (!isAdminTokenValid(ctx, token)) {
             return next(new Error('Unauthorized'));
         }
         socket.data.adminToken = token;

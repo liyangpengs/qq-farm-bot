@@ -3,6 +3,7 @@ export {};
  * 任务系统 - 自动领取任务奖励
  */
 
+const { submitAccountTask } = require('../app/account-task-runner');
 const { isAutomationOn } = require('../models/store');
 const { sendMsgAsync, networkEvents } = require('../utils/network');
 const { types } = require('../utils/proto');
@@ -10,7 +11,6 @@ const { toLong, toNum, log, logWarn, sleep, getSystemDateKey } = require('../uti
 const { createScheduler } = require('./scheduler');
 const { recordOperation } = require('./stats');
 
-let checking: boolean = false;
 let taskClaimDoneDateKey: string = '';
 let taskClaimLastAt: number = 0;
 const taskScheduler: any = createScheduler('task');
@@ -229,12 +229,10 @@ async function checkAndClaimIllustratedRewards(): Promise<boolean> {
 // ============ 自动领取 ============
 
 async function checkAndClaimTasks(): Promise<void> {
-    if (checking) return;
     if (!isAutomationOn('task')) return;
-    checking = true;
     try {
         const reply: any = await getTaskInfo();
-        if (!reply.task_info) { checking = false; return; }
+        if (!reply.task_info) return;
 
         const taskInfo: any = reply.task_info;
         const normalized: NormalizedTaskInfo = normalizeTaskInfo(taskInfo);
@@ -268,8 +266,6 @@ async function checkAndClaimTasks(): Promise<void> {
         logWarn('任务', `检查任务失败: ${e.message}`, {
             module: 'task', event: '扫描任务', result: 'error'
         });
-    } finally {
-        checking = false;
     }
 }
 
@@ -319,8 +315,10 @@ function onTaskInfoNotify(taskInfo: any): void {
         module: 'task', event: '领取任务', result: 'plan', count: claimable.length
     });
     taskScheduler.setTimeoutTask('task_claim_debounce', 1000, async () => {
-        if (hasClaimable) await claimTasksFromList(claimable);
-        await checkAndClaimActives(actives);
+        await submitAccountTask('task.notify.claim', async () => {
+            if (hasClaimable) await claimTasksFromList(claimable);
+            await checkAndClaimActives(actives);
+        }, { priority: 'event' });
     });
 }
 
@@ -337,15 +335,22 @@ function initTaskSystem(): void {
     cleanupTaskSystem();
     networkEvents.on('taskInfoNotify', onTaskInfoNotify);
     taskScheduler.setTimeoutTask('task_init_bootstrap', 4000, async () => {
-        await checkAndClaimTasks();
-        if (isAutomationOn('task')) await checkAndClaimIllustratedRewards();
+        await submitAccountTask('task.claim', checkAndClaimTasks, {
+            priority: 'maintenance',
+            dedupeKey: 'task.claim',
+        });
+        if (isAutomationOn('task')) {
+            await submitAccountTask('task.bootstrap.illustrated', checkAndClaimIllustratedRewards, {
+                priority: 'maintenance',
+                dedupeKey: 'task.bootstrap.illustrated',
+            });
+        }
     });
 }
 
 function cleanupTaskSystem(): void {
     networkEvents.off('taskInfoNotify', onTaskInfoNotify);
     taskScheduler.clearAll();
-    checking = false;
 }
 
 module.exports = {

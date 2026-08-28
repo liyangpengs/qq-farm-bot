@@ -4,10 +4,12 @@ export {};
 
 const crypto = require('node:crypto');
 const store = require('../../models/store');
+const { verifyApiToken } = require('../../models/api-token-store');
 const { normalizeAccountRef, resolveAccountId } = require('../../services/account-resolver');
 
 interface AuthenticatedRequest extends Request {
     adminToken?: string;
+    adminAuthType?: 'session' | 'api';
 }
 
 function getClientIp(req: Request): string {
@@ -26,14 +28,20 @@ function getClientIp(req: Request): string {
 
 const issueToken = (): string => crypto.randomBytes(24).toString('hex');
 
+function isAdminTokenValid(ctx: AdminContext, value: unknown): boolean {
+    const token = String(value || '').trim();
+    return !!token && (ctx.tokens.has(token) || verifyApiToken(token));
+}
+
 function createAuthRequired(ctx: AdminContext) {
     return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
         const token = String(req.headers['x-admin-token'] || '');
-        if (!token || !ctx.tokens.has(token)) {
+        if (!isAdminTokenValid(ctx, token)) {
             res.status(401).json({ ok: false, error: 'Unauthorized' });
             return;
         }
         req.adminToken = token;
+        req.adminAuthType = ctx.tokens.has(token) ? 'session' : 'api';
         next();
     };
 }
@@ -101,6 +109,7 @@ function buildKnownFriendGidSettings(accountId: string): {
 module.exports = {
     getClientIp,
     issueToken,
+    isAdminTokenValid,
     createAuthRequired,
     getAccountList,
     getAccountIds,

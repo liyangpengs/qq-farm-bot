@@ -3,8 +3,9 @@ const { fork } = require('node:child_process');
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
 const store = require('../models/store');
-const { updateRuntimeConfig, getRuntimeConfig, getDefaultSystemConfig } = require('../config/config');
+const { updateRuntimeConfig } = require('../config/config');
 const { sendPushooMessage } = require('../services/push');
+const { recordAccountTaskMetrics } = require('../services/performance-metrics');
 const { createDataProvider } = require('./data-provider');
 const { createReloginReminderService } = require('./relogin-reminder');
 const { createRuntimeState } = require('./runtime-state');
@@ -92,6 +93,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
             runtimeEvents.emit('worker_log', { entry, accountId, accountName });
             if (onLog) onLog(entry, accountId, accountName);
         },
+        onTaskMetrics: recordAccountTaskMetrics,
     });
     const dataProvider = createDataProvider({
         workers,
