@@ -6,6 +6,7 @@ export {};
 const api = require('./api');
 const landAnalysis = require('./land-analysis');
 const planting = require('./planting');
+const fertilizer = require('./fertilizer');
 const scheduler = require('./scheduler');
 
 module.exports = {
@@ -24,8 +25,8 @@ module.exports = {
     getLandsDetail: planting.getLandsDetail,
     getAvailableSeeds: planting.getAvailableSeeds,
     runFarmOperation: scheduler.runFarmOperation,
-    runFertilizerByConfig: planting.runFertilizerByConfig,
-    fertilizeOwnLand: planting.fertilizeOwnLand,
+    runFertilizerByConfig: fertilizer.runFertilizerByConfig,
+    fertilizeOwnLand: fertilizer.fertilizeOwnLand,
     buildLandMap: landAnalysis.buildLandMap,
     buildSlaveToMasterMap: landAnalysis.buildSlaveToMasterMap,
     getDisplayLandContext: landAnalysis.getDisplayLandContext,

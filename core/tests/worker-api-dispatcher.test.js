@@ -28,7 +28,6 @@ test('connected queued methods use the interactive account queue', async () => {
 
     const response = await executeWorkerApiCall('getLands', [21], registry, {
         isAccountReady: () => true,
-        requestId: 'request-21',
         submitTask: async (name, run, options) => {
             submissions.push({ name, options });
             return run();
@@ -38,7 +37,7 @@ test('connected queued methods use the interactive account queue', async () => {
     assert.deepEqual(response, { result: 42, error: null });
     assert.deepEqual(submissions, [{
         name: 'api:getLands',
-        options: { priority: 'interactive', requestId: 'request-21' },
+        options: { priority: 'interactive' },
     }]);
 });
 

@@ -1,5 +1,6 @@
 export {};
 const { createModuleLogger } = require('./logger');
+const { classForSchedulerNamespace, runWithRequestClass } = require('../utils/request-context');
 
 const schedulerLogger = createModuleLogger('scheduler');
 
@@ -121,6 +122,11 @@ function createScheduler(namespace = 'default'): Scheduler {
     const name = String(namespace || 'default');
     const store = ensureNamespaceStore(name);
     const timers = store.timers;
+    const requestClass = classForSchedulerNamespace(name);
+
+    function runTask(taskFn: () => Promise<void> | void): Promise<void> | void {
+        return runWithRequestClass(requestClass, taskFn);
+    }
 
     function clear(taskName: string): boolean {
         const key = String(taskName || '');
@@ -164,7 +170,7 @@ function createScheduler(namespace = 'default'): Scheduler {
             current.lastRunAt = Date.now();
             current.runCount += 1;
             try {
-                await taskFn();
+                await runTask(taskFn);
             } catch (e: any) {
                 schedulerLogger.warn(`[${name}] timeout 任务执行失败: ${key}`, {
                     module: 'scheduler',
@@ -213,7 +219,7 @@ function createScheduler(namespace = 'default'): Scheduler {
             current.lastRunAt = Date.now();
             current.runCount += 1;
             try {
-                await taskFn();
+                await runTask(taskFn);
             } catch (e: any) {
                 schedulerLogger.warn(`[${name}] interval 任务执行失败: ${key}`, {
                     module: 'scheduler',

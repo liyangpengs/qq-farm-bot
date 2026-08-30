@@ -39,12 +39,11 @@ const {
 } = require('./gid-manager');
 const {
     visitFriend,
-    visitFriendForSteal,
-    visitFriendForHelp,
     inFriendQuietHours,
     cacheFriendsListFromReply,
     clearFriendsListCache,
 } = require('./visit-strategy');
+const { buildFriendVisitPlan } = require('./visit-plan');
 const { getFriendDogState, flushFriendPetCacheNow } = require('./pet-cache');
 
 function petSyncRef(): any {
@@ -68,6 +67,7 @@ let badOperationLimitReached: boolean = false;
 // PutInsects additionally reports 10004, but 10003 is the shared daily quota.
 const BAD_SHARED_LIMIT_ID: number = 10003;
 const BAD_DAILY_STATE_VERSION: number = 1;
+const MAX_BAD_ONLY_VISITS_PER_ROUND: number = 20;
 
 const OP_NAMES: Record<number, string> = {
     10001: '浇水',
@@ -270,25 +270,10 @@ interface CheckFriendsOptions {
     onlyBad?: boolean;
     ignoreExpLimit?: boolean;
     signal?: AbortSignal;
-    onRoundMetric?: (metric: FriendRoundMetric) => void;
 }
 
-interface FriendOperationCounts {
-    steal: number;
-    help: number;
-    bad: number;
-}
-
-interface FriendRoundMetric {
-    startedAt: number;
-    finishedAt: number;
-    outcome: 'success' | 'error' | 'cancelled';
-    friendCount: number;
-    candidateCount: number;
-    processedCount: number;
-    deferredCount: number;
-    candidates: FriendOperationCounts;
-    processed: FriendOperationCounts;
+export function isFriendCheckRunning(): boolean {
+    return isCheckingFriends;
 }
 
 export async function checkFriends(options: CheckFriendsOptions = {}): Promise<boolean> {
@@ -319,19 +304,17 @@ export async function checkFriends(options: CheckFriendsOptions = {}): Promise<b
 
     isCheckingFriends = true;
     checkDailyReset();
-    const roundStartedAt = Date.now();
-    const candidates: FriendOperationCounts = { steal: 0, help: 0, bad: 0 };
-    const processed: FriendOperationCounts = { steal: 0, help: 0, bad: 0 };
-    let friendCount = 0;
-    let roundOutcome: FriendRoundMetric['outcome'] = 'success';
 
     try {
-        const friendsReply: any = await getAllFriends();
+        const friendsReply: any = await submitAccountTask(
+            'friend.phase.get-all-friends',
+            () => getAllFriends(),
+            { priority: 'scheduled', dedupeKey: 'friend.phase.get-all-friends' },
+        );
         if (signal?.aborted) return false;
         // 巡查结果同时刷新面板好友列表缓存，避免页面再次请求同一份列表。
         cacheFriendsListFromReply(friendsReply);
         const friends: any[] = extractReplyFriends(friendsReply);
-        friendCount = friends.length;
         if (friends.length === 0) {
             log('好友', '没有好友', { module: 'friend', event: '好友扫描', result: 'empty' });
             return false;
@@ -339,318 +322,126 @@ export async function checkFriends(options: CheckFriendsOptions = {}): Promise<b
 
         const blacklist: Set<number> = new Set(getFriendBlacklist(accountId));
 
-        const stealFriends: any[] = [];
-        const helpFriends: any[] = [];
-        const visitedGids: Set<number> = new Set();
-
-        for (const f of friends) {
-            const gid: number = toNum(f.gid);
-            if (gid === state.gid) continue;
-            if (visitedGids.has(gid)) continue;
-            if (blacklist.has(gid)) continue;
-
-            const name: string = f.remark || f.name || `GID:${gid}`;
-            const p: any = f.plant;
-            const stealNum: number = p ? toNum(p.steal_plant_num) : 0;
-            const dryNum: number = p ? toNum(p.dry_num) : 0;
-            const weedNum: number = p ? toNum(p.weed_num) : 0;
-            const insectNum: number = p ? toNum(p.insect_num) : 0;
-
-            if (stealNum > 0 && effectiveStealEnabled) {
-                stealFriends.push({ gid, name, stealNum });
-            }
-
-            if ((dryNum > 0 || weedNum > 0 || insectNum > 0) && effectiveHelpEnabled) {
-                helpFriends.push({ gid, name, dryNum, weedNum, insectNum });
-            }
-
-            visitedGids.add(gid);
-        }
-
-        // 排序：偷菜多的优先
-        stealFriends.sort((a: any, b: any) => b.stealNum - a.stealNum);
-        // 排序：帮助需求多的优先
-        helpFriends.sort((a: any, b: any) => {
-            const helpA: number = a.dryNum + a.weedNum + a.insectNum;
-            const helpB: number = b.dryNum + b.weedNum + b.insectNum;
-            return helpB - helpA;
+        const stopWhenExpLimit = !!isAutomationOn('friend_help_exp_limit') && !ignoreExpLimit;
+        const protectDogBypassEnabled = !!isAutomationOn('friend_help_protect_dog_ignore_exp_limit');
+        const plan: any = buildFriendVisitPlan({
+            friends,
+            myGid: state.gid,
+            blacklist,
+            stealEnabled: effectiveStealEnabled,
+            helpEnabled: effectiveHelpEnabled,
+            badEnabled: effectiveBadEnabled && !isBadOperationLimitReached(),
+            helpAllowedForAll: !stopWhenExpLimit || canGetHelpExp,
+            protectDogBypassEnabled,
+            getDogState: getFriendDogState,
+            badBudget: getRemainingBadOperationTimes(),
+            maxBadOnlyVisits: MAX_BAD_ONLY_VISITS_PER_ROUND,
         });
-        candidates.steal = stealFriends.length;
-        candidates.help = helpFriends.length;
+
+        if (plan.skippedExpLimit > 0) {
+            log('好友', `经验已达上限，本轮跳过 ${plan.skippedExpLimit} 位非护主犬好友（未进农场，其中 ${plan.skippedUnknownDog} 位宠物待同步）`, {
+                module: 'friend',
+                event: '好友巡查跳过',
+                reason: 'protect_dog_cache_filtered',
+                count: plan.skippedExpLimit,
+                unknownDog: plan.skippedUnknownDog,
+            });
+        }
+        if (plan.visits.length === 0) return false;
+
+        log('好友', `开始好友巡查，本轮 ${plan.visits.length} 位（可偷 ${plan.stealCount} / 需帮 ${plan.helpCount} / 纯捣乱 ${plan.badOnlyCount}）`, {
+            module: 'friend',
+            event: '开始好友巡查',
+            count: plan.visits.length,
+            steal: plan.stealCount,
+            help: plan.helpCount,
+            bad: plan.badOnlyCount,
+        });
 
         const totalActions: any = { steal: 0, farming: 0, putBug: 0, putWeed: 0 };
+        let midRoundExpSkipped = 0;
+        let visitedCount = 0;
 
-        // 第二阶段：批量偷菜
-        if (stealFriends.length > 0 && effectiveStealEnabled) {
-            // log('好友', `开始批量偷菜，共 ${stealFriends.length} 个好友有可偷`, {
-            //     module: 'friend', event: '开始批量偷菜', count: stealFriends.length
-            // });
-
-            for (const friend of stealFriends) {
-                if (signal?.aborted) break;
-                try {
-                    await submitAccountTask(
-                        `friend.steal:${friend.gid}`,
-                        () => visitFriendForSteal(friend, totalActions, state.gid, state.accountId),
-                        { priority: 'scheduled' },
-                    );
-                } catch {
-                    // 单个好友失败不影响整体
-                } finally {
-                    processed.steal += 1;
+        for (const target of plan.visits) {
+            if (signal?.aborted) break;
+            if (target.wantBad) {
+                if (isBadOperationLimitReached() || getRemainingBadOperationTimes() <= 0) break;
+            } else if (target.wantHelp && !target.wantSteal && stopWhenExpLimit && !canGetHelpExp) {
+                if (!protectDogBypassEnabled || getFriendDogState(target.gid) !== 'protect') {
+                    midRoundExpSkipped += 1;
+                    continue;
                 }
-                if (signal?.aborted) break;
-                await randomDelay(500, 800);
             }
+
+            try {
+                await submitAccountTask(
+                    `friend.visit:${target.gid}`,
+                    () => visitFriend(target, totalActions, state.gid, state.accountId, {
+                        allowSteal: target.wantSteal,
+                        allowHelp: target.wantHelp,
+                        allowBad: target.wantBad,
+                        ignoreExpLimit,
+                    }),
+                    { priority: 'scheduled' },
+                );
+                visitedCount += 1;
+            } catch (e: any) {
+                if (!signal?.aborted) {
+                    log('好友', `巡查好友失败: ${target.name}, 错误: ${e.message}`, {
+                        module: 'friend',
+                        event: '好友巡查失败',
+                        friendName: target.name,
+                        error: e.message,
+                    });
+                }
+            }
+
+            if (signal?.aborted) break;
+            if (target.wantBad) await randomDelay(2000, 3500);
+            else await randomDelay(500, 800);
         }
 
         if (signal?.aborted) return false;
+        if (midRoundExpSkipped > 0) {
+            log('好友', `本轮帮助经验在中途达到上限，跳过剩余 ${midRoundExpSkipped} 位非护主犬好友`, {
+                module: 'friend',
+                event: '好友巡查跳过',
+                reason: 'exp_limit',
+                count: midRoundExpSkipped,
+            });
+        }
 
-        // 偷菜后自动出售
         if (totalActions.steal > 0) {
             try {
                 await submitAccountTask('friend.scan.sell', sellAllFruits, {
                     priority: 'scheduled',
                     dedupeKey: 'friend.scan.sell',
                 });
-            } catch {
-                // ignore
-            }
+            } catch {}
         }
 
-        // 第三阶段：批量帮助
-        if (helpFriends.length > 0 && effectiveHelpEnabled) {
-            log('好友', `开始批量帮助，共 ${helpFriends.length} 个好友需要帮助`, {
-                module: 'friend', event: '开始批量帮助', count: helpFriends.length
-            });
-
-            // 经验满 + 护主犬开关开启时，本轮只帮当天缓存已确认为护主犬的好友；
-            // 缓存未确认的好友不再逐个进农场试探，由每日宠物同步补齐。
-            let protectDogFilteredCount: number = 0;
-            for (let i: number = 0; i < helpFriends.length; i++) {
-                if (signal?.aborted) break;
-                const friend: any = helpFriends[i];
-
-                // 检查是否还能获得帮助经验
-                const stopWhenExpLimit: boolean = !!isAutomationOn('friend_help_exp_limit') && !ignoreExpLimit;
-                const protectDogBypassEnabled: boolean = !!isAutomationOn('friend_help_protect_dog_ignore_exp_limit');
-                if (stopWhenExpLimit && !canGetHelpExp) {
-                    if (!protectDogBypassEnabled) {
-                        log('好友', `批量帮助跳过：${friend.name}，经验已达上限`, {
-                            module: 'friend',
-                            event: '批量帮助跳过',
-                            reason: 'exp_limit',
-                            index: i + 1,
-                            total: helpFriends.length,
-                            friendName: friend.name,
-                        });
-                        break;
-                    }
-                    if (getFriendDogState(friend.gid) !== 'protect') {
-                        protectDogFilteredCount += 1;
-                        continue;
-                    }
-                }
-
-                log('好友', `批量帮助第 ${i + 1}/${helpFriends.length} 个好友: ${friend.name}`, { module: 'friend', event: '批量帮助开始', index: i + 1, total: helpFriends.length, friendName: friend.name });
-
-                try {
-                    const result: any = await submitAccountTask(
-                        `friend.help:${friend.gid}`,
-                        () => visitFriendForHelp(friend, totalActions, state.gid, state.accountId, ignoreExpLimit),
-                        { priority: 'scheduled' },
-                    );
-                    const resultStatus: string = String(result?.status || 'no_action');
-                    if (resultStatus === 'skipped_exp_limit') {
-                        log('好友', `批量帮助跳过：${friend.name}，经验已达上限`, {
-                            module: 'friend',
-                            event: '批量帮助跳过',
-                            reason: 'exp_limit',
-                            index: i + 1,
-                            total: helpFriends.length,
-                            friendName: friend.name,
-                        });
-                    } else if (resultStatus === 'protect_dog_bypass') {
-                        log('好友', `批量帮助：${friend.name}，经验已达上限但检测到护主犬，继续帮助`, {
-                            module: 'friend',
-                            event: '批量帮助护主犬绕过经验上限',
-                            reason: 'protect_dog_exp_limit_bypass',
-                            index: i + 1,
-                            total: helpFriends.length,
-                            friendName: friend.name,
-                        });
-                        if (result.acted) {
-                            log('好友', `批量帮助第 ${i + 1} 个好友完成: ${friend.name}`, {
-                                module: 'friend',
-                                event: '批量帮助完成',
-                                index: i + 1,
-                                friendName: friend.name,
-                            });
-                        } else {
-                            log('好友', `批量帮助跳过：${friend.name}，护主犬好友暂无可帮助土地`, {
-                                module: 'friend',
-                                event: '批量帮助跳过',
-                                reason: 'protect_dog_no_action',
-                                index: i + 1,
-                                total: helpFriends.length,
-                                friendName: friend.name,
-                            });
-                        }
-                    } else if (resultStatus === 'helped') {
-                        log('好友', `批量帮助第 ${i + 1} 个好友完成: ${friend.name}`, {
-                            module: 'friend',
-                            event: '批量帮助完成',
-                            index: i + 1,
-                            friendName: friend.name,
-                        });
-                    } else if (resultStatus === 'enter_failed') {
-                        log('好友', `批量帮助失败：进入 ${friend.name} 农场失败`, {
-                            module: 'friend',
-                            event: '批量帮助失败',
-                            index: i + 1,
-                            total: helpFriends.length,
-                            friendName: friend.name,
-                            reason: 'enter_failed',
-                        });
-                    } else {
-                        log('好友', `批量帮助跳过：${friend.name}，没有可帮助土地`, {
-                            module: 'friend',
-                            event: '批量帮助跳过',
-                            reason: 'no_action',
-                            index: i + 1,
-                            total: helpFriends.length,
-                            friendName: friend.name,
-                        });
-                    }
-                } catch (e: any) {
-                    log('好友', `批量帮助第 ${i + 1} 个好友失败: ${friend.name}, 错误: ${e.message}`, { module: 'friend', event: '批量帮助失败', index: i + 1, friendName: friend.name, error: e.message });
-                } finally {
-                    processed.help += 1;
-                }
-                if (signal?.aborted) break;
-                await randomDelay(500, 800);
-            }
-            if (protectDogFilteredCount > 0) {
-                log('好友', `经验已达上限，本轮跳过 ${protectDogFilteredCount} 位非护主犬好友（未进农场）`, {
-                    module: 'friend',
-                    event: '批量帮助跳过',
-                    reason: 'protect_dog_cache_filtered',
-                    count: protectDogFilteredCount,
-                    total: helpFriends.length,
-                });
-            }
-            log('好友', '批量帮助循环结束', { module: 'friend', event: '批量帮助结束' });
-        }
-
-        if (signal?.aborted) return false;
-
-        // 第四阶段：批量捣乱（放虫放草）
-        if (effectiveBadEnabled && !isBadOperationLimitReached()) {
-            log('好友', '开始自动放虫放草', { module: 'friend', event: '开始自动放虫放草' });
-
-            const badFriends: any[] = [];
-            const badVisitedGids: Set<number> = new Set();
-
-            for (const f of friends) {
-                const gid: number = toNum(f.gid);
-                if (gid === state.gid) continue;
-                if (badVisitedGids.has(gid)) continue;
-                if (blacklist.has(gid)) continue;
-
-                const name: string = f.remark || f.name || `GID:${gid}`;
-                const p: any = f.plant;
-                const stealNum: number = p ? toNum(p.steal_plant_num) : 0;
-                const dryNum: number = p ? toNum(p.dry_num) : 0;
-                const weedNum: number = p ? toNum(p.weed_num) : 0;
-                const insectNum: number = p ? toNum(p.insect_num) : 0;
-
-                // 只没有可偷、可帮助的好友才考虑捣乱
-                if (stealNum === 0 && dryNum === 0 && weedNum === 0 && insectNum === 0) {
-                    const level: number = toNum(f.level);
-                    badFriends.push({ gid, name, level });
-                }
-
-                badVisitedGids.add(gid);
-            }
-
-            // 按等级降序排序，优先处理等级高的好友
-            badFriends.sort((a: any, b: any) => b.level - a.level);
-            candidates.bad = badFriends.length;
-
-            // 只取等级最高的前20个
-            const topBadFriends: any[] = badFriends.slice(0, 20);
-
-            if (topBadFriends.length > 0) {
-                log('好友', `找到 ${badFriends.length} 个可捣乱的好友，处理等级最高的前${topBadFriends.length}个`, { module: 'friend', event: '放虫放草好友列表', totalCount: badFriends.length, topCount: topBadFriends.length });
-
-                for (let i: number = 0; i < topBadFriends.length; i++) {
-                    if (signal?.aborted) break;
-                    const friend: any = topBadFriends[i];
-                    if (isBadOperationLimitReached()) break;
-
-                    // 检查是否还有捣乱次数
-                    if (getRemainingBadOperationTimes() <= 0) {
-                        log('好友', `放虫放草次数已用完，停止执行`, { module: 'friend', event: '放虫放草次数用完' });
-                        break;
-                    }
-
-                    try {
-                        await submitAccountTask(
-                            `friend.bad:${friend.gid}`,
-                            () => visitFriend(friend, totalActions, state.gid, state.accountId),
-                            { priority: 'scheduled' },
-                        );
-                    } catch {
-                        // 单个好友失败不影响整体
-                    } finally {
-                        processed.bad += 1;
-                    }
-                    if (signal?.aborted) break;
-                    if (isBadOperationLimitReached()) break;
-                    await randomDelay(2000, 3500);
-                }
-            }
-        }
-
-        if (signal?.aborted) return false;
-
-        // 生成总结日志
         const summary: string[] = [];
         if (totalActions.steal > 0) summary.push(`偷${totalActions.steal}`);
         if (totalActions.farming > 0) summary.push(`一键务农${totalActions.farming}`);
         if (totalActions.putBug > 0) summary.push(`放虫${totalActions.putBug}`);
         if (totalActions.putWeed > 0) summary.push(`放草${totalActions.putWeed}`);
 
-        const totalVisited: number = stealFriends.length + helpFriends.length;
         if (summary.length > 0) {
             log('好友', `巡查完成 → ${summary.join('/')}`, {
-                module: 'friend', event: '好友巡查循环', result: 'ok', visited: totalVisited, summary
+                module: 'friend',
+                event: '好友巡查循环',
+                result: 'ok',
+                visited: visitedCount,
+                summary,
             });
         }
         return summary.length > 0;
 
     } catch (err: any) {
-        roundOutcome = 'error';
         logWarn('好友', `巡查异常: ${err.message}`);
         return false;
     } finally {
         isCheckingFriends = false;
-        const candidateCount = candidates.steal + candidates.help + candidates.bad;
-        const processedCount = processed.steal + processed.help + processed.bad;
-        const finishedAt = Date.now();
-        try {
-            options.onRoundMetric?.({
-                startedAt: roundStartedAt,
-                finishedAt,
-                outcome: signal?.aborted ? 'cancelled' : roundOutcome,
-                friendCount,
-                candidateCount,
-                processedCount,
-                deferredCount: Math.max(0, candidateCount - processedCount),
-                candidates: { ...candidates },
-                processed: { ...processed },
-            });
-        } catch {}
     }
 }
 
@@ -731,7 +522,7 @@ function enqueueApplications(applications: any[]): void {
     submitAccountTask(
         'friend.applications.process',
         () => processFriendApplications(applications),
-        { priority: 'event' },
+        { priority: 'event', requestClass: 'friend' },
     ).catch((e: any) => {
         logWarn('申请', `处理好友申请失败: ${e && e.message ? e.message : e}`);
     });

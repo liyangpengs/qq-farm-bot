@@ -10,13 +10,13 @@ export {};
 const REQUEST_PRESSURE_LOG_INTERVAL_MS = 5000;
 
 interface QueuedPriorityLike {
-    priority?: string;
+    requestClass?: string;
 }
 
 function countBlockingQueuedRequests(queue: readonly QueuedPriorityLike[]): number {
     let count = 0;
     for (const request of queue || []) {
-        if (request && request.priority === 'low') continue;
+        if (request && request.requestClass === 'background') continue;
         count += 1;
     }
     return count;

@@ -7,11 +7,25 @@ const { createScheduler } = require('../services/scheduler');
 const { updateStatusFromLogin, updateStatusGold, updateStatusLevel } = require('../services/status');
 const { recordOperation } = require('../services/stats');
 const { types } = require('./proto');
-const { toLong, toNum, syncServerTime, log, logWarn } = require('./utils');
+const { toLong, toNum, syncServerTime, log, logWarn, sleep } = require('./utils');
 const cryptoWasm = require('./crypto-wasm');
 const { GatewayTokenProvider } = require('./gateway-token');
 const { MAX_HEARTBEAT_MISSES, shouldTerminateForHeartbeat } = require('./keepalive-policy');
-const { shouldLogRequestPressure } = require('./request-pressure');
+const { countBlockingQueuedRequests, shouldLogRequestPressure } = require('./request-pressure');
+const {
+    LOW_PRIORITY_IDLE_POLL_MS,
+    LOW_PRIORITY_IDLE_WAIT_MAX_MS,
+    LOW_PRIORITY_QUEUE_WAIT_MS,
+    isGatewayIdleForLowPriority,
+} = require('./low-priority-gate');
+const {
+    describeRequestClassMarker,
+    isClassQueueFull,
+    maxQueuedForClass,
+    resolveRequestClass,
+    selectDispatchIndex,
+} = require('./request-priority');
+const { getAmbientRequestClass } = require('./request-context');
 const { startAceRuntime, stopAceRuntime } = require('../services/ace');
 
 // ============ 事件发射器 (用于推送通知) ============
@@ -20,6 +34,7 @@ const networkEvents = new EventEmitter();
 // ============ 内部状态 ============
 type ConnectionPhase = 'connecting' | 'login' | 'online';
 type RequestPriority = 'low' | 'normal' | 'high';
+type RequestClass = 'critical' | 'foreground' | 'farm' | 'friend' | 'background';
 type CriticalLane = 'heartbeat' | 'ace';
 
 interface ConnectionContext {
@@ -35,6 +50,7 @@ interface SendMsgOptions {
     timeoutMs?: number;
     expectedErrorCodes?: readonly number[];
     priority?: RequestPriority;
+    requestClass?: RequestClass;
     criticalLane?: CriticalLane;
     expectReply?: boolean;
 }
@@ -45,7 +61,7 @@ interface PendingRequest {
     serviceName?: string;
     methodName?: string;
     startedAt?: number;
-    priority?: RequestPriority;
+    requestClass: RequestClass;
     criticalLane?: CriticalLane;
 }
 
@@ -58,10 +74,12 @@ interface QueuedRequest {
     resolve: (value: { body: Buffer; meta: any }) => void;
     reject: (reason: Error) => void;
     timeoutKey: string;
+    queueWaitKey: string;
     seq: number | null;
     settled: boolean;
-    priority: RequestPriority;
+    requestClass: RequestClass;
     criticalLane?: CriticalLane;
+    enqueuedAt: number;
     expectReply: boolean;
 }
 
@@ -87,6 +105,13 @@ class GatewayError extends Error {
     }
 }
 
+class GatewayBusyError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'GatewayBusyError';
+    }
+}
+
 let ws: WebSocket | null = null;
 let currentConnection: ConnectionContext | null = null;
 let nextConnectionId = 1;
@@ -94,14 +119,7 @@ let clientSeq: number = 1;
 let serverSeq: number = 0;
 const pendingCallbacks = new Map<number, PendingRequest>();
 const requestQueue: QueuedRequest[] = [];
-// Gateway 是单连接复用：普通业务保守并发，心跳和 ACE 各保留一个独立关键槽位。
-const MAX_NORMAL_IN_FLIGHT_REQUESTS = 2;
-const MAX_HIGH_IN_FLIGHT_REQUESTS = 2;
-const MAX_LOW_IN_FLIGHT_REQUESTS = 1;
-// 普通/关键流量的总预算；低优先级另有独立 1 个槽位，不占用该预算。
-const MAX_IN_FLIGHT_REQUESTS = MAX_NORMAL_IN_FLIGHT_REQUESTS + MAX_HIGH_IN_FLIGHT_REQUESTS;
-const MAX_QUEUED_REQUESTS = 100;
-const MAX_HIGH_PRIORITY_QUEUED_REQUESTS = 10;
+const MAX_DESCRIBED_PENDING_REQUESTS = 6;
 let nextRequestId = 1;
 let wsErrorState = { code: 0, at: 0, message: '' };
 let lastRequestPressureLogAt = 0;
@@ -115,48 +133,83 @@ function settleQueuedRequest(request: QueuedRequest, error?: Error, value?: { bo
     if (request.settled) return;
     request.settled = true;
     networkScheduler.clear(request.timeoutKey);
+    networkScheduler.clear(request.queueWaitKey);
     if (error) request.reject(error);
     else request.resolve(value!);
 }
 
-function pendingPriorityCount(priority: RequestPriority): number {
+function pendingClassCount(requestClass: RequestClass): number {
     let count = 0;
     for (const pending of pendingCallbacks.values()) {
-        if ((pending.priority || 'normal') === priority) count += 1;
+        if (pending.requestClass === requestClass) count += 1;
     }
     return count;
 }
 
-function pendingCriticalLaneCount(lane: CriticalLane): number {
-    let count = 0;
+function pendingBusinessCount(): number {
+    return pendingClassCount('foreground') + pendingClassCount('farm') + pendingClassCount('friend');
+}
+
+interface GatewayLoad {
+    pending: number;
+    queued: number;
+    blockingQueued: number;
+    criticalPending: number;
+    businessPending: number;
+    foregroundPending: number;
+    backgroundPending: number;
+    heartbeatMisses: number;
+    oldestPendingAgeMs: number;
+}
+
+function oldestPendingAgeMs(): number {
+    const now = Date.now();
+    let oldest = 0;
     for (const pending of pendingCallbacks.values()) {
-        if (pending.priority === 'high' && pending.criticalLane === lane) count += 1;
+        if (!pending.startedAt) continue;
+        oldest = Math.max(oldest, now - pending.startedAt);
     }
-    return count;
+    return oldest;
+}
+
+function getGatewayLoad(): GatewayLoad {
+    return {
+        pending: pendingCallbacks.size,
+        queued: requestQueue.length,
+        blockingQueued: countBlockingQueuedRequests(requestQueue),
+        criticalPending: pendingClassCount('critical'),
+        businessPending: pendingBusinessCount(),
+        foregroundPending: pendingClassCount('foreground'),
+        backgroundPending: pendingClassCount('background'),
+        heartbeatMisses: heartbeatMissCount,
+        oldestPendingAgeMs: oldestPendingAgeMs(),
+    };
+}
+
+function isGatewayIdleForBackground(): boolean {
+    return isGatewayIdleForLowPriority(getGatewayLoad());
+}
+
+async function waitForGatewayIdle(
+    maxWaitMs: number = LOW_PRIORITY_IDLE_WAIT_MAX_MS,
+    pollMs: number = LOW_PRIORITY_IDLE_POLL_MS,
+): Promise<boolean> {
+    const deadline = Date.now() + Math.max(0, Number(maxWaitMs) || 0);
+    for (;;) {
+        if (isGatewayIdleForBackground()) return true;
+        if (Date.now() >= deadline) return false;
+        await sleep(Math.max(20, Number(pollMs) || LOW_PRIORITY_IDLE_POLL_MS));
+    }
 }
 
 function takeDispatchableRequest(): QueuedRequest | null {
-    for (let index = requestQueue.length - 1; index >= 0; index--) {
+    for (let index = requestQueue.length - 1; index >= 0; index -= 1) {
         if (requestQueue[index].settled) requestQueue.splice(index, 1);
     }
-    // 两类关键流量各占一个槽位，避免 AntiData 或未来新增的高优先级请求挤掉心跳。
-    for (const lane of ['heartbeat', 'ace'] as const) {
-        if (pendingCriticalLaneCount(lane) >= 1) continue;
-        const laneIndex = requestQueue.findIndex(request => request.priority === 'high' && request.criticalLane === lane);
-        if (laneIndex >= 0) return requestQueue.splice(laneIndex, 1)[0];
-    }
-    // 未标记关键通道的 high 请求不占用心跳/ACE 的保留槽位；当前业务没有此类请求。
-    if (pendingPriorityCount('normal') < MAX_NORMAL_IN_FLIGHT_REQUESTS) {
-        const normalIndex = requestQueue.findIndex(request => request.priority === 'normal');
-        if (normalIndex >= 0) return requestQueue.splice(normalIndex, 1)[0];
-    }
-    // 低优先级任务不能挤占任何高/普通请求；只有网关当前没有主流程请求时才发送。
-    if (requestQueue.some(request => request.priority !== 'low')) return null;
-    if (pendingPriorityCount('high') > 0 || pendingPriorityCount('normal') > 0) return null;
-    if (pendingPriorityCount('low') >= MAX_LOW_IN_FLIGHT_REQUESTS) return null;
-    const lowIndex = requestQueue.findIndex(request => request.priority === 'low');
-    if (lowIndex >= 0) return requestQueue.splice(lowIndex, 1)[0];
-    return null;
+    if (requestQueue.length === 0) return null;
+    const index = selectDispatchIndex(requestQueue, Array.from(pendingCallbacks.values()), Date.now());
+    if (index < 0) return null;
+    return requestQueue.splice(index, 1)[0];
 }
 
 function drainRequestQueue(): void {
@@ -175,7 +228,7 @@ function drainRequestQueue(): void {
             serviceName: request.serviceName,
             methodName: request.methodName,
             startedAt: Date.now(),
-            priority: request.priority,
+            requestClass: request.requestClass,
             criticalLane: request.criticalLane,
             expectedErrorCodes: request.expectedErrorCodes,
             callback: (err, body, meta) => {
@@ -226,7 +279,7 @@ function describePendingRequests(): string {
     if (pendingCallbacks.size === 0) return 'none';
     const now = Date.now();
     return Array.from(pendingCallbacks.entries())
-        .slice(0, MAX_IN_FLIGHT_REQUESTS)
+        .slice(0, MAX_DESCRIBED_PENDING_REQUESTS)
         .map(([seq, pending]) => {
             const method = pending.methodName || 'unknown';
             const ageMs = pending.startedAt ? Math.max(0, now - pending.startedAt) : 0;
@@ -239,12 +292,7 @@ function describeQueuedRequests(): string {
     if (requestQueue.length === 0) return 'none';
     return requestQueue
         .slice(0, 8)
-        .map((request) => {
-            const marker = request.criticalLane === 'heartbeat'
-                ? '!H:'
-                : request.criticalLane === 'ace' ? '!A:' : request.priority === 'high' ? '!' : request.priority === 'low' ? '~' : '';
-            return `${marker}${request.methodName || 'unknown'}`;
-        })
+        .map(request => `${describeRequestClassMarker(request)}${request.methodName || 'unknown'}`)
         .join(',');
 }
 
@@ -360,9 +408,10 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
         ? options.criticalLane
         : undefined;
     const expectReply = options.expectReply !== false;
-    const priority: RequestPriority = criticalLane || options.priority === 'high'
-        ? 'high'
-        : options.priority === 'low' ? 'low' : 'normal';
+    const requestClass: RequestClass = resolveRequestClass(
+        { priority: options.priority, requestClass: options.requestClass, criticalLane },
+        getAmbientRequestClass(),
+    );
     return new Promise((resolve, reject) => {
         const context = currentConnection;
         if (!context || !isCurrentConnection(context) || context.socket.readyState !== WebSocket.OPEN) {
@@ -374,10 +423,11 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
             return;
         }
 
-        const highPriorityQueued = requestQueue.filter(request => request.priority === 'high').length;
-        if ((priority !== 'high' && requestQueue.length >= MAX_QUEUED_REQUESTS)
-            || (priority === 'high' && highPriorityQueued >= MAX_HIGH_PRIORITY_QUEUED_REQUESTS)) {
-            reject(new Error(`请求等待队列已满: ${methodName} (queued=${requestQueue.length}, pending=${pendingCallbacks.size})`));
+        if (isClassQueueFull(requestQueue, requestClass)) {
+            reject(new Error(
+                `请求等待队列已满: ${methodName} (class=${requestClass}, limit=${maxQueuedForClass(requestClass)}, `
+                + `queued=${requestQueue.length}, pending=${pendingCallbacks.size})`,
+            ));
             return;
         }
 
@@ -391,10 +441,12 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
             resolve,
             reject,
             timeoutKey: `request_timeout_${requestId}`,
+            queueWaitKey: `request_queue_wait_${requestId}`,
             seq: null,
             settled: false,
-            priority,
+            requestClass,
             criticalLane,
+            enqueuedAt: Date.now(),
             expectReply,
         };
         requestQueue.push(request);
@@ -406,6 +458,18 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
             settleQueuedRequest(request, new Error(`请求超时: ${methodName} (stage=${stage}, pending=${pendingCallbacks.size}, queued=${requestQueue.length}, active=${describePendingRequests()})`));
             drainRequestQueue();
         });
+        if (requestClass === 'background') {
+            const queueWaitMs = Math.min(timeoutMs, LOW_PRIORITY_QUEUE_WAIT_MS);
+            networkScheduler.setTimeoutTask(request.queueWaitKey, queueWaitMs, () => {
+                if (request.settled || request.seq !== null) return;
+                const index = requestQueue.indexOf(request);
+                if (index >= 0) requestQueue.splice(index, 1);
+                settleQueuedRequest(request, new GatewayBusyError(
+                    `网关繁忙，后台请求已让路: ${methodName} (waited=${queueWaitMs}ms, `
+                    + `pending=${pendingCallbacks.size}, queued=${requestQueue.length}, active=${describePendingRequests()})`,
+                ));
+            });
+        }
         drainRequestQueue();
         logRequestPressure();
     });
@@ -413,7 +477,7 @@ function sendMsgAsync(serviceName: string, methodName: string, bodyBytes: Buffer
 
 async function sendMsgNoReply(serviceName: string, methodName: string, bodyBytes: Buffer): Promise<void> {
     // 即使调用方不需要回包，也必须经过同一调度器，不能绕过心跳/ACE保护和并发上限。
-    await sendMsgAsync(serviceName, methodName, bodyBytes, { priority: 'normal', expectReply: false });
+    await sendMsgAsync(serviceName, methodName, bodyBytes, { expectReply: false });
 }
 
 // ============ 消息处理 ============
@@ -768,6 +832,7 @@ async function sendLogin(context: ConnectionContext, onLoginSuccess?: () => void
 
     await sendMsg(context, 'gamepb.userpb.UserService', 'Login', body, {
         expectedErrorCodes: new Set(),
+        requestClass: 'critical',
         callback: async (err, bodyBytes, _meta) => {
         if (!isCurrentConnection(context)) return;
         if (err) {
@@ -1043,7 +1108,8 @@ function getWs(): WebSocket | null { return ws; }
 module.exports = {
     connect, cleanup, getWs,
     sendMsgAsync, sendMsgNoReply,
-    GatewayError,
+    getGatewayLoad, isGatewayIdleForBackground, waitForGatewayIdle,
+    GatewayError, GatewayBusyError,
     getUserState,
     getWsErrorState,
     networkEvents,

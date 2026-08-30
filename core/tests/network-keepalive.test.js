@@ -118,16 +118,24 @@ test('handshake comparison removes only Code and compares every other URL byte',
     assert.equal(compareHandshakeUrls([first, changed]).identicalExceptCode, false);
 });
 
-test('a low priority only backlog is not reported as gateway pressure', () => {
-    const lowOnly = [{ priority: 'low' }, { priority: 'low' }, { priority: 'low' }];
+test('a background only backlog is not reported as gateway pressure', () => {
+    const backgroundOnly = [
+        { requestClass: 'background' },
+        { requestClass: 'background' },
+        { requestClass: 'background' },
+    ];
 
-    assert.equal(countBlockingQueuedRequests(lowOnly), 0);
-    assert.equal(shouldLogRequestPressure(lowOnly, 60000, 0), false);
+    assert.equal(countBlockingQueuedRequests(backgroundOnly), 0);
+    assert.equal(shouldLogRequestPressure(backgroundOnly, 60000, 0), false);
     assert.equal(shouldLogRequestPressure([], 60000, 0), false);
 });
 
 test('undispatchable requests are reported once per throttle window', () => {
-    const queue = [{ priority: 'low' }, { priority: 'normal' }, { priority: 'high' }];
+    const queue = [
+        { requestClass: 'background' },
+        { requestClass: 'farm' },
+        { requestClass: 'critical' },
+    ];
 
     assert.equal(REQUEST_PRESSURE_LOG_INTERVAL_MS, 5000);
     assert.equal(countBlockingQueuedRequests(queue), 2);

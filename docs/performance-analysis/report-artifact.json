@@ -1,0 +1,1429 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "调度重构生产性能诊断（6.4 小时）",
+    "description": "三账号生产运行的队列、HTTP 与好友长任务性能诊断。",
+    "generatedAt": "2026-08-28T09:40:02+08:00",
+    "sources": [
+      {
+        "id": "performance_metrics",
+        "label": "生产调度性能 JSONL 与已执行分析 notebook",
+        "path": "docs/performance-analysis/performance-metrics-analysis.ipynb",
+        "query": {
+          "engine": "python",
+          "language": "python",
+          "query": "records = [json.loads(line) for path in sorted(Path('docs').glob('task-metrics-*.jsonl')) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]\n# Merge latency histograms by summing per-bucket counts; report nearest-rank bucket upper bounds.",
+          "description": "读取两份生产 JSONL，校验窗口与直方图后，按任务、账号和 HTTP 路由加权合并计数与延迟桶。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "docs/task-metrics-2026-08-27.jsonl",
+            "docs/task-metrics-2026-08-28.jsonl"
+          ],
+          "filters": [
+            "2026-08-28T02:37:04+08:00 至 2026-08-28T09:02:04+08:00，Asia/Shanghai",
+            "账号仅以 A01–A03 稳定别名呈现",
+            "HTTP 路由图仅包含 n≥5 的路由",
+            "好友活跃窗口定义为同账号窗口内存在逐好友帮助、偷菜、捣乱或宠物同步事务"
+          ],
+          "metric_definitions": [
+            "P95/P99：合并直方图后采用 nearest-rank 所在桶上界，属于保守上界",
+            "真实队列等待：仅统计 inline=false 的 AccountTaskRunner 任务 waitMs",
+            "scheduler.* waitMs：dueAt 到 startedAt 的调度迟到，不是业务队列等待",
+            "HTTP 总耗时：管理端中间件记录的请求处理时长",
+            "错误率：error / executions；业务失败与调度故障不自动等价"
+          ]
+        }
+      },
+      {
+        "id": "headline_sql",
+        "label": "headline 报告快照查询",
+        "path": "docs/performance-analysis/report-source.sqlite",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT \"queued_wait_p95\", \"queued_sample\", \"http_get_p95\", \"http_get_sample\", \"friend_run_p95\", \"friend_round_sample\", \"max_queue_depth\", \"long_wait_count\" FROM \"report_headline\"",
+          "description": "读取报告顶层延迟与队列指标。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "report_headline"
+          ],
+          "filters": [
+            "由已执行 notebook 生成的匿名聚合快照"
+          ],
+          "metric_definitions": [
+            "上游计算来自已执行 performance-metrics-analysis.ipynb",
+            "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+            "账号只保留 A01–A03 匿名别名"
+          ]
+        }
+      },
+      {
+        "id": "focus_tasks_sql",
+        "label": "focus_tasks 报告快照查询",
+        "path": "docs/performance-analysis/report-source.sqlite",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT \"task\", \"n\", \"wait_semantics\", \"run_mean_ms\", \"run_p95_upper_ms\", \"run_p99_upper_ms\", \"run_max_ms\", \"wait_p95_upper_ms\", \"total_p95_upper_ms\", \"errors\" FROM \"report_focus_tasks\" ORDER BY run_p95_upper_ms DESC, n DESC",
+          "description": "读取关键任务运行时分位数与样本量。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "report_focus_tasks"
+          ],
+          "filters": [
+            "由已执行 notebook 生成的匿名聚合快照"
+          ],
+          "metric_definitions": [
+            "上游计算来自已执行 performance-metrics-analysis.ipynb",
+            "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+            "账号只保留 A01–A03 匿名别名"
+          ]
+        }
+      },
+      {
+        "id": "http_routes_sql",
+        "label": "http_routes 报告快照查询",
+        "path": "docs/performance-analysis/report-source.sqlite",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT \"route\", \"n\", \"mean_ms\", \"p95_upper_ms\", \"p99_upper_ms\", \"max_ms\", \"over_1s_n\", \"over_5s_n\", \"errors\" FROM \"report_http_routes\" ORDER BY p95_upper_ms DESC, n DESC",
+          "description": "读取样本量不少于 5 的 HTTP 路由延迟分位数。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "report_http_routes"
+          ],
+          "filters": [
+            "由已执行 notebook 生成的匿名聚合快照"
+          ],
+          "metric_definitions": [
+            "上游计算来自已执行 performance-metrics-analysis.ipynb",
+            "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+            "账号只保留 A01–A03 匿名别名"
+          ]
+        }
+      },
+      {
+        "id": "accounts_sql",
+        "label": "accounts 报告快照查询",
+        "path": "docs/performance-analysis/report-source.sqlite",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT \"account\", \"queued_task_n\", \"queue_wait_p95_upper_ms\", \"interactive_wait_p95_upper_ms\", \"max_queue_depth\", \"friend_round_n\", \"friend_round_lateness_p95_ms\", \"friend_round_run_p95_ms\", \"friend_round_run_max_ms\", \"friend_child_n\", \"active_friend_windows\", \"max_friend_children_per_window\" FROM \"report_accounts\" ORDER BY friend_child_n DESC",
+          "description": "读取匿名账号级队列与好友任务汇总。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "report_accounts"
+          ],
+          "filters": [
+            "由已执行 notebook 生成的匿名聚合快照"
+          ],
+          "metric_definitions": [
+            "上游计算来自已执行 performance-metrics-analysis.ipynb",
+            "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+            "账号只保留 A01–A03 匿名别名"
+          ]
+        }
+      },
+      {
+        "id": "background_compare_sql",
+        "label": "background_compare 报告快照查询",
+        "path": "docs/performance-analysis/report-source.sqlite",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT \"route_group\", \"friend_activity\", \"n\", \"mean_ms\", \"p95_upper_ms\", \"p99_upper_ms\", \"max_ms\", \"over_1s_n\", \"over_5s_n\" FROM \"report_background_compare\" ORDER BY route_group ASC, friend_activity ASC",
+          "description": "读取好友事务活跃与非活跃窗口的 HTTP 延迟对照。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "report_background_compare"
+          ],
+          "filters": [
+            "由已执行 notebook 生成的匿名聚合快照"
+          ],
+          "metric_definitions": [
+            "上游计算来自已执行 performance-metrics-analysis.ipynb",
+            "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+            "账号只保留 A01–A03 匿名别名"
+          ]
+        }
+      },
+      {
+        "id": "outliers_sql",
+        "label": "outliers 报告快照查询",
+        "path": "docs/performance-analysis/report-source.sqlite",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT \"order\", \"account\", \"window_end\", \"interactive_task\", \"wait_max_ms\", \"total_max_ms\", \"queue_depth\", \"contemporaneous_long_tasks\", \"causal_status\" FROM \"report_outliers\" ORDER BY wait_max_ms DESC",
+          "description": "读取交互等待超过 1 秒的聚合窗口及同窗口长任务。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "report_outliers"
+          ],
+          "filters": [
+            "由已执行 notebook 生成的匿名聚合快照"
+          ],
+          "metric_definitions": [
+            "上游计算来自已执行 performance-metrics-analysis.ipynb",
+            "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+            "账号只保留 A01–A03 匿名别名"
+          ]
+        }
+      },
+      {
+        "id": "quality_checks_sql",
+        "label": "quality_checks 报告快照查询",
+        "path": "docs/performance-analysis/report-source.sqlite",
+        "query": {
+          "engine": "sqlite",
+          "language": "sql",
+          "sql": "SELECT \"order\", \"check\", \"result\", \"assessment\" FROM \"report_quality_checks\" ORDER BY \"order\" ASC",
+          "description": "读取 JSONL 完整性、窗口连续性和聚合一致性检查。",
+          "executed_at": "2026-08-28T09:40:02+08:00",
+          "tables_used": [
+            "report_quality_checks"
+          ],
+          "filters": [
+            "由已执行 notebook 生成的匿名聚合快照"
+          ],
+          "metric_definitions": [
+            "上游计算来自已执行 performance-metrics-analysis.ipynb",
+            "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+            "账号只保留 A01–A03 匿名别名"
+          ]
+        }
+      },
+      {
+        "id": "architecture_claude",
+        "label": "架构验收标准（Claude 评估）",
+        "path": "docs/architecture-claude.md"
+      },
+      {
+        "id": "architecture_kimi",
+        "label": "架构验收标准（Kimi 评估）",
+        "path": "docs/architecture-kimi.md"
+      },
+      {
+        "id": "architecture_codex",
+        "label": "调度架构方案（Codex）",
+        "path": "docs/architecture-codex.md"
+      },
+      {
+        "id": "account_task_runner_code",
+        "label": "账号业务执行器实现",
+        "path": "core/src/app/account-task-runner.ts"
+      },
+      {
+        "id": "task_metrics_code",
+        "label": "任务指标口径实现",
+        "path": "core/src/app/account-task-metrics.ts"
+      },
+      {
+        "id": "worker_scheduler_code",
+        "label": "农场与好友统一调度实现",
+        "path": "core/src/core/worker.ts"
+      },
+      {
+        "id": "friend_scheduler_code",
+        "label": "好友逐个任务实现",
+        "path": "core/src/services/friend/scheduler.ts"
+      }
+    ],
+    "cards": [
+      {
+        "id": "queued_wait_card",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "description": "9,015 次真实入队任务；nearest-rank 直方图桶上界。",
+        "metrics": [
+          {
+            "label": "队列等待 P95",
+            "field": "queued_wait_p95"
+          },
+          {
+            "label": "样本",
+            "field": "queued_sample"
+          }
+        ]
+      },
+      {
+        "id": "http_get_card",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "description": "3,122 次 GET；服务端请求处理总耗时。",
+        "metrics": [
+          {
+            "label": "HTTP GET P95",
+            "field": "http_get_p95"
+          },
+          {
+            "label": "样本",
+            "field": "http_get_sample"
+          }
+        ]
+      },
+      {
+        "id": "friend_round_card",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "description": "好友调度轮实际运行时间；不含计划触发迟到。",
+        "metrics": [
+          {
+            "label": "好友轮运行 P95",
+            "field": "friend_run_p95"
+          },
+          {
+            "label": "样本",
+            "field": "friend_round_sample"
+          }
+        ]
+      },
+      {
+        "id": "queue_depth_card",
+        "dataset": "headline",
+        "sourceId": "headline_sql",
+        "description": "业务执行器观察到的最大等待队列深度。",
+        "metrics": [
+          {
+            "label": "最大队列深度",
+            "field": "max_queue_depth"
+          },
+          {
+            "label": "长等待",
+            "field": "long_wait_count"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "http_route_p95_chart",
+        "title": "HTTP 路由 P95 延迟上界",
+        "subtitle": "路由样本 n≥5；稀疏路由的 P95 接近该组最大值",
+        "showDescription": true,
+        "intent": "comparison",
+        "question": "哪些 HTTP 路由形成当前响应长尾？",
+        "rationale": "排序横向条形图适合比较较长路由标签及一个统一的毫秒指标。",
+        "comparisonContext": {
+          "grain": "HTTP 路由",
+          "unit": "ms",
+          "denominator": "每条路由的请求数 n"
+        },
+        "type": "bar",
+        "dataset": "http_routes",
+        "sourceId": "http_routes_sql",
+        "encodings": {
+          "x": {
+            "field": "route",
+            "type": "nominal",
+            "label": "路由"
+          },
+          "y": {
+            "field": "p95_upper_ms",
+            "type": "quantitative",
+            "label": "P95 桶上界",
+            "unit": "ms"
+          },
+          "tooltip": [
+            {
+              "field": "n",
+              "type": "quantitative",
+              "label": "样本"
+            },
+            {
+              "field": "mean_ms",
+              "type": "quantitative",
+              "label": "均值",
+              "unit": "ms"
+            },
+            {
+              "field": "p99_upper_ms",
+              "type": "quantitative",
+              "label": "P99 上界",
+              "unit": "ms"
+            },
+            {
+              "field": "max_ms",
+              "type": "quantitative",
+              "label": "最大值",
+              "unit": "ms"
+            },
+            {
+              "field": "over_1s_n",
+              "type": "quantitative",
+              "label": ">1s 次数"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "unit": "ms",
+        "layout": "full",
+        "labels": {
+          "values": "all"
+        },
+        "maxRows": 20,
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "descending",
+          "showValues": true,
+          "categoryLabelPolicy": "wrap"
+        },
+        "surface": {
+          "surface": "card",
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      },
+      {
+        "id": "focus_task_p95_chart",
+        "title": "关键任务运行时间 P95 上界",
+        "subtitle": "调度包装器使用实际运行时间；逐好友任务按单好友事务计",
+        "showDescription": true,
+        "intent": "comparison",
+        "question": "哪些业务任务仍可能占用账号串行槽较久？",
+        "rationale": "同一毫秒单位的横向排序条形图直接暴露长任务类别。",
+        "comparisonContext": {
+          "grain": "任务类型",
+          "unit": "ms",
+          "denominator": "该任务类型的执行次数 n"
+        },
+        "type": "bar",
+        "dataset": "focus_tasks",
+        "sourceId": "focus_tasks_sql",
+        "encodings": {
+          "x": {
+            "field": "task",
+            "type": "nominal",
+            "label": "任务"
+          },
+          "y": {
+            "field": "run_p95_upper_ms",
+            "type": "quantitative",
+            "label": "运行 P95 桶上界",
+            "unit": "ms"
+          },
+          "tooltip": [
+            {
+              "field": "n",
+              "type": "quantitative",
+              "label": "样本"
+            },
+            {
+              "field": "run_mean_ms",
+              "type": "quantitative",
+              "label": "均值",
+              "unit": "ms"
+            },
+            {
+              "field": "run_p99_upper_ms",
+              "type": "quantitative",
+              "label": "P99 上界",
+              "unit": "ms"
+            },
+            {
+              "field": "run_max_ms",
+              "type": "quantitative",
+              "label": "最大值",
+              "unit": "ms"
+            },
+            {
+              "field": "wait_semantics",
+              "type": "text",
+              "label": "waitMs 语义"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "unit": "ms",
+        "layout": "full",
+        "labels": {
+          "values": "all"
+        },
+        "maxRows": 10,
+        "settings": {
+          "orientation": "horizontal",
+          "sort": "descending",
+          "showValues": true,
+          "categoryLabelPolicy": "wrap"
+        },
+        "surface": {
+          "surface": "card",
+          "showControls": false,
+          "viewMode": "visualization"
+        }
+      }
+    ],
+    "tables": [
+      {
+        "id": "outlier_table",
+        "title": "交互等待超过 1 秒的聚合窗口",
+        "subtitle": "同账号同五分钟窗口的长任务仅作为阻塞候选，不视为精确因果时序",
+        "showDescription": true,
+        "dataset": "outliers",
+        "sourceId": "outliers_sql",
+        "defaultSort": {
+          "field": "wait_max_ms",
+          "direction": "desc"
+        },
+        "density": "spacious",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "account",
+            "label": "账号",
+            "type": "text"
+          },
+          {
+            "field": "window_end",
+            "label": "窗口结束",
+            "type": "date"
+          },
+          {
+            "field": "interactive_task",
+            "label": "交互任务",
+            "type": "text"
+          },
+          {
+            "field": "wait_max_ms",
+            "label": "最大等待 ms",
+            "format": "number"
+          },
+          {
+            "field": "queue_depth",
+            "label": "队列深度",
+            "format": "number"
+          },
+          {
+            "field": "contemporaneous_long_tasks",
+            "label": "同窗口长任务",
+            "type": "text"
+          },
+          {
+            "field": "causal_status",
+            "label": "证据边界",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "account_table",
+        "title": "三账号队列与好友任务表现",
+        "subtitle": "2026-08-28 02:37–09:02，Asia/Shanghai",
+        "showDescription": true,
+        "dataset": "accounts",
+        "sourceId": "accounts_sql",
+        "defaultSort": {
+          "field": "friend_child_n",
+          "direction": "desc"
+        },
+        "density": "spacious",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "account",
+            "label": "账号",
+            "type": "text"
+          },
+          {
+            "field": "queued_task_n",
+            "label": "入队任务",
+            "format": "number"
+          },
+          {
+            "field": "queue_wait_p95_upper_ms",
+            "label": "队列等待 P95 ms",
+            "format": "number"
+          },
+          {
+            "field": "interactive_wait_p95_upper_ms",
+            "label": "交互等待 P95 ms",
+            "format": "number"
+          },
+          {
+            "field": "max_queue_depth",
+            "label": "最大队列",
+            "format": "number"
+          },
+          {
+            "field": "friend_round_run_p95_ms",
+            "label": "好友轮运行 P95 ms",
+            "format": "number"
+          },
+          {
+            "field": "friend_round_run_max_ms",
+            "label": "好友轮最大运行 ms",
+            "format": "number"
+          },
+          {
+            "field": "friend_child_n",
+            "label": "逐好友事务",
+            "format": "number"
+          },
+          {
+            "field": "max_friend_children_per_window",
+            "label": "单窗口最多事务",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "background_compare_table",
+        "title": "HTTP 延迟与好友事务活跃窗口对照",
+        "subtitle": "同账号五分钟窗口重叠；同一路由对照优先于混合路由汇总",
+        "showDescription": true,
+        "dataset": "background_compare",
+        "sourceId": "background_compare_sql",
+        "defaultSort": {
+          "field": "route_group",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "route_group",
+            "label": "请求组",
+            "type": "text"
+          },
+          {
+            "field": "friend_activity",
+            "label": "好友事务",
+            "type": "text"
+          },
+          {
+            "field": "n",
+            "label": "样本",
+            "format": "number"
+          },
+          {
+            "field": "mean_ms",
+            "label": "均值 ms",
+            "format": "number"
+          },
+          {
+            "field": "p95_upper_ms",
+            "label": "P95 上界 ms",
+            "format": "number"
+          },
+          {
+            "field": "p99_upper_ms",
+            "label": "P99 上界 ms",
+            "format": "number"
+          },
+          {
+            "field": "max_ms",
+            "label": "最大值 ms",
+            "format": "number"
+          },
+          {
+            "field": "over_1s_n",
+            "label": ">1s",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "quality_table",
+        "title": "数据质量与覆盖检查",
+        "subtitle": "账号任务窗口连续；HTTP 低流量 scope 可跨多个空窗口累积",
+        "showDescription": true,
+        "dataset": "quality_checks",
+        "sourceId": "quality_checks_sql",
+        "defaultSort": {
+          "field": "order",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "order",
+            "label": "序号",
+            "format": "number"
+          },
+          {
+            "field": "check",
+            "label": "检查项",
+            "type": "text"
+          },
+          {
+            "field": "result",
+            "label": "结果",
+            "type": "text"
+          },
+          {
+            "field": "assessment",
+            "label": "判断",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title_block",
+        "type": "markdown",
+        "body": "# 调度重构生产性能诊断（6.4 小时）"
+      },
+      {
+        "id": "technical_summary",
+        "type": "markdown",
+        "body": "## Technical Summary\n\n**当前三账号常态性能健康，但还不能判定架构性能验收正式通过。** 真实入队任务等待 P95 ≤1 ms，HTTP GET 总耗时 P95 ≤50 ms，好友轮实际运行 P95 ≤1 s，最大队列深度为 3；这些数字说明没有持续性积压。\n\n不过 P95 掩盖了 3 个交互长尾窗口：最严重一次交互任务等待 29.7 s，同窗口存在 30.6 s 的 farm.check；另一次等待 7.14 s，同窗口存在 9.35 s 的单好友捣乱事务。当前日志只有重构后数据，也没有好友总数，因此无法验证相对旧基线 ±20% 或 300 好友极端场景。"
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "queued_wait_card",
+          "http_get_card",
+          "friend_round_card",
+          "queue_depth_card"
+        ]
+      },
+      {
+        "id": "latency_findings",
+        "type": "markdown",
+        "body": "## 常态延迟很好，但三次尾部等待需要处理\n\n高频路径表现稳定：2,232 次 GET /api/bag 的 P95 ≤50 ms、P99 ≤100 ms，仅 2 次超过 1 s。真正的问题不在总体吞吐，而在串行槽被单次长任务占住时，后到的交互任务只能等待。\n\nGET /api/seeds 只有 5 个样本，其中 1 次达到 7.19 s，因此其 P95 桶上界为 10 s；这个数字代表稀疏样本中的单次长尾，不应外推成常态。"
+      },
+      {
+        "id": "http_route_chart_block",
+        "type": "chart",
+        "chartId": "http_route_p95_chart"
+      },
+      {
+        "id": "outlier_table_block",
+        "type": "table",
+        "tableId": "outlier_table"
+      },
+      {
+        "id": "friend_findings",
+        "type": "markdown",
+        "body": "## 好友切片已经阻止整轮独占，但单好友事务仍可能阻塞数秒\n\n逐好友切片的收益已经出现：帮助事务 276 次，运行 P95 ≤500 ms；偷菜事务 16 次，运行 P95 ≤1 s。好友整轮即使最长运行 35.65 s，也不是连续占用业务执行器，而是由逐好友事务分段进入队列。\n\n尾部风险集中在单个不可打断事务：捣乱事务仅 8 次，但运行 P95 桶上界为 10 s、最大 9.35 s。三账号单个五分钟窗口最多只执行 11 个逐好友事务，远低于 300，因此这份样本不能证明 300 好友场景。"
+      },
+      {
+        "id": "focus_chart_block",
+        "type": "chart",
+        "chartId": "focus_task_p95_chart"
+      },
+      {
+        "id": "account_table_block",
+        "type": "table",
+        "tableId": "account_table"
+      },
+      {
+        "id": "background_findings",
+        "type": "markdown",
+        "sourceId": "background_compare_sql",
+        "body": "## 高频背包接口没有因好友后台任务变慢\n\n对同一路由做窗口对照时，GET /api/bag 在无好友事务窗口和有好友事务窗口的 P95 都是 ≤50 ms，P99 都是 ≤100 ms；好友活跃窗口均值反而略低，说明当前样本没有发现好友后台任务抬高这个高频只读接口的证据。\n\n全部 GET 在好友活跃窗口的 P95 从 ≤50 ms 变为 ≤100 ms，但两组路由构成不同，不能据此归因于后台任务。"
+      },
+      {
+        "id": "background_table_block",
+        "type": "table",
+        "tableId": "background_compare_table"
+      },
+      {
+        "id": "scope_definitions",
+        "type": "markdown",
+        "sourceId": "performance_metrics",
+        "body": "## 样本覆盖与指标口径\n\n数据覆盖 2026-08-28 02:37:04+08:00 至 2026-08-28 09:02:04+08:00，共 6.42 小时、3 个账号、311 个聚合窗口。账号任务 15,009 次，HTTP 请求 3,165 次。\n\n- **真实队列等待**：仅 inline=false 的账号执行器任务。\n- **调度迟到**：scheduler.* 从计划触发到实际开始的偏移，不等同于排队。\n- **P95/P99**：合并五分钟直方图后，取 nearest-rank 所在桶上界。\n- **好友活跃窗口**：同账号重叠窗口内至少出现一个逐好友帮助、偷菜、捣乱或宠物同步事务。"
+      },
+      {
+        "id": "quality_table_block",
+        "type": "table",
+        "tableId": "quality_table"
+      },
+      {
+        "id": "methodology",
+        "type": "markdown",
+        "body": "## 计算与验证方法\n\n两份 JSONL 先按行解析并核验 schema、窗口主键、taskCount、outcome 计数、直方图计数以及 total = wait + run。随后按账号、任务、优先级和 HTTP 路由直接合并直方图桶，均值使用总和除以总计数，分位数使用 nearest-rank 桶上界。\n\n分析 notebook 已从头到尾执行且无错误；另用独立 PowerShell 实现复算账号任务数、HTTP 数、真实队列 P95、GET P95、好友轮运行 P95、最大交互等待和最大队列深度，结果全部一致。"
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "body": "## 限制、稳健性与正式验收边界\n\n- **没有重构前基线。** 架构文档要求关键指标相对旧版漂移在 ±20% 内，本次只有重构后样本，不能给出正式 pass。\n- **没有好友总数。** 日志记录实际逐好友事务，却未记录每轮好友总数、候选数与处理进度，不能验证 300 好友容量。\n- **聚合窗口不能证明严格因果。** 长交互等待与长后台任务出现在同账号同窗口，结合串行执行器构成强关联，但缺少单次 taskId/blockedBy 时间线。\n- **直方图分位数是上界。** 例如 2–5 s 桶会报告 5 s；稀疏路由 P95 接近最大值。\n- **样本为 6.4 小时。** 足够发现常态和明显长尾，不足以代表全天周期、重启高峰或长期网络抖动。"
+      },
+      {
+        "id": "next_steps",
+        "type": "markdown",
+        "body": "## 建议的下一步\n\n1. **先验证再修复超时后的任务生命周期。** 增加 requestId/taskId 关联；若确认 HTTP/worker 请求约 10 s 结束后对应任务仍在队列中，则通过已有 AbortSignal 或 deadline 取消。\n2. **把 30 s 级 farm.check 作为首要长尾诊断对象。** 记录每个子 RPC 的耗时与超时原因；不要再加一层防御性队列。\n3. **给逐好友批次补最小必要指标。** 每轮记录 friendCount、candidateCount、processedCount、deferredCount，并给单次任务增加 taskId 与 blockedByTask。\n4. **做一次受控 300 好友测试。** 连续运行至少 2 小时，同时固定频率请求 GET /api/bag 与一个 fresh-read 接口；同时看 P95、P99、最大等待、取消率和处理进度。\n5. **保留当前 6.4 小时样本作为新版本基线。** 后续 24 小时与 7 天数据按同一 notebook 复算，比较发布前后变化。"
+      },
+      {
+        "id": "further_questions",
+        "type": "markdown",
+        "body": "## 仍需回答的问题\n\n- farm.check 的 30.6 s 是单个协议超时、重试，还是多步业务累计？\n- HTTP 约 10 s 返回后，对应账号任务是否仍在队列中继续执行？\n- 三个账号在生产中的实际好友总数分别是多少，是否存在接近 300 的账号？\n- 300 好友场景下，捣乱类单好友事务的 9 s 尾部是否会重复出现？"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-08-28T09:40:02+08:00",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "queued_wait_p95": "≤1 ms",
+          "queued_sample": "9,015 次",
+          "http_get_p95": "≤50 ms",
+          "http_get_sample": "3,122 次",
+          "friend_run_p95": "≤1 s",
+          "friend_round_sample": "2,986 轮",
+          "max_queue_depth": "3",
+          "long_wait_count": "15 次 >1 s"
+        }
+      ],
+      "focus_tasks": [
+        {
+          "task": "好友捣乱事务",
+          "n": 8,
+          "wait_semantics": "队列等待",
+          "run_mean_ms": 2504.125,
+          "run_p95_upper_ms": 10000.0,
+          "run_p99_upper_ms": 10000.0,
+          "run_max_ms": 9348.0,
+          "wait_p95_upper_ms": 2000.0,
+          "total_p95_upper_ms": 10000.0,
+          "errors": 0
+        },
+        {
+          "task": "好友调度轮",
+          "n": 2986,
+          "wait_semantics": "调度迟到",
+          "run_mean_ms": 151.746,
+          "run_p95_upper_ms": 1000.0,
+          "run_p99_upper_ms": 2000.0,
+          "run_max_ms": 35649.0,
+          "wait_p95_upper_ms": 5000.0,
+          "total_p95_upper_ms": 5000.0,
+          "errors": 0
+        },
+        {
+          "task": "好友偷菜事务",
+          "n": 16,
+          "wait_semantics": "队列等待",
+          "run_mean_ms": 769.312,
+          "run_p95_upper_ms": 1000.0,
+          "run_p99_upper_ms": 1000.0,
+          "run_max_ms": 936.0,
+          "wait_p95_upper_ms": 1.0,
+          "total_p95_upper_ms": 1000.0,
+          "errors": 0
+        },
+        {
+          "task": "好友帮助事务",
+          "n": 276,
+          "wait_semantics": "队列等待",
+          "run_mean_ms": 232.949,
+          "run_p95_upper_ms": 500.0,
+          "run_p99_upper_ms": 500.0,
+          "run_max_ms": 345.0,
+          "wait_p95_upper_ms": 1.0,
+          "total_p95_upper_ms": 500.0,
+          "errors": 0
+        },
+        {
+          "task": "农场调度轮",
+          "n": 3002,
+          "wait_semantics": "调度迟到",
+          "run_mean_ms": 196.777,
+          "run_p95_upper_ms": 200.0,
+          "run_p99_upper_ms": 200.0,
+          "run_max_ms": 36024.0,
+          "wait_p95_upper_ms": 5.0,
+          "total_p95_upper_ms": 200.0,
+          "errors": 0
+        },
+        {
+          "task": "交互任务",
+          "n": 2317,
+          "wait_semantics": "队列等待",
+          "run_mean_ms": 37.144,
+          "run_p95_upper_ms": 100.0,
+          "run_p99_upper_ms": 100.0,
+          "run_max_ms": 360.0,
+          "wait_p95_upper_ms": 1.0,
+          "total_p95_upper_ms": 100.0,
+          "errors": 3
+        }
+      ],
+      "http_routes": [
+        {
+          "route": "GET /api/seeds",
+          "n": 5,
+          "mean_ms": 1473.517,
+          "p95_upper_ms": 10000.0,
+          "p99_upper_ms": 10000.0,
+          "max_ms": 7191.291,
+          "over_1s_n": 1,
+          "over_5s_n": 1,
+          "errors": 0
+        },
+        {
+          "route": "POST /api/activity-center/weather/research/light",
+          "n": 5,
+          "mean_ms": 164.248,
+          "p95_upper_ms": 500.0,
+          "p99_upper_ms": 500.0,
+          "max_ms": 238.54,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/lands",
+          "n": 14,
+          "mean_ms": 81.898,
+          "p95_upper_ms": 200.0,
+          "p99_upper_ms": 200.0,
+          "max_ms": 102.632,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/farm/interaction-items",
+          "n": 10,
+          "mean_ms": 113.241,
+          "p95_upper_ms": 200.0,
+          "p99_upper_ms": 200.0,
+          "max_ms": 142.105,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "POST /api/activity-center/weather/friends/scan",
+          "n": 8,
+          "mean_ms": 85.002,
+          "p95_upper_ms": 200.0,
+          "p99_upper_ms": 200.0,
+          "max_ms": 108.101,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/bag/seeds",
+          "n": 5,
+          "mean_ms": 94.986,
+          "p95_upper_ms": 200.0,
+          "p99_upper_ms": 200.0,
+          "max_ms": 171.956,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/diamond",
+          "n": 10,
+          "mean_ms": 43.013,
+          "p95_upper_ms": 100.0,
+          "p99_upper_ms": 100.0,
+          "max_ms": 81.88,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/bag",
+          "n": 2232,
+          "mean_ms": 45.721,
+          "p95_upper_ms": 50.0,
+          "p99_upper_ms": 100.0,
+          "max_ms": 9783.482,
+          "over_1s_n": 2,
+          "over_5s_n": 1,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/status",
+          "n": 11,
+          "mean_ms": 6.807,
+          "p95_upper_ms": 50.0,
+          "p99_upper_ms": 50.0,
+          "max_ms": 37.658,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 1
+        },
+        {
+          "route": "GET /api/analytics",
+          "n": 6,
+          "mean_ms": 10.972,
+          "p95_upper_ms": 20.0,
+          "p99_upper_ms": 20.0,
+          "max_ms": 13.849,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/settings",
+          "n": 15,
+          "mean_ms": 3.926,
+          "p95_upper_ms": 10.0,
+          "p99_upper_ms": 10.0,
+          "max_ms": 6.109,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/accounts",
+          "n": 12,
+          "mean_ms": 2.692,
+          "p95_upper_ms": 10.0,
+          "p99_upper_ms": 10.0,
+          "max_ms": 7.266,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/activity-center/activities",
+          "n": 7,
+          "mean_ms": 5.705,
+          "p95_upper_ms": 10.0,
+          "p99_upper_ms": 10.0,
+          "max_ms": 8.762,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/ping",
+          "n": 765,
+          "mean_ms": 1.592,
+          "p95_upper_ms": 5.0,
+          "p99_upper_ms": 5.0,
+          "max_ms": 11.212,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        },
+        {
+          "route": "GET /api/user/me",
+          "n": 5,
+          "mean_ms": 2.085,
+          "p95_upper_ms": 5.0,
+          "p99_upper_ms": 5.0,
+          "max_ms": 2.591,
+          "over_1s_n": 0,
+          "over_5s_n": 0,
+          "errors": 0
+        }
+      ],
+      "accounts": [
+        {
+          "account": "A03",
+          "queued_task_n": 2290,
+          "queue_wait_p95_upper_ms": 1.0,
+          "interactive_wait_p95_upper_ms": 200.0,
+          "max_queue_depth": 2,
+          "friend_round_n": 996,
+          "friend_round_lateness_p95_ms": 2000.0,
+          "friend_round_run_p95_ms": 2000.0,
+          "friend_round_run_max_ms": 35649.0,
+          "friend_child_n": 178,
+          "active_friend_windows": 63,
+          "max_friend_children_per_window": 11
+        },
+        {
+          "account": "A02",
+          "queued_task_n": 2259,
+          "queue_wait_p95_upper_ms": 1.0,
+          "interactive_wait_p95_upper_ms": 100.0,
+          "max_queue_depth": 1,
+          "friend_round_n": 991,
+          "friend_round_lateness_p95_ms": 5000.0,
+          "friend_round_run_p95_ms": 1000.0,
+          "friend_round_run_max_ms": 1956.0,
+          "friend_child_n": 115,
+          "active_friend_windows": 62,
+          "max_friend_children_per_window": 10
+        },
+        {
+          "account": "A01",
+          "queued_task_n": 4466,
+          "queue_wait_p95_upper_ms": 1.0,
+          "interactive_wait_p95_upper_ms": 1.0,
+          "max_queue_depth": 3,
+          "friend_round_n": 999,
+          "friend_round_lateness_p95_ms": 5000.0,
+          "friend_round_run_p95_ms": 100.0,
+          "friend_round_run_max_ms": 1893.0,
+          "friend_child_n": 7,
+          "active_friend_windows": 5,
+          "max_friend_children_per_window": 2
+        }
+      ],
+      "background_compare": [
+        {
+          "route_group": "GET /api/bag",
+          "friend_activity": "无好友事务",
+          "n": 1974,
+          "mean_ms": 46.526,
+          "p95_upper_ms": 50.0,
+          "p99_upper_ms": 100.0,
+          "max_ms": 9783.482,
+          "over_1s_n": 2,
+          "over_5s_n": 1
+        },
+        {
+          "route_group": "GET /api/bag",
+          "friend_activity": "有好友事务",
+          "n": 258,
+          "mean_ms": 39.561,
+          "p95_upper_ms": 50.0,
+          "p99_upper_ms": 100.0,
+          "max_ms": 282.659,
+          "over_1s_n": 0,
+          "over_5s_n": 0
+        },
+        {
+          "route_group": "全部 GET",
+          "friend_activity": "无好友事务",
+          "n": 2667,
+          "mean_ms": 35.226,
+          "p95_upper_ms": 50.0,
+          "p99_upper_ms": 100.0,
+          "max_ms": 9783.482,
+          "over_1s_n": 2,
+          "over_5s_n": 1
+        },
+        {
+          "route_group": "全部 GET",
+          "friend_activity": "有好友事务",
+          "n": 443,
+          "mean_ms": 46.98,
+          "p95_upper_ms": 100.0,
+          "p99_upper_ms": 200.0,
+          "max_ms": 7191.291,
+          "over_1s_n": 1,
+          "over_5s_n": 1
+        }
+      ],
+      "outliers": [
+        {
+          "order": 1,
+          "account": "A01",
+          "window_end": "2026-08-28T04:52:04+08:00",
+          "interactive_task": "api:getBag",
+          "wait_max_ms": 29711.0,
+          "total_max_ms": 29747.0,
+          "queue_depth": 3,
+          "contemporaneous_long_tasks": "farm.check (30627.0 ms)；farm.check (4475.0 ms)",
+          "causal_status": "同窗口强关联，非单次时序证明"
+        },
+        {
+          "order": 2,
+          "account": "A03",
+          "window_end": "2026-08-28T02:46:19+08:00",
+          "interactive_task": "api:getSeeds",
+          "wait_max_ms": 7141.0,
+          "total_max_ms": 7187.0,
+          "queue_depth": 1,
+          "contemporaneous_long_tasks": "friend.bad:* (9348.0 ms)；farm.check (3630.0 ms)；task.claim (1450.0 ms)",
+          "causal_status": "同窗口强关联，非单次时序证明"
+        },
+        {
+          "order": 3,
+          "account": "A01",
+          "window_end": "2026-08-28T07:17:04+08:00",
+          "interactive_task": "api:getBag",
+          "wait_max_ms": 3028.0,
+          "total_max_ms": 3064.0,
+          "queue_depth": 1,
+          "contemporaneous_long_tasks": "farm.check (13732.0 ms)",
+          "causal_status": "同窗口强关联，非单次时序证明"
+        }
+      ],
+      "quality_checks": [
+        {
+          "order": 1,
+          "check": "JSON 坏行",
+          "result": "0",
+          "assessment": "通过"
+        },
+        {
+          "order": 2,
+          "check": "重复窗口",
+          "result": "0",
+          "assessment": "通过"
+        },
+        {
+          "order": 3,
+          "check": "taskCount 不一致",
+          "result": "0",
+          "assessment": "通过"
+        },
+        {
+          "order": 4,
+          "check": "直方图计数不一致",
+          "result": "0",
+          "assessment": "通过"
+        },
+        {
+          "order": 5,
+          "check": "total != wait + run",
+          "result": "0",
+          "assessment": "通过"
+        },
+        {
+          "order": 6,
+          "check": "账号五分钟窗口",
+          "result": "300.0–300.009 秒",
+          "assessment": "通过"
+        },
+        {
+          "order": 7,
+          "check": "账号时间线 >7.5 分钟空档",
+          "result": "0",
+          "assessment": "通过"
+        },
+        {
+          "order": 8,
+          "check": "HTTP 非标准长度窗口",
+          "result": "2",
+          "assessment": "低流量 scope 跨空窗，符合 drain 语义"
+        },
+        {
+          "order": 9,
+          "check": "schema / bot version",
+          "result": "v1 / 20260827",
+          "assessment": "单一版本"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "performance_metrics",
+      "label": "生产调度性能 JSONL 与已执行分析 notebook",
+      "path": "docs/performance-analysis/performance-metrics-analysis.ipynb",
+      "query": {
+        "engine": "python",
+        "language": "python",
+        "query": "records = [json.loads(line) for path in sorted(Path('docs').glob('task-metrics-*.jsonl')) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]\n# Merge latency histograms by summing per-bucket counts; report nearest-rank bucket upper bounds.",
+        "description": "读取两份生产 JSONL，校验窗口与直方图后，按任务、账号和 HTTP 路由加权合并计数与延迟桶。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "docs/task-metrics-2026-08-27.jsonl",
+          "docs/task-metrics-2026-08-28.jsonl"
+        ],
+        "filters": [
+          "2026-08-28T02:37:04+08:00 至 2026-08-28T09:02:04+08:00，Asia/Shanghai",
+          "账号仅以 A01–A03 稳定别名呈现",
+          "HTTP 路由图仅包含 n≥5 的路由",
+          "好友活跃窗口定义为同账号窗口内存在逐好友帮助、偷菜、捣乱或宠物同步事务"
+        ],
+        "metric_definitions": [
+          "P95/P99：合并直方图后采用 nearest-rank 所在桶上界，属于保守上界",
+          "真实队列等待：仅统计 inline=false 的 AccountTaskRunner 任务 waitMs",
+          "scheduler.* waitMs：dueAt 到 startedAt 的调度迟到，不是业务队列等待",
+          "HTTP 总耗时：管理端中间件记录的请求处理时长",
+          "错误率：error / executions；业务失败与调度故障不自动等价"
+        ]
+      }
+    },
+    {
+      "id": "headline_sql",
+      "label": "headline 报告快照查询",
+      "path": "docs/performance-analysis/report-source.sqlite",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT \"queued_wait_p95\", \"queued_sample\", \"http_get_p95\", \"http_get_sample\", \"friend_run_p95\", \"friend_round_sample\", \"max_queue_depth\", \"long_wait_count\" FROM \"report_headline\"",
+        "description": "读取报告顶层延迟与队列指标。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "report_headline"
+        ],
+        "filters": [
+          "由已执行 notebook 生成的匿名聚合快照"
+        ],
+        "metric_definitions": [
+          "上游计算来自已执行 performance-metrics-analysis.ipynb",
+          "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+          "账号只保留 A01–A03 匿名别名"
+        ]
+      }
+    },
+    {
+      "id": "focus_tasks_sql",
+      "label": "focus_tasks 报告快照查询",
+      "path": "docs/performance-analysis/report-source.sqlite",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT \"task\", \"n\", \"wait_semantics\", \"run_mean_ms\", \"run_p95_upper_ms\", \"run_p99_upper_ms\", \"run_max_ms\", \"wait_p95_upper_ms\", \"total_p95_upper_ms\", \"errors\" FROM \"report_focus_tasks\" ORDER BY run_p95_upper_ms DESC, n DESC",
+        "description": "读取关键任务运行时分位数与样本量。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "report_focus_tasks"
+        ],
+        "filters": [
+          "由已执行 notebook 生成的匿名聚合快照"
+        ],
+        "metric_definitions": [
+          "上游计算来自已执行 performance-metrics-analysis.ipynb",
+          "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+          "账号只保留 A01–A03 匿名别名"
+        ]
+      }
+    },
+    {
+      "id": "http_routes_sql",
+      "label": "http_routes 报告快照查询",
+      "path": "docs/performance-analysis/report-source.sqlite",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT \"route\", \"n\", \"mean_ms\", \"p95_upper_ms\", \"p99_upper_ms\", \"max_ms\", \"over_1s_n\", \"over_5s_n\", \"errors\" FROM \"report_http_routes\" ORDER BY p95_upper_ms DESC, n DESC",
+        "description": "读取样本量不少于 5 的 HTTP 路由延迟分位数。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "report_http_routes"
+        ],
+        "filters": [
+          "由已执行 notebook 生成的匿名聚合快照"
+        ],
+        "metric_definitions": [
+          "上游计算来自已执行 performance-metrics-analysis.ipynb",
+          "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+          "账号只保留 A01–A03 匿名别名"
+        ]
+      }
+    },
+    {
+      "id": "accounts_sql",
+      "label": "accounts 报告快照查询",
+      "path": "docs/performance-analysis/report-source.sqlite",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT \"account\", \"queued_task_n\", \"queue_wait_p95_upper_ms\", \"interactive_wait_p95_upper_ms\", \"max_queue_depth\", \"friend_round_n\", \"friend_round_lateness_p95_ms\", \"friend_round_run_p95_ms\", \"friend_round_run_max_ms\", \"friend_child_n\", \"active_friend_windows\", \"max_friend_children_per_window\" FROM \"report_accounts\" ORDER BY friend_child_n DESC",
+        "description": "读取匿名账号级队列与好友任务汇总。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "report_accounts"
+        ],
+        "filters": [
+          "由已执行 notebook 生成的匿名聚合快照"
+        ],
+        "metric_definitions": [
+          "上游计算来自已执行 performance-metrics-analysis.ipynb",
+          "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+          "账号只保留 A01–A03 匿名别名"
+        ]
+      }
+    },
+    {
+      "id": "background_compare_sql",
+      "label": "background_compare 报告快照查询",
+      "path": "docs/performance-analysis/report-source.sqlite",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT \"route_group\", \"friend_activity\", \"n\", \"mean_ms\", \"p95_upper_ms\", \"p99_upper_ms\", \"max_ms\", \"over_1s_n\", \"over_5s_n\" FROM \"report_background_compare\" ORDER BY route_group ASC, friend_activity ASC",
+        "description": "读取好友事务活跃与非活跃窗口的 HTTP 延迟对照。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "report_background_compare"
+        ],
+        "filters": [
+          "由已执行 notebook 生成的匿名聚合快照"
+        ],
+        "metric_definitions": [
+          "上游计算来自已执行 performance-metrics-analysis.ipynb",
+          "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+          "账号只保留 A01–A03 匿名别名"
+        ]
+      }
+    },
+    {
+      "id": "outliers_sql",
+      "label": "outliers 报告快照查询",
+      "path": "docs/performance-analysis/report-source.sqlite",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT \"order\", \"account\", \"window_end\", \"interactive_task\", \"wait_max_ms\", \"total_max_ms\", \"queue_depth\", \"contemporaneous_long_tasks\", \"causal_status\" FROM \"report_outliers\" ORDER BY wait_max_ms DESC",
+        "description": "读取交互等待超过 1 秒的聚合窗口及同窗口长任务。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "report_outliers"
+        ],
+        "filters": [
+          "由已执行 notebook 生成的匿名聚合快照"
+        ],
+        "metric_definitions": [
+          "上游计算来自已执行 performance-metrics-analysis.ipynb",
+          "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+          "账号只保留 A01–A03 匿名别名"
+        ]
+      }
+    },
+    {
+      "id": "quality_checks_sql",
+      "label": "quality_checks 报告快照查询",
+      "path": "docs/performance-analysis/report-source.sqlite",
+      "query": {
+        "engine": "sqlite",
+        "language": "sql",
+        "sql": "SELECT \"order\", \"check\", \"result\", \"assessment\" FROM \"report_quality_checks\" ORDER BY \"order\" ASC",
+        "description": "读取 JSONL 完整性、窗口连续性和聚合一致性检查。",
+        "executed_at": "2026-08-28T09:40:02+08:00",
+        "tables_used": [
+          "report_quality_checks"
+        ],
+        "filters": [
+          "由已执行 notebook 生成的匿名聚合快照"
+        ],
+        "metric_definitions": [
+          "上游计算来自已执行 performance-metrics-analysis.ipynb",
+          "P95/P99 为合并直方图 nearest-rank 所在桶上界",
+          "账号只保留 A01–A03 匿名别名"
+        ]
+      }
+    },
+    {
+      "id": "architecture_claude",
+      "label": "架构验收标准（Claude 评估）",
+      "path": "docs/architecture-claude.md"
+    },
+    {
+      "id": "architecture_kimi",
+      "label": "架构验收标准（Kimi 评估）",
+      "path": "docs/architecture-kimi.md"
+    },
+    {
+      "id": "architecture_codex",
+      "label": "调度架构方案（Codex）",
+      "path": "docs/architecture-codex.md"
+    },
+    {
+      "id": "account_task_runner_code",
+      "label": "账号业务执行器实现",
+      "path": "core/src/app/account-task-runner.ts"
+    },
+    {
+      "id": "task_metrics_code",
+      "label": "任务指标口径实现",
+      "path": "core/src/app/account-task-metrics.ts"
+    },
+    {
+      "id": "worker_scheduler_code",
+      "label": "农场与好友统一调度实现",
+      "path": "core/src/core/worker.ts"
+    },
+    {
+      "id": "friend_scheduler_code",
+      "label": "好友逐个任务实现",
+      "path": "core/src/services/friend/scheduler.ts"
+    }
+  ]
+}

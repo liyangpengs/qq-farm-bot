@@ -82,28 +82,6 @@ test('api execution timeout starts after the worker begins the queued call', asy
     }
 });
 
-test('worker API calls inherit the current HTTP request identifier', async () => {
-    const { runWithHttpRequestContext } = require('../dist/app/http-request-context');
-    const { manager, processes } = createHarness();
-    const account = { id: 'account-a', name: 'A', platform: 'qq', code: 'code' };
-    assert.equal(manager.startWorker(account), true);
-    const worker = processes[0];
-
-    try {
-        const response = runWithHttpRequestContext(
-            'http-request-7',
-            () => manager.callWorkerApi(account.id, 'getLands'),
-        );
-        const call = worker.sent.find(message => message.type === 'api_call');
-        assert.equal(call.requestId, 'http-request-7');
-
-        worker.emit('message', { type: 'api_response', id: call.id, result: 42, error: null });
-        assert.equal(await response, 42);
-    } finally {
-        worker.exit();
-    }
-});
-
 test('a worker can release a failed shared invite claim for another account', (t) => {
     const { sharedInviteBatch } = require('../dist/app/shared-invite-batch');
     const originalClaim = sharedInviteBatch.claim;

@@ -20,7 +20,11 @@ const {
     flushFriendPetCacheNow,
     resetFriendPetCacheMemory,
 } = require('../dist/services/friend/pet-cache');
-const { collectPendingFriends } = require('../dist/services/friend/pet-sync');
+const {
+    collectPendingFriends,
+    planNextSyncPacing,
+    FRIEND_PET_SYNC_TUNING,
+} = require('../dist/services/friend/pet-sync');
 const { buildFriendPetView } = require('../dist/services/friend/visit-strategy');
 const { getDataFile } = require('../dist/config/runtime-paths');
 const { getSystemDateKey } = require('../dist/utils/utils');
@@ -111,6 +115,51 @@ test('每日同步只选当天未确认、非黑名单、非失效的好友', ()
 
     const pending = collectPendingFriends(friends, 6005, new Set([6003]), new Set([6004]));
     assert.deepEqual(pending, [{ gid: 6001, name: '待确认' }]);
+});
+
+test('好友宠物同步限制每轮突发量和平均请求速率', () => {
+    const tuning = FRIEND_PET_SYNC_TUNING;
+    assert.ok(tuning.SYNC_MAX_PER_ROUND_BASE > 0 && tuning.SYNC_MAX_PER_ROUND_BASE <= 15);
+    assert.ok(tuning.SYNC_MAX_PER_ROUND_CAP >= tuning.SYNC_MAX_PER_ROUND_BASE);
+    assert.ok(tuning.SYNC_MAX_PER_ROUND_CAP <= 30);
+    assert.ok(tuning.SYNC_GAP_MS >= 1000);
+
+    const batches = Math.ceil(tuning.SYNC_MAX_PER_ROUND_CAP / tuning.SYNC_BATCH_SIZE);
+    const roundMs = tuning.SYNC_MAX_PER_ROUND_CAP * tuning.SYNC_GAP_MS
+        + (batches - 1) * tuning.SYNC_BATCH_GAP_MS
+        + tuning.SYNC_FAST_INTERVAL_MS;
+    const rpcPerSecond = (tuning.SYNC_MAX_PER_ROUND_CAP * 2) / (roundMs / 1000);
+    assert.ok(rpcPerSecond <= 0.25, `平均 ${rpcPerSecond} RPC/s 偏高`);
+    assert.ok(tuning.SYNC_CONTENTION_RETRY_MS < tuning.SYNC_BUSY_COOLDOWN_MS);
+});
+
+test('好友宠物同步在健康轮次提速，在让路后退回基线', () => {
+    const tuning = FRIEND_PET_SYNC_TUNING;
+    const base = { quota: tuning.SYNC_MAX_PER_ROUND_BASE, rampLocked: false };
+
+    const ramped = planNextSyncPacing({ outcome: 'deferred', reason: 'round_quota' }, base);
+    assert.equal(ramped.quota, tuning.SYNC_MAX_PER_ROUND_BASE + tuning.SYNC_MAX_PER_ROUND_STEP);
+    assert.equal(ramped.delayMs, tuning.SYNC_FAST_INTERVAL_MS);
+    assert.equal(ramped.rampLocked, false);
+
+    const contention = planNextSyncPacing(
+        { outcome: 'deferred', reason: 'gateway_contention' },
+        { quota: tuning.SYNC_MAX_PER_ROUND_CAP, rampLocked: false },
+    );
+    assert.equal(contention.delayMs, tuning.SYNC_CONTENTION_RETRY_MS);
+    assert.equal(contention.quota, tuning.SYNC_MAX_PER_ROUND_BASE);
+    assert.equal(contention.rampLocked, true);
+
+    const stalled = planNextSyncPacing({ outcome: 'deferred', reason: 'gateway_busy' }, base);
+    assert.equal(stalled.delayMs, tuning.SYNC_CHECK_INTERVAL_MS);
+    assert.equal(stalled.rampLocked, true);
+
+    const locked = planNextSyncPacing(
+        { outcome: 'deferred', reason: 'round_quota' },
+        { quota: tuning.SYNC_MAX_PER_ROUND_BASE, rampLocked: true },
+    );
+    assert.equal(locked.quota, tuning.SYNC_MAX_PER_ROUND_BASE);
+    assert.equal(locked.delayMs, tuning.SYNC_FAST_INTERVAL_MS);
 });
 
 test('好友列表的宠物 DTO 区分护主犬、其他狗、无狗与未确认', () => {
