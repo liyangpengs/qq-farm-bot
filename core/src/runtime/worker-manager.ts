@@ -1,6 +1,5 @@
 export {};
 const { applyKnownFriendGidChange } = require('../app/known-friend-gid-sync');
-const { getHttpRequestId } = require('../app/http-request-context');
 const { sharedInviteBatch } = require('../app/shared-invite-batch');
 const { createScheduler } = require('../services/scheduler');
 
@@ -34,7 +33,6 @@ interface WorkerManagerOptions {
     defaultApiCallTimeoutMs?: number;
     onStatusSync?: (accountId: string, status: any, accountName?: string) => void;
     onWorkerLog?: (entry: any, accountId: string, accountName?: string) => void;
-    onTaskMetrics?: (accountId: string, snapshot: any) => void;
 }
 
 function createWorkerManager(options: WorkerManagerOptions) {
@@ -58,7 +56,6 @@ function createWorkerManager(options: WorkerManagerOptions) {
         deleteAccount,
         onStatusSync,
         onWorkerLog,
-        onTaskMetrics,
     } = options;
     const managerScheduler = createScheduler('worker_manager');
     const useThreadRuntime = runtimeMode === 'thread' && !(processRef as any).pkg && typeof WorkerThread === 'function';
@@ -336,8 +333,6 @@ function createWorkerManager(options: WorkerManagerOptions) {
             if (typeof onWorkerLog === 'function') {
                 onWorkerLog(logEntry, accountId, worker.name);
             }
-        } else if (msg.type === 'task_metrics') {
-            if (typeof onTaskMetrics === 'function') onTaskMetrics(accountId, msg.data);
         } else if (msg.type === 'error') {
             const workerError = errorFromWorkerPayload(msg.error);
             log('错误', `账号[${accountId}]进程报错: ${workerError.message}`, {
@@ -510,7 +505,6 @@ function createWorkerManager(options: WorkerManagerOptions) {
 
         return new Promise((resolve, reject) => {
             const id = worker.reqId++;
-            const requestId = getHttpRequestId();
             worker.requests.set(id, {
                 resolve,
                 reject,
@@ -518,13 +512,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 timeoutMs: API_CALL_TIMEOUTS_MS[method] || defaultApiCallTimeoutMs,
             });
 
-            worker.process.send({
-                type: 'api_call',
-                id,
-                method,
-                args,
-                ...(requestId ? { requestId } : {}),
-            });
+            worker.process.send({ type: 'api_call', id, method, args });
         });
     }
 

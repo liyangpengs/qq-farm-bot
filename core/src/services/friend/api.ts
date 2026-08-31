@@ -26,6 +26,12 @@ function schedulerRef(): any {
 }
 
 const allFriendsRequests: Partial<Record<'low' | 'normal', Promise<any>>> = {};
+export const ALL_FRIENDS_CACHE_TTL_MS = 10 * 1000;
+let allFriendsCache: { reply: any; expiresAt: number } | null = null;
+
+export function clearAllFriendsCache(): void {
+    allFriendsCache = null;
+}
 
 // ============ 好友 API ============
 async function fetchAllFriends(forceSync: boolean, priority: 'low' | 'normal'): Promise<any> {
@@ -64,8 +70,9 @@ async function fetchAllFriends(forceSync: boolean, priority: 'low' | 'normal'): 
 }
 
 export async function getAllFriends(forceSync: boolean = false, priority: 'low' | 'normal' = 'normal'): Promise<any> {
-    // 同优先级好友列表请求合并，避免页面刷新、巡田和后台同步同时重复拉取。
-    // 低优先级请求不会阻塞普通请求；反过来低优先级可以复用正在执行的普通请求。
+    if (!forceSync && allFriendsCache && Date.now() < allFriendsCache.expiresAt) {
+        return allFriendsCache.reply;
+    }
     if (priority === 'low' && allFriendsRequests.normal) return allFriendsRequests.normal;
     const current = allFriendsRequests[priority];
     if (current) return current;
@@ -73,7 +80,12 @@ export async function getAllFriends(forceSync: boolean = false, priority: 'low' 
     const request = fetchAllFriends(forceSync, priority);
     allFriendsRequests[priority] = request;
     try {
-        return await request;
+        const reply = await request;
+        allFriendsCache = {
+            reply,
+            expiresAt: Date.now() + ALL_FRIENDS_CACHE_TTL_MS,
+        };
+        return reply;
     } finally {
         if (allFriendsRequests[priority] === request) delete allFriendsRequests[priority];
     }
@@ -84,7 +96,9 @@ export async function acceptFriends(gids: number[]): Promise<any> {
         friend_gids: gids.map((g: number) => toLong(g)),
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'AcceptFriends', body);
-    return types.AcceptFriendsReply.decode(replyBody);
+    const reply = types.AcceptFriendsReply.decode(replyBody);
+    clearAllFriendsCache();
+    return reply;
 }
 
 export async function rejectFriends(gids: number[]): Promise<any> {
@@ -92,7 +106,9 @@ export async function rejectFriends(gids: number[]): Promise<any> {
         friend_gids: gids.map((g: number) => toLong(g)),
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'RejectFriends', body);
-    return types.RejectFriendsReply.decode(replyBody);
+    const reply = types.RejectFriendsReply.decode(replyBody);
+    clearAllFriendsCache();
+    return reply;
 }
 
 export async function getApplications(): Promise<any> {
@@ -112,7 +128,9 @@ export async function delFriend(gid: number): Promise<any> {
         friend_gid: toLong(numericGid),
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'DelFriend', body);
-    return types.DelFriendReply.decode(replyBody);
+    const reply = types.DelFriendReply.decode(replyBody);
+    clearAllFriendsCache();
+    return reply;
 }
 
 export async function enterFriendFarm(friendGid: number, priority: 'low' | 'normal' = 'normal'): Promise<any> {

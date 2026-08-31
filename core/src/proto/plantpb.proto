@@ -320,10 +320,18 @@ message FertilizeRequest {
     int64 fertilizer_id = 2;
 }
 
+// 单次施肥实际消耗。field 1 的语义尚未完全确认；field 3 已通过
+// FertilizeReply 与紧随其后的 ItemNotify 交叉验证为本次消耗的肥料秒数。
+message FertilizerUse {
+    int64 field_1 = 1;
+    corepb.Item consumed = 3;
+}
+
 message FertilizeReply {
     repeated LandInfo land = 1;
     repeated OperationLimit operation_limits = 2;
-    int64 fertilizer = 3;  // 剩余肥料时间
+    corepb.Item fertilizer = 3;       // 肥料 ID 与剩余肥料时间
+    FertilizerUse fertilizer_use = 4; // 本次实际消耗
 }
 
 // --- 放虫 ---

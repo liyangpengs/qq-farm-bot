@@ -16,6 +16,8 @@ test('friend pet synchronization keeps list reads outside the account queue and 
         isAutomationOn: store.isAutomationOn,
         getFriendBlacklist: store.getFriendBlacklist,
         getUserState: network.getUserState,
+        getGatewayLoad: network.getGatewayLoad,
+        waitForGatewayIdle: network.waitForGatewayIdle,
         sleep: utils.sleep,
         log: utils.log,
         logWarn: utils.logWarn,
@@ -38,7 +40,11 @@ test('friend pet synchronization keeps list reads outside the account queue and 
             isAutomationOn: originals.isAutomationOn,
             getFriendBlacklist: originals.getFriendBlacklist,
         });
-        Object.assign(network, { getUserState: originals.getUserState });
+        Object.assign(network, {
+            getUserState: originals.getUserState,
+            getGatewayLoad: originals.getGatewayLoad,
+            waitForGatewayIdle: originals.waitForGatewayIdle,
+        });
         Object.assign(utils, {
             sleep: originals.sleep,
             log: originals.log,
@@ -81,6 +87,8 @@ test('friend pet synchronization keeps list reads outside the account queue and 
     store.isAutomationOn = () => true;
     store.getFriendBlacklist = () => [];
     network.getUserState = () => ({ gid: 99 });
+    network.getGatewayLoad = () => ({ heartbeatMisses: 0, oldestPendingAgeMs: 0 });
+    network.waitForGatewayIdle = async () => true;
     utils.sleep = async () => {};
     utils.log = () => {};
     utils.logWarn = () => {};

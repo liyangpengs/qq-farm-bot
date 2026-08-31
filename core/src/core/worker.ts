@@ -8,12 +8,10 @@ const {
     closeAccountTaskQueue,
     getAccountTaskRunnerSnapshot,
     openAccountTaskQueue,
-    setAccountTaskMetricObserver,
     submitAccountTask,
 } = require('../app/account-task-runner');
-const { createScheduledTaskMetric } = require('../app/account-task-metrics');
 const { BackgroundJob } = require('../app/background-job');
-const { TaskPerformanceAggregator } = require('../app/task-performance-aggregator');
+const { runStartupSequence } = require('../app/startup-sequence');
 const { executeWorkerApiCall } = require('../app/worker-api-dispatcher');
 const { runClaimedInviteBatch } = require('../app/worker-invite-batch');
 const { createWorkerApiRegistry } = require('../app/worker-api-registry');
@@ -45,8 +43,10 @@ const { setRecordGoldExpHook } = require('../services/status');
 const { cleanupTaskSystem, checkAndClaimTasks, getTaskClaimDailyState, getTaskDailyStateLikeApp, getGrowthTaskStateLikeApp } = require('../services/task');
 const { sellAllFruits, getBag, getBagItems, openFertilizerGiftPacksSilently } = require('../services/warehouse');
 const { checkAndClaimDogSkillGifts } = require('../services/dog-skill-gifts');
-const { connect, cleanup, getWs, getUserState, networkEvents } = require('../utils/network');
+const { isGatewayHealthyForBusiness, nextBusinessBackoffMs } = require('../utils/low-priority-gate');
+const { connect, cleanup, getWs, getUserState, networkEvents, getGatewayLoad } = require('../utils/network');
 const { loadProto } = require('../utils/proto');
+const { runWithRequestClass } = require('../utils/request-context');
 const { setLogHook, log, logWarn, toNum, getSystemDateKey, formatSystemDateTime24 } = require('../utils/utils');
 
 // Extend CONFIG with the unified friend-task interval used by this worker.
@@ -121,6 +121,7 @@ let appliedConfigRevision: number = 0;
 let unifiedSchedulerRunning: boolean = false;
 let nextFarmRunAt: number = 0;
 let nextFriendRunAt: number = 0;
+const businessBackoffMs: Record<'farm' | 'friend', number> = { farm: 0, friend: 0 };
 let lastStatusHash: string = '';
 let lastStatusSentAt: number = 0;
 let onSellGain: ((deltaGold: any) => void) | null = null;
@@ -134,22 +135,6 @@ let runtimeGeneration: number = 0;
 let lastDailyRunDate: string = '';
 const workerScheduler = createScheduler('worker');
 const friendTickJob = new BackgroundJob();
-const accountTaskPerformance = new TaskPerformanceAggregator();
-const taskMetricsWindowMs = Math.min(
-    60 * 60 * 1000,
-    Math.max(60 * 1000, Number(process.env.FARM_PERF_WINDOW_MS) || 5 * 60 * 1000),
-);
-
-setAccountTaskMetricObserver((metric: any) => accountTaskPerformance.record(metric));
-
-function flushTaskPerformanceMetrics(): void {
-    const snapshot = accountTaskPerformance.drain();
-    if (snapshot) sendToMaster({ type: 'task_metrics', data: snapshot });
-}
-
-workerScheduler.setIntervalTask('task_metrics_flush', taskMetricsWindowMs, flushTaskPerformanceMetrics, {
-    preventOverlap: true,
-});
 
 const workerApiRegistry = createWorkerApiRegistry({
     applyRuntimeConfigSnapshot(snapshot: any) {
@@ -169,7 +154,6 @@ const workerApiRegistry = createWorkerApiRegistry({
                 nextRunAt: Number(nextFriendRunAt) || 0,
             },
         },
-        performance: accountTaskPerformance.snapshot(),
     }),
 });
 
@@ -259,47 +243,91 @@ function resetUnifiedSchedule(): void {
     const now = Date.now();
     nextFarmRunAt = now + farmMs;
     nextFriendRunAt = now + friendMs;
+    businessBackoffMs.farm = 0;
+    businessBackoffMs.friend = 0;
+}
+
+const BUSINESS_TICK_LABEL: Record<'farm' | 'friend', string> = {
+    farm: '农场定时任务',
+    friend: '好友定时任务',
+};
+
+function describeGatewayStall(load: any): string {
+    const parts: string[] = [];
+    const misses = Number(load?.heartbeatMisses) || 0;
+    const oldest = Number(load?.oldestPendingAgeMs) || 0;
+    if (misses > 0) parts.push(`心跳漏 ${misses} 次`);
+    if (oldest > 0) parts.push(`最老在途 ${(oldest / 1000).toFixed(1)}s`);
+    parts.push(`pending=${Number(load?.pending) || 0}`);
+    parts.push(`queued=${Number(load?.queued) || 0}`);
+    return parts.join(', ');
+}
+
+function nextBusinessTickDeferMs(kind: 'farm' | 'friend'): number {
+    const load = getGatewayLoad();
+    if (isGatewayHealthyForBusiness(load)) {
+        if (businessBackoffMs[kind] > 0) {
+            businessBackoffMs[kind] = 0;
+            log('系统', `网关已恢复，${BUSINESS_TICK_LABEL[kind]}回到正常间隔`, {
+                module: 'system',
+                event: '网关退避',
+                result: 'resume',
+                requestClass: kind,
+            });
+        }
+        return 0;
+    }
+
+    const firstDefer = businessBackoffMs[kind] === 0;
+    const backoffMs = nextBusinessBackoffMs(businessBackoffMs[kind]);
+    businessBackoffMs[kind] = backoffMs;
+    if (firstDefer) {
+        logWarn('系统', `网关无回包，${BUSINESS_TICK_LABEL[kind]}退避 ${Math.round(backoffMs / 1000)}s (${describeGatewayStall(load)})`, {
+            module: 'system',
+            event: '网关退避',
+            result: 'defer',
+            requestClass: kind,
+            backoffMs,
+        });
+    }
+    return backoffMs;
 }
 
 async function runFarmTick(auto: any): Promise<void> {
-    const dueAt = nextFarmRunAt;
-    const startedAt = Date.now();
-    let outcome: 'success' | 'error' = 'success';
+    const deferMs = nextBusinessTickDeferMs('farm');
+    if (deferMs > 0) {
+        nextFarmRunAt = Date.now() + deferMs;
+        return;
+    }
     const farmMs = randomIntervalMs(
         CONFIG.farmCheckIntervalMin || CONFIG.farmCheckInterval || 2000,
         CONFIG.farmCheckIntervalMax || CONFIG.farmCheckInterval || 2000
     );
     try {
-        if (auto.farm) await checkFarm();
-        if (auto.task) {
-            await submitAccountTask('task.claim', checkAndClaimTasks, {
-                priority: 'scheduled',
-                dedupeKey: 'task.claim',
-            });
-        }
-        if (auto.email) {
-            await submitAccountTask('email.claim', checkAndClaimEmails, {
-                priority: 'scheduled',
-                dedupeKey: 'email.claim',
-            });
-        }
-        if (auto.fertilizer_gift) {
-            await submitAccountTask('fertilizer-gift.open', openFertilizerGiftPacksSilently, {
-                priority: 'scheduled',
-                dedupeKey: 'fertilizer-gift.open',
-            });
-        }
+        await runWithRequestClass('farm', async () => {
+            if (auto.farm) await checkFarm();
+            if (auto.task) {
+                await submitAccountTask('task.claim', checkAndClaimTasks, {
+                    priority: 'scheduled',
+                    dedupeKey: 'task.claim',
+                });
+            }
+            if (auto.email) {
+                await submitAccountTask('email.claim', checkAndClaimEmails, {
+                    priority: 'scheduled',
+                    dedupeKey: 'email.claim',
+                });
+            }
+            if (auto.fertilizer_gift) {
+                await submitAccountTask('fertilizer-gift.open', openFertilizerGiftPacksSilently, {
+                    priority: 'scheduled',
+                    dedupeKey: 'fertilizer-gift.open',
+                });
+            }
+        });
     } catch {
-        outcome = 'error';
+        // ignore
     } finally {
-        accountTaskPerformance.record(createScheduledTaskMetric({
-            name: 'scheduler.farm-tick',
-            priority: 'scheduled',
-            outcome,
-            dueAt,
-            startedAt,
-            finishedAt: Date.now(),
-        }));
         nextFarmRunAt = Date.now() + farmMs;
     }
 }
@@ -316,26 +344,19 @@ function runFriendTick(auto: any): boolean {
         return false;
     }
 
-    const dueAt = nextFriendRunAt;
-    const startedAt = Date.now();
+    const deferMs = nextBusinessTickDeferMs('friend');
+    if (deferMs > 0) {
+        nextFriendRunAt = Date.now() + deferMs;
+        return false;
+    }
+
     const started = friendTickJob.start(
-        (signal: AbortSignal) => checkFriends({
-            signal,
-            onRoundMetric: (metric: any) => accountTaskPerformance.recordFriendRound(metric),
-        }),
+        (signal: AbortSignal) => runWithRequestClass('friend', () => checkFriends({ signal })),
         {
             onError: (e: any) => {
                 log('系统', `好友统一任务执行失败: ${e.message}`, { module: 'system', event: '好友统一任务', result: 'error' });
             },
-            onSettled: (outcome: 'success' | 'error' | 'cancelled') => {
-                accountTaskPerformance.record(createScheduledTaskMetric({
-                    name: 'scheduler.friend-round',
-                    priority: 'scheduled',
-                    outcome,
-                    dueAt,
-                    startedAt,
-                    finishedAt: Date.now(),
-                }));
+            onSettled: () => {
                 nextFriendRunAt = Date.now() + friendMs;
             },
         },
@@ -395,45 +416,6 @@ function stopMysteryShopTimer(): void {
     workerScheduler.clear('mystery_shop_after_save');
 }
 
-function clearStartupStaggerTasks(): void {
-    for (const name of [
-        'startup_start_farm',
-        'startup_start_friend',
-        'startup_daily_routines',
-        'startup_mystery_shop',
-    ]) {
-        workerScheduler.clear(name);
-    }
-}
-
-function scheduleStartupStaggeredTasks(): void {
-    clearStartupStaggerTasks();
-
-    // 先让连接和登录初始化稳定下来，再启动农场主流程。
-    workerScheduler.setTimeoutTask('startup_start_farm', 2000, () => {
-        if (!loginReady) return;
-        startFarmCheckLoop({ externalScheduler: true });
-        startUnifiedScheduler();
-    });
-
-    // 好友申请监听和好友巡田晚于农场启动，避免登录瞬间同时拉好友链路。
-    workerScheduler.setTimeoutTask('startup_start_friend', 8000, () => {
-        if (!loginReady) return;
-        startFriendCheckLoop({ externalScheduler: true });
-    });
-
-    // 好友统一任务包含偷菜、帮助和放虫放草；这里仅启动统一调度，不单独启动子任务。
-    // 每日礼包/任务不参与登录启动关键路径。
-    workerScheduler.setTimeoutTask('startup_daily_routines', 45000, () => {
-        if (loginReady) startDailyRoutineTimer(true);
-    });
-
-    // 神秘商店属于低频后台能力，最后启动。
-    workerScheduler.setTimeoutTask('startup_mystery_shop', 60000, () => {
-        if (loginReady) startMysteryShopTimer();
-    });
-}
-
 function runMysteryShopTick(): Promise<void> {
     if (!loginReady) return Promise.resolve();
     const {
@@ -452,7 +434,7 @@ function runMysteryShopTick(): Promise<void> {
     });
 }
 
-function startMysteryShopTimer(): void {
+function startMysteryShopTimer(options: { runInitial?: boolean } = {}): void {
     const {
         isMysteryShopWatchEnabled,
         AUTO_BUY_CHECK_INTERVAL_MS,
@@ -460,12 +442,22 @@ function startMysteryShopTimer(): void {
     } = require('../services/mystery-shop-auto');
     stopMysteryShopTimer();
     if (!loginReady || !isMysteryShopWatchEnabled(getAutomation())) return;
-    workerScheduler.setTimeoutTask('mystery_shop_initial', AUTO_BUY_INITIAL_DELAY_MS, () => {
-        runMysteryShopTick().catch(() => null);
-    });
+    if (options.runInitial !== false) {
+        workerScheduler.setTimeoutTask('mystery_shop_initial', AUTO_BUY_INITIAL_DELAY_MS, () => {
+            runMysteryShopTick().catch(() => null);
+        });
+    }
     workerScheduler.setIntervalTask('mystery_shop_interval', AUTO_BUY_CHECK_INTERVAL_MS, () => {
         runMysteryShopTick().catch(() => null);
     });
+}
+
+function startAutomationRuntime(): void {
+    startFarmCheckLoop({ externalScheduler: true });
+    startFriendCheckLoop({ externalScheduler: true });
+    startUnifiedScheduler();
+    startDailyRoutineTimer(false);
+    startMysteryShopTimer({ runInitial: false });
 }
 
 function applyRuntimeConfig(snapshot: any, syncNow: boolean = false): number {
@@ -660,6 +652,7 @@ async function startBot(config: any): Promise<void> {
                 await submitAccountTask('warehouse.sell-after-harvest', sellAllFruits, {
                     priority: 'event',
                     dedupeKey: 'warehouse.sell-after-harvest',
+                    requestClass: 'farm',
                 });
             } catch (e: any) {
                 log('仓库', `收获后自动出售失败: ${e.message}`, { module: 'warehouse', event: '收获后出售', result: 'error' });
@@ -676,7 +669,7 @@ async function startBot(config: any): Promise<void> {
             submitAccountTask(
                 'dog-skill-gift.claim',
                 () => checkAndClaimDogSkillGifts(pendingCount),
-                { priority: 'event', dedupeKey: 'dog-skill-gift.claim' },
+                { priority: 'event', dedupeKey: 'dog-skill-gift.claim', requestClass: 'farm' },
             ).catch(() => null);
         };
         networkEvents.on('dogSkillGiftPending', onDogSkillGiftPending);
@@ -736,10 +729,30 @@ async function startBot(config: any): Promise<void> {
         }
 
         if (!canContinueLogin()) return;
-        scheduleStartupStaggeredTasks();
-
-        // 立即发送一次状态
         syncStatus();
+        await runWithRequestClass('farm', () => runStartupSequence({
+            steps: [
+                { name: 'daily-routines', run: () => runDailyRoutines(true) },
+                {
+                    name: 'task-claim',
+                    run: () => submitAccountTask('task.claim', checkAndClaimTasks, {
+                        priority: 'maintenance',
+                        dedupeKey: 'task.claim',
+                    }),
+                },
+                { name: 'mystery-shop', run: runMysteryShopTick },
+            ],
+            canContinue: () => loginReady && canContinueLogin(),
+            activateRuntime: startAutomationRuntime,
+            onStepError: (name: string, error: any) => {
+                log('系统', `启动步骤 ${name} 失败: ${error?.message || error}`, {
+                    module: 'system',
+                    event: '启动序列',
+                    result: 'error',
+                    step: name,
+                });
+            },
+        }));
     };
 
     connect(code, onLoginSuccess);
@@ -784,7 +797,6 @@ function quiesceBot(reason: string): void {
     stopDailyRoutineTimer();
     cleanupTaskSystem();
     closeAccountTaskQueue(reason);
-    flushTaskPerformanceMetrics();
     workerScheduler.clearAll();
     detachRuntimeListeners();
     cleanup(reason);
@@ -831,11 +843,10 @@ function onKickout(payload: any): void {
 }
 
 async function handleRegisteredApiCall(msg: any): Promise<void> {
-    const { id, method, args, requestId } = msg;
+    const { id, method, args } = msg;
     const response = await executeWorkerApiCall(method, args, workerApiRegistry, {
         isAccountReady: () => isRunning && !shutdownStarted && loginReady,
         onStarted: () => sendToMaster({ type: 'api_call_started', id }),
-        requestId: String(requestId || ''),
         submitTask: submitAccountTask,
     });
     sendToMaster({ type: 'api_response', id, ...response });

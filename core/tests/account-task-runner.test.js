@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { AccountTaskRunner } = require('../dist/app/account-task-runner');
+const { getAmbientRequestClass, runWithRequestClass } = require('../dist/utils/request-context');
 
 function deferred() {
     let resolve;
@@ -232,121 +233,34 @@ test('snapshot reports the active task and queued work', async () => {
     await Promise.all([active, waiting]);
 });
 
-test('task metrics report queue, execution, and dedupe timings', async () => {
-    let now = 100;
-    const metrics = [];
-    const runner = new AccountTaskRunner({
-        now: () => now,
-        onMetric: metric => metrics.push(metric),
-    });
-    const gate = deferred();
-
-    const active = runner.submit('active', async () => {
-        now = 130;
-        await gate.promise;
-    });
-    await new Promise(setImmediate);
-
-    const queued = runner.submit('friend.help:123456', () => {
-        now = 230;
-        return 'done';
-    }, { priority: 'scheduled', dedupeKey: 'friend.help:123456' });
-    const duplicate = runner.submit('friend.help:123456', () => 'duplicate', {
-        priority: 'event',
-        dedupeKey: 'friend.help:123456',
-    });
-
-    now = 190;
-    gate.resolve();
-    await active;
-    assert.equal(await queued, 'done');
-    assert.equal(await duplicate, 'done');
-
-    const metric = metrics.find(item => item.name === 'friend.help:123456');
-    assert.equal(metric.priority, 'event');
-    assert.equal(metric.outcome, 'success');
-    assert.equal(metric.waitMs, 60);
-    assert.equal(metric.runMs, 40);
-    assert.equal(metric.totalMs, 100);
-    assert.equal(metric.dedupeHits, 1);
-    assert.equal(metric.queueDepthAtSubmit, 1);
-});
-
-test('queued task metrics identify the active blocker and originating request', async () => {
-    const metrics = [];
-    const runner = new AccountTaskRunner({ onMetric: metric => metrics.push(metric) });
-    const gate = deferred();
-
-    const active = runner.submit('farm.check', () => gate.promise);
-    await new Promise(setImmediate);
-    const queued = runner.submit('api:getBag', () => 'bag', {
-        priority: 'interactive',
-        requestId: 'request-42',
-    });
-
-    const snapshot = runner.getSnapshot();
-    assert.equal(typeof snapshot.running.taskId, 'string');
-    assert.equal(snapshot.queued[0].requestId, 'request-42');
-    assert.equal(snapshot.queued[0].blockedByTaskId, snapshot.running.taskId);
-    assert.equal(snapshot.queued[0].blockedByTaskName, 'farm.check');
-
-    gate.resolve();
-    await active;
-    assert.equal(await queued, 'bag');
-
-    const activeMetric = metrics.find(item => item.name === 'farm.check');
-    const queuedMetric = metrics.find(item => item.name === 'api:getBag');
-    assert.equal(queuedMetric.requestId, 'request-42');
-    assert.equal(queuedMetric.blockedByTaskId, activeMetric.taskId);
-    assert.equal(queuedMetric.blockedByTaskName, 'farm.check');
-});
-
-test('inline task metrics retain their parent task relationship', async () => {
-    const metrics = [];
-    const runner = new AccountTaskRunner({ onMetric: metric => metrics.push(metric) });
-
-    await runner.submit('farm.check', () => runner.submit('farm.phase.get-lands', () => true));
-
-    const parent = metrics.find(item => item.name === 'farm.check');
-    const phase = metrics.find(item => item.name === 'farm.phase.get-lands');
-    assert.equal(phase.inline, true);
-    assert.equal(phase.parentTaskId, parent.taskId);
-    assert.equal(phase.parentTaskName, 'farm.check');
-});
-
 test('task steps run directly without creating a queue when no parent task exists', async () => {
-    const metrics = [];
-    const runner = new AccountTaskRunner({ onMetric: metric => metrics.push(metric) });
+    const runner = new AccountTaskRunner();
 
     assert.equal(await runner.runStep('friend.phase.enter', () => 'entered'), 'entered');
-    assert.deepEqual(metrics, []);
     assert.equal(runner.getSnapshot().running, null);
     assert.deepEqual(runner.getSnapshot().queued, []);
 });
 
-test('cleared tasks emit cancelled metrics', async () => {
-    let now = 10;
-    const metrics = [];
-    const runner = new AccountTaskRunner({
-        now: () => now,
-        onMetric: metric => metrics.push(metric),
-    });
+test('queued account tasks retain the request class captured when submitted', async () => {
+    const runner = new AccountTaskRunner();
     const gate = deferred();
     const active = runner.submit('active', () => gate.promise);
     await new Promise(setImmediate);
-    const waiting = runner.submit('waiting', () => true);
 
-    now = 45;
-    runner.clearPending('stopped');
-    await assert.rejects(waiting, /stopped/);
-
-    const metric = metrics.find(item => item.name === 'waiting');
-    assert.equal(metric.outcome, 'cancelled');
-    assert.equal(metric.waitMs, 35);
-    assert.equal(metric.runMs, 0);
+    const friend = runWithRequestClass('friend', () => runner.submit(
+        'friend.visit',
+        () => getAmbientRequestClass(),
+        { priority: 'scheduled' },
+    ));
+    const farm = runWithRequestClass('farm', () => runner.submit(
+        'farm.check',
+        () => getAmbientRequestClass(),
+        { priority: 'scheduled' },
+    ));
 
     gate.resolve();
     await active;
+    assert.deepEqual(await Promise.all([friend, farm]), ['friend', 'farm']);
 });
 
 test('closing the queue lets the active slice finish and rejects the next submission', async () => {

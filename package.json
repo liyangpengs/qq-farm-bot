@@ -12,6 +12,7 @@
     "build:web": "pnpm -C web build",
     "build:core": "pnpm -C core build:ts",
     "build": "pnpm build:web && pnpm build:core",
+    "perf:fixed-load": "node tools/performance/fixed-load.js",
     "package:win": "pnpm build && pnpm -C core build:win",
     "package:linux": "pnpm build && pnpm -C core build:linux",
     "package:mac": "pnpm build && pnpm -C core build:mac",

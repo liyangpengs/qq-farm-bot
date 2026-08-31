@@ -9,11 +9,10 @@ interface WorkerApiDefinition {
 interface WorkerApiDispatchOptions {
     isAccountReady: () => boolean;
     onStarted?: () => void;
-    requestId?: string;
     submitTask: (
         name: string,
         run: () => Promise<any> | any,
-        options: { priority: 'interactive'; requestId?: string },
+        options: { priority: 'interactive' },
     ) => Promise<any>;
 }
 
@@ -41,10 +40,8 @@ async function executeWorkerApiCall(
             options.onStarted?.();
             return definition.handle(callArgs);
         };
-        const taskOptions: { priority: 'interactive'; requestId?: string } = { priority: 'interactive' };
-        if (options.requestId) taskOptions.requestId = options.requestId;
         const result = definition.execution === 'queued'
-            ? await options.submitTask(`api:${method}`, run, taskOptions)
+            ? await options.submitTask(`api:${method}`, run, { priority: 'interactive' })
             : await run();
         return { result, error: null };
     } catch (error: any) {

@@ -22,7 +22,7 @@ test('a 300-friend scan yields after each friend and stops after the active slic
         extractReplyFriends: gidManager.extractReplyFriends,
         inFriendQuietHours: visitStrategy.inFriendQuietHours,
         cacheFriendsListFromReply: visitStrategy.cacheFriendsListFromReply,
-        visitFriendForSteal: visitStrategy.visitFriendForSteal,
+        visitFriend: visitStrategy.visitFriend,
     };
     t.after(() => {
         Object.assign(runner, { submitAccountTask: originals.submitAccountTask });
@@ -41,7 +41,7 @@ test('a 300-friend scan yields after each friend and stops after the active slic
         Object.assign(visitStrategy, {
             inFriendQuietHours: originals.inFriendQuietHours,
             cacheFriendsListFromReply: originals.cacheFriendsListFromReply,
-            visitFriendForSteal: originals.visitFriendForSteal,
+            visitFriend: originals.visitFriend,
         });
         delete require.cache[schedulerModulePath];
     });
@@ -59,7 +59,9 @@ test('a 300-friend scan yields after each friend and stops after the active slic
     utils.randomDelay = () => new Promise(resolve => setImmediate(resolve));
     utils.log = () => {};
     utils.logWarn = () => {};
+    let listFailure = null;
     friendApi.getAllFriends = async () => {
+        if (listFailure) throw listFailure;
         events.push('list');
         return {
             game_friends: Array.from({ length: 300 }, (_, index) => ({
@@ -88,7 +90,7 @@ test('a 300-friend scan yields after each friend and stops after the active slic
     const secondVisitStarted = new Promise(resolve => {
         markSecondVisitStarted = resolve;
     });
-    visitStrategy.visitFriendForSteal = async (friend) => {
+    visitStrategy.visitFriend = async (friend) => {
         events.push(`visit:${friend.gid}:start`);
         if (friend.gid === 10001) {
             markFirstVisitStarted();
@@ -105,11 +107,7 @@ test('a 300-friend scan yields after each friend and stops after the active slic
     delete require.cache[schedulerModulePath];
     const { checkFriends } = require(schedulerModulePath);
     const controller = new AbortController();
-    const roundMetrics = [];
-    const scan = checkFriends({
-        signal: controller.signal,
-        onRoundMetric: metric => roundMetrics.push(metric),
-    });
+    const scan = checkFriends({ signal: controller.signal });
     await firstVisitStarted;
     const interactive = accountTasks.submit('api:manual-operation', () => {
         events.push('interactive');
@@ -135,16 +133,12 @@ test('a 300-friend scan yields after each friend and stops after the active slic
         'visit:10002:start',
         'visit:10002:end',
     ]);
-    assert.equal(submissions.length, 2);
-    assert.equal(submissions[0].name, 'friend.steal:10001');
-    assert.equal(submissions.at(-1).name, 'friend.steal:10002');
+    assert.equal(submissions.length, 3);
+    assert.equal(submissions[0].name, 'friend.phase.get-all-friends');
+    assert.equal(submissions[1].name, 'friend.visit:10001');
+    assert.equal(submissions.at(-1).name, 'friend.visit:10002');
     assert.ok(submissions.every(item => item.options.priority === 'scheduled'));
-    assert.equal(roundMetrics.length, 1);
-    assert.equal(roundMetrics[0].outcome, 'cancelled');
-    assert.equal(roundMetrics[0].friendCount, 300);
-    assert.equal(roundMetrics[0].candidateCount, 300);
-    assert.equal(roundMetrics[0].processedCount, 2);
-    assert.equal(roundMetrics[0].deferredCount, 298);
-    assert.deepEqual(roundMetrics[0].candidates, { steal: 300, help: 0, bad: 0 });
-    assert.deepEqual(roundMetrics[0].processed, { steal: 2, help: 0, bad: 0 });
+
+    listFailure = new Error('friend list failed');
+    assert.equal(await checkFriends(), false);
 });

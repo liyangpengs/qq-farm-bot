@@ -16,7 +16,8 @@ const {
     getCleanableFarmSocialEventItemIds,
     resolveRemovableHarvestedLands,
 } = require('./land-analysis');
-const { autoPlantEmptyLands, runFertilizerByConfig } = require('./planting');
+const { autoPlantEmptyLands } = require('./planting');
+const { runFertilizerByConfig } = require('./fertilizer');
 const { checkAndBuyFertilizerBoth } = require('../mall');
 // 延迟加载以打破循环依赖: visit-strategy → farm/index → scheduler → visit-strategy
 function inFarmQuietHours() {
@@ -48,15 +49,19 @@ async function runFarmCheck(): Promise<boolean> {
         return !!(result && result.hadWork);
     } catch (err: any) {
         logWarn('巡田', `检查失败: ${err.message}`);
-        return false;
+        throw err;
     }
 }
 
 async function checkFarm(options: { priority?: 'event' | 'scheduled' } = {}): Promise<boolean> {
-    return submitAccountTask('farm.check', runFarmCheck, {
-        priority: options.priority || 'scheduled',
-        dedupeKey: 'farm.check',
-    });
+    try {
+        return await submitAccountTask('farm.check', runFarmCheck, {
+            priority: options.priority || 'scheduled',
+            dedupeKey: 'farm.check',
+        });
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -151,6 +156,7 @@ async function runFarmOperation(
     statusParts.push(`长:${status.growing.length}`);
 
     const actions: string[] = [];
+    let landStateMayHaveChanged = false;
 
     // 执行一键务农 (除草+除虫+浇水) - 串行执行以降低并发压力
     if (opType === 'all' || opType === 'clear') {
@@ -182,6 +188,7 @@ async function runFarmOperation(
 
         if (!skipOwnWeedBug && farmingLandIds.length > 0) {
             try {
+                landStateMayHaveChanged = true;
                 await runFarmPhase('farming', () => farming(farmingLandIds, socialEventItemIds));
                 const parts: string[] = [];
                 if (status.needWeed.length) parts.push(`草${status.needWeed.length}`);
@@ -207,6 +214,7 @@ async function runFarmOperation(
     if (opType === 'all' || opType === 'harvest') {
         if (status.harvestable.length > 0) {
             try {
+                landStateMayHaveChanged = true;
                 harvestReply = await runFarmPhase('harvest', () => harvest(status.harvestable));
                 log('收获', `收获完成 ${status.harvestable.length} 块土地`, {
                     module: 'farm',
@@ -249,6 +257,7 @@ async function runFarmOperation(
         if (allDeadLands.length > 0 || allEmptyLands.length > 0) {
             try {
                 const plantCount = allDeadLands.length + allEmptyLands.length;
+                landStateMayHaveChanged = true;
                 await runFarmPhase('plant', () => autoPlantEmptyLands(allDeadLands, allEmptyLands));
                 actions.push(`种植${plantCount}`);
                 recordOperation('plant', plantCount);
@@ -266,6 +275,7 @@ async function runFarmOperation(
                 landIds: multiSeasonTargets,
             });
             try {
+                landStateMayHaveChanged = true;
                 await runFarmPhase(
                     'fertilize-multi-season',
                     () => runFertilizerByConfig(multiSeasonTargets, { reason: 'multi_season' }),
@@ -288,6 +298,7 @@ async function runFarmOperation(
             await runFarmPhase('unlock', async () => {
                 for (const landId of status.unlockable) {
                     try {
+                        landStateMayHaveChanged = true;
                         await unlockLand(landId, false);
                         log('解锁', `土地#${landId} 解锁成功`, {
                             module: 'farm', event: '解锁土地', result: 'ok', landId
@@ -311,6 +322,7 @@ async function runFarmOperation(
             await runFarmPhase('upgrade', async () => {
                 for (const landId of status.upgradable) {
                     try {
+                        landStateMayHaveChanged = true;
                         const reply = await upgradeLand(landId);
                         const newLevel = reply.land ? toNum(reply.land.level) : '?';
                         log('升级', `土地#${landId} 升级成功 → 等级${newLevel}`, {
@@ -338,7 +350,10 @@ async function runFarmOperation(
             try {
                 const result = await runFarmPhase(
                     'fertilize-smart',
-                    () => runFertilizerByConfig([], { skipNormal: true }),
+                    () => runFertilizerByConfig([], {
+                        skipNormal: true,
+                        landsSnapshot: landStateMayHaveChanged ? undefined : landsReply,
+                    }),
                 );
                 if (result.organic > 0) {
                     actions.push(`有机肥${result.organic}`);
