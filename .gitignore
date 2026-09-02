@@ -6,7 +6,6 @@ bun.lock
 # Build output
 core/dist/
 web/dist/
-core/client.js
 
 # Runtime data (contains user credentials and logs)
 core/data/
