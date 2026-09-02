@@ -1,0 +1,121 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * 推送接口封装（基于 pushoo）
+ */
+const crypto = require('node:crypto');
+const axios = require('axios').default;
+const pushoo = require('pushoo').default;
+const DINGTALK_WEBHOOK_PREFIX = 'https://oapi.dingtalk.com/robot/send?access_token=';
+function assertRequiredText(name, value) {
+    const text = String(value || '').trim();
+    if (!text) {
+        throw new Error(`${name} 不能为空`);
+    }
+    return text;
+}
+function createDingTalkSign(secretInput, timestampInput) {
+    const secret = assertRequiredText('钉钉加签密钥', secretInput);
+    const timestamp = Math.trunc(Number(timestampInput));
+    if (!Number.isFinite(timestamp) || timestamp <= 0) {
+        throw new Error('钉钉加签时间戳无效');
+    }
+    return crypto
+        .createHmac('sha256', secret)
+        .update(`${timestamp}\n${secret}`, 'utf8')
+        .digest('base64');
+}
+function buildDingTalkWebhook(endpointInput, tokenInput, secretInput = '', timestampInput = Date.now()) {
+    const endpoint = String(endpointInput || '').trim();
+    const token = String(tokenInput || '').trim();
+    const credential = assertRequiredText('钉钉 Webhook 地址', endpoint || token);
+    const rawUrl = /^https?:\/\//i.test(credential)
+        ? credential
+        : `${DINGTALK_WEBHOOK_PREFIX}${encodeURIComponent(credential)}`;
+    let url;
+    try {
+        url = new URL(rawUrl);
+    }
+    catch {
+        throw new Error('钉钉 Webhook 地址格式无效');
+    }
+    const isOfficialWebhook = url.protocol === 'https:'
+        && url.hostname.toLowerCase() === 'oapi.dingtalk.com'
+        && url.pathname === '/robot/send'
+        && !!url.searchParams.get('access_token');
+    if (!isOfficialWebhook) {
+        throw new Error('钉钉 Webhook 地址格式无效');
+    }
+    const secret = String(secretInput || '').trim();
+    if (secret) {
+        const timestamp = Math.trunc(Number(timestampInput));
+        const sign = createDingTalkSign(secret, timestamp);
+        url.searchParams.set('timestamp', String(timestamp));
+        url.searchParams.set('sign', sign);
+    }
+    return url.toString();
+}
+async function sendDingTalkMessage(payload) {
+    const url = buildDingTalkWebhook(payload.endpoint, payload.token, payload.secret);
+    const title = assertRequiredText('title', payload.title);
+    const content = assertRequiredText('content', payload.content);
+    const response = await axios.post(url, {
+        msgtype: 'text',
+        text: {
+            content: `${title}\n${content}`,
+        },
+    });
+    return response.data;
+}
+/**
+ * 发送推送
+ * @param payload
+ * @param payload.channel 必填 推送渠道（pushoo 平台名，如 webhook）
+ * @param payload.endpoint Webhook 接口地址（webhook、dingtalk 渠道使用）
+ * @param payload.token 除 webhook、dingtalk 外的渠道必填；兼容旧版钉钉 access token
+ * @param payload.secret 钉钉机器人加签密钥（可选）
+ * @param payload.title 必填 推送标题
+ * @param payload.content 必填 推送内容
+ * @returns 推送结果
+ */
+async function sendPushooMessage(payload = {}) {
+    const channel = assertRequiredText('channel', payload.channel);
+    const endpoint = String(payload.endpoint || '').trim();
+    const rawToken = String(payload.token || '').trim();
+    const secret = String(payload.secret || '').trim();
+    const token = channel === 'webhook' || channel === 'dingtalk'
+        ? rawToken
+        : assertRequiredText('token', rawToken);
+    const title = assertRequiredText('title', payload.title);
+    const content = assertRequiredText('content', payload.content);
+    const options = {};
+    if (channel === 'webhook') {
+        const url = assertRequiredText('endpoint', endpoint);
+        options.webhook = { url, method: 'POST' };
+    }
+    const request = { title, content };
+    if (token)
+        request.token = token;
+    if (channel === 'webhook')
+        request.options = options;
+    const result = channel === 'dingtalk'
+        ? await sendDingTalkMessage({ endpoint, token, secret, title, content })
+        : await pushoo(channel, request);
+    const raw = (result && typeof result === 'object') ? result : { data: result };
+    const hasError = !!(raw && raw.error);
+    const code = String(raw.code || raw.errcode || (hasError ? 'error' : 'ok'));
+    const message = String(raw.msg || raw.errmsg || raw.message || (hasError ? (raw.error.message || 'push failed') : 'ok'));
+    const ok = !hasError && (code === 'ok' || code === '0' || code === '' || String(raw.status || '').toLowerCase() === 'success');
+    return {
+        ok,
+        code,
+        msg: message,
+        raw,
+    };
+}
+module.exports = {
+    buildDingTalkWebhook,
+    createDingTalkSign,
+    sendPushooMessage,
+};
+//# sourceMappingURL=push.js.map

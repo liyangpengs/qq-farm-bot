@@ -4,8 +4,8 @@ bun.lock
 .pnpm-store
 
 # Build output
-core/dist/
-web/dist/
+# core/dist/
+# web/dist/
 
 # Runtime data (contains user credentials and logs)
 core/data/

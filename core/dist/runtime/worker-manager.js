@@ -1,0 +1,502 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const { createScheduler } = require('../services/scheduler');
+function createWorkerManager(options) {
+    const { fork, WorkerThread, runtimeMode = 'thread', processRef, mainEntryPath, workerScriptPath, workers, globalLogs, log, addAccountLog, normalizeStatusForPanel, buildConfigSnapshotForAccount, getOfflineAutoDeleteMs, triggerOfflineReminder, sendConfiguredPush, addOrUpdateAccount, deleteAccount, refreshAccountCode, onStatusSync, onWorkerLog, } = options;
+    const managerScheduler = createScheduler('worker_manager');
+    const useThreadRuntime = runtimeMode === 'thread' && !processRef.pkg && typeof WorkerThread === 'function';
+    // 自动续码冷却（毫秒），避免 400 反复触发刷新重启风暴
+    const autoRefreshCooldowns = new Map();
+    const AUTO_REFRESH_COOLDOWN_MS = 60_000;
+    function findStoredAccount(accountId) {
+        try {
+            const store = require('../models/store');
+            const data = store.getAccounts ? store.getAccounts() : { accounts: [] };
+            return (Array.isArray(data.accounts) ? data.accounts : []).find(a => String(a.id) === String(accountId)) || null;
+        }
+        catch {
+            return null;
+        }
+    }
+    function autoRefreshAndRestart(accountId) {
+        if (typeof refreshAccountCode !== 'function')
+            return;
+        const now = Date.now();
+        const last = autoRefreshCooldowns.get(accountId) || 0;
+        if (now - last < AUTO_REFRESH_COOLDOWN_MS)
+            return;
+        autoRefreshCooldowns.set(accountId, now);
+        refreshAccountCode(accountId)
+            .then((newCode) => {
+            if (!newCode) {
+                addAccountLog('refresh_failed', `账号 ${accountId} 自动续码失败，请手动刷新 Code 或重新扫码`, accountId);
+                return;
+            }
+            log('系统', `账号 ${accountId} 已自动续码，正在重启...`, { accountId });
+            const acc = findStoredAccount(accountId);
+            if (acc)
+                restartWorker(acc);
+        })
+            .catch((e) => {
+            log('错误', `账号 ${accountId} 自动续码失败: ${e && e.message ? e.message : e}`, { accountId });
+        });
+    }
+    function createThreadWorker(account) {
+        const workerOptions = {
+            workerData: {
+                accountId: String(account.id || ''),
+                channel: 'thread',
+            },
+        };
+        // When running from source with tsx, configure worker to use tsx
+        if (workerScriptPath.endsWith('.ts')) {
+            workerOptions.execArgv = ['--require', 'tsx/cjs'];
+        }
+        const worker = new WorkerThread(workerScriptPath, workerOptions);
+        worker.send = (payload) => worker.postMessage(payload);
+        worker.kill = () => worker.terminate();
+        return worker;
+    }
+    function createForkWorker(account) {
+        if (processRef.pkg) {
+            return fork(mainEntryPath, [], {
+                execPath: processRef.execPath,
+                stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+                env: { ...processRef.env, FARM_WORKER: '1', FARM_ACCOUNT_ID: String(account.id || '') },
+            });
+        }
+        const forkOptions = {
+            stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+            env: { ...processRef.env, FARM_ACCOUNT_ID: String(account.id || '') },
+        };
+        if (workerScriptPath.endsWith('.ts')) {
+            forkOptions.execArgv = ['--require', 'tsx/cjs'];
+        }
+        return fork(workerScriptPath, [], forkOptions);
+    }
+    function createWorkerProcess(account) {
+        if (useThreadRuntime)
+            return createThreadWorker(account);
+        return createForkWorker(account);
+    }
+    function startWorker(account) {
+        if (!account || !account.id)
+            return false;
+        // 无归属账号不允许运行
+        if (!String(account.owner || '').trim())
+            return false;
+        if (workers[account.id])
+            return false;
+        log('系统', `正在启动账号: ${account.name}`, { accountId: String(account.id), accountName: account.name });
+        let child = null;
+        try {
+            child = createWorkerProcess(account);
+        }
+        catch (err) {
+            const reason = err && err.message ? err.message : String(err || 'unknown error');
+            log('错误', `账号 ${account.name} 启动失败: ${reason}`, { accountId: String(account.id), accountName: account.name });
+            addAccountLog('start_failed', `账号 ${account.name} 启动失败`, account.id, account.name, { reason });
+            return false;
+        }
+        workers[account.id] = {
+            process: child,
+            status: null,
+            logs: [],
+            requests: new Map(),
+            reqId: 1,
+            name: account.name,
+            nick: account.nick || '',
+            avatar: account.avatar || '',
+            stopping: false,
+            disconnectedSince: 0,
+            autoDeleteTriggered: false,
+            terminalHandled: false,
+            wsError: null,
+        };
+        const initialConfigSnapshot = buildConfigSnapshotForAccount(account.id);
+        child.send({
+            type: 'start',
+            config: {
+                code: account.code,
+                platform: account.platform,
+                systemTimeZone: initialConfigSnapshot.systemTimeZone,
+            },
+        });
+        child.send({ type: 'config_sync', config: initialConfigSnapshot });
+        child.on('message', (msg) => {
+            handleWorkerMessage(account.id, child, msg);
+        });
+        child.on('error', (err) => {
+            log('系统', `账号 ${account.name} 子进程启动失败: ${err && err.message ? err.message : err}`, { accountId: String(account.id), accountName: account.name });
+        });
+        child.on('exit', (code, signal) => {
+            const current = workers[account.id];
+            if (!current || current.process !== child)
+                return;
+            const displayName = current.name || account.name;
+            log('系统', `账号 ${displayName} 进程退出 (code=${code}, signal=${signal || 'none'})`, {
+                accountId: String(account.id),
+                accountName: displayName,
+                runtimeMode: useThreadRuntime ? 'thread' : 'fork',
+            });
+            managerScheduler.clear(`force_kill_${account.id}`);
+            managerScheduler.clear(`restart_fallback_${account.id}`);
+            if (current && current.requests && current.requests.size > 0) {
+                for (const [reqId, req] of current.requests.entries()) {
+                    managerScheduler.clear(`api_timeout_${account.id}_${reqId}`);
+                    try {
+                        req.reject(new Error('Worker exited'));
+                    }
+                    catch { }
+                }
+                current.requests.clear();
+            }
+            if (current && current.process === child) {
+                delete workers[account.id];
+            }
+        });
+        return true;
+    }
+    function stopWorker(accountId) {
+        const worker = workers[accountId];
+        if (!worker)
+            return;
+        const proc = worker.process;
+        worker.stopping = true;
+        worker.process.send({ type: 'stop' });
+        managerScheduler.setTimeoutTask(`force_kill_${accountId}`, 1000, () => {
+            const current = workers[accountId];
+            if (current && current.process === proc) {
+                current.process.kill();
+                delete workers[accountId];
+            }
+        });
+    }
+    function restartWorker(account) {
+        if (!account)
+            return;
+        const accountId = account.id;
+        const worker = workers[accountId];
+        if (!worker) {
+            startWorker(account);
+            return;
+        }
+        const proc = worker.process;
+        let started = false;
+        const startOnce = () => {
+            if (started)
+                return;
+            started = true;
+            managerScheduler.clear(`restart_fallback_${accountId}`);
+            const current = workers[accountId];
+            if (!current) {
+                startWorker(account);
+                return;
+            }
+            if (current.process !== proc)
+                return;
+            delete workers[accountId];
+            startWorker(account);
+        };
+        const killIfStale = () => {
+            const current = workers[accountId];
+            if (!current || current.process !== proc)
+                return false;
+            try {
+                current.process.kill();
+            }
+            catch { }
+            delete workers[accountId];
+            return true;
+        };
+        if (typeof proc.exitCode === 'number' || proc.signalCode) {
+            startOnce();
+            return;
+        }
+        proc.once('exit', startOnce);
+        stopWorker(accountId);
+        managerScheduler.setTimeoutTask(`restart_fallback_${accountId}`, 1500, () => {
+            if (started)
+                return;
+            killIfStale();
+            startOnce();
+        });
+    }
+    function errorFromWorkerPayload(payload) {
+        if (!payload || typeof payload !== 'object')
+            return new Error(String(payload || 'Worker API error'));
+        const error = new Error(String(payload.message || 'Worker API error'));
+        if (payload.name)
+            error.name = String(payload.name);
+        if (payload.code !== undefined && payload.code !== null && payload.code !== '')
+            error.code = payload.code;
+        return error;
+    }
+    function handleWorkerMessage(accountId, sourceProcess, msg) {
+        const worker = workers[accountId];
+        if (!worker || worker.process !== sourceProcess)
+            return;
+        if (msg.type === 'status_sync') {
+            worker.status = normalizeStatusForPanel(msg.data, accountId, worker.name);
+            if (typeof onStatusSync === 'function') {
+                onStatusSync(accountId, worker.status, worker.name);
+            }
+            const profile = msg.data && msg.data.status && typeof msg.data.status === 'object'
+                ? msg.data.status
+                : {};
+            const accountUpdate = { id: accountId };
+            let profileChanged = false;
+            if (profile.name) {
+                const newNick = String(profile.name).trim();
+                if (newNick && newNick !== '未知' && newNick !== '未登录') {
+                    // 账号名称仍是默认占位（账号N）时，默认改用登录昵称作为农场账户名称
+                    const defaultName = `账号${accountId}`;
+                    const currentName = String(worker.name || '').trim();
+                    if (!currentName || currentName === defaultName) {
+                        worker.name = newNick;
+                        accountUpdate.name = newNick;
+                        profileChanged = true;
+                    }
+                    if (worker.nick !== newNick) {
+                        const oldNick = worker.nick;
+                        worker.nick = newNick;
+                        accountUpdate.nick = newNick;
+                        profileChanged = true;
+                        if (oldNick !== newNick) {
+                            log('系统', `已同步账号昵称: ${oldNick || 'None'} -> ${newNick}`, { accountId, accountName: worker.name });
+                        }
+                    }
+                }
+            }
+            const newAvatar = String(profile.avatarUrl || profile.avatar_url || '').trim();
+            if (newAvatar && worker.avatar !== newAvatar) {
+                worker.avatar = newAvatar;
+                accountUpdate.avatar = newAvatar;
+                profileChanged = true;
+            }
+            if (profileChanged) {
+                addOrUpdateAccount(accountUpdate);
+            }
+            const connected = !!(msg.data && msg.data.connection && msg.data.connection.connected);
+            if (connected) {
+                worker.disconnectedSince = 0;
+                worker.autoDeleteTriggered = false;
+                worker.wsError = null;
+            }
+            else if (!worker.stopping) {
+                const now = Date.now();
+                if (!worker.disconnectedSince)
+                    worker.disconnectedSince = now;
+                const offlineMs = now - worker.disconnectedSince;
+                const autoDeleteMs = getOfflineAutoDeleteMs();
+                if (!worker.autoDeleteTriggered && offlineMs >= autoDeleteMs) {
+                    worker.autoDeleteTriggered = true;
+                    const offlineMin = Math.floor(offlineMs / 60000);
+                    log('系统', `账号 ${worker.name} 持续离线 ${offlineMin} 分钟，自动删除账号信息`);
+                    triggerOfflineReminder({
+                        accountId,
+                        accountName: worker.name,
+                        reason: 'offline_timeout',
+                        offlineMs,
+                    });
+                    addAccountLog('offline_delete', `账号 ${worker.name} 持续离线 ${offlineMin} 分钟，已自动删除`, accountId, worker.name, { reason: 'offline_timeout', offlineMs });
+                    stopWorker(accountId);
+                    try {
+                        deleteAccount(accountId);
+                    }
+                    catch (e) {
+                        log('错误', `删除离线账号失败: ${e.message}`);
+                    }
+                }
+            }
+        }
+        else if (msg.type === 'log') {
+            const logEntry = {
+                ...msg.data,
+                accountId,
+                accountName: worker.name,
+                ts: Date.now(),
+                meta: msg.data && msg.data.meta ? msg.data.meta : {},
+            };
+            logEntry._searchText = `${logEntry.msg || ''} ${logEntry.tag || ''} ${JSON.stringify(logEntry.meta || {})}`.toLowerCase();
+            worker.logs.push(logEntry);
+            if (worker.logs.length > 1000)
+                worker.logs.shift();
+            globalLogs.push(logEntry);
+            if (globalLogs.length > 1000)
+                globalLogs.shift();
+            if (typeof onWorkerLog === 'function') {
+                onWorkerLog(logEntry, accountId, worker.name);
+            }
+        }
+        else if (msg.type === 'error') {
+            const workerError = errorFromWorkerPayload(msg.error);
+            log('错误', `账号[${accountId}]进程报错: ${workerError.message}`, {
+                accountId: String(accountId),
+                accountName: worker.name,
+                errorCode: workerError.code,
+                errorName: workerError.name,
+            });
+        }
+        else if (msg.type === 'ws_error') {
+            const code = Number(msg.code) || 0;
+            const message = msg.message || '';
+            worker.wsError = { code, message, at: Date.now() };
+            if (code === 400) {
+                addAccountLog('ws_400', `账号 ${worker.name} 登录失效，正在尝试自动续码`, accountId, worker.name);
+                autoRefreshAndRestart(accountId);
+            }
+        }
+        else if (msg.type === 'account_kicked') {
+            if (worker.terminalHandled)
+                return;
+            worker.terminalHandled = true;
+            const reason = msg.reason || '未知';
+            log('系统', `账号 ${worker.name} 被踢下线，已自动停止账号`, { accountId: String(accountId), accountName: worker.name });
+            triggerOfflineReminder({
+                accountId,
+                accountName: worker.name,
+                reason: `kickout:${reason}`,
+                offlineMs: 0,
+            });
+            addAccountLog('kickout_stop', `账号 ${worker.name} 被踢下线，已自动停止`, accountId, worker.name, { reason });
+            stopWorker(accountId);
+        }
+        else if (msg.type === 'account_disconnected') {
+            if (worker.terminalHandled)
+                return;
+            worker.terminalHandled = true;
+            const source = String(msg.source || 'ws_close');
+            const code = Number(msg.code) || 0;
+            const reason = String(msg.reason || '连接已断开');
+            const phase = String(msg.phase || 'unknown');
+            if (worker.status?.connection)
+                worker.status.connection.connected = false;
+            if (worker.requests.size > 0) {
+                for (const [reqId, req] of worker.requests.entries()) {
+                    managerScheduler.clear(`api_timeout_${accountId}_${reqId}`);
+                    try {
+                        req.reject(new Error('账号连接已断开'));
+                    }
+                    catch { }
+                }
+                worker.requests.clear();
+            }
+            log('系统', `账号 ${worker.name} 连接已断开，已停止运行并等待 Helper 刷新 Code 或重新扫码`, {
+                accountId: String(accountId),
+                accountName: worker.name,
+                source,
+                code,
+                phase,
+            });
+            triggerOfflineReminder({
+                accountId,
+                accountName: worker.name,
+                reason: `disconnect:${source}:${phase}:${code}`,
+                offlineMs: 0,
+            });
+            addAccountLog('disconnect_stop', `账号 ${worker.name} 连接已断开，已停止运行并等待 Helper 刷新 Code 或重新扫码`, accountId, worker.name, { source, code, reason, phase, connectionId: Number(msg.connectionId) || 0 });
+            stopWorker(accountId);
+        }
+        else if (msg.type === 'api_response') {
+            const { id, result, error } = msg;
+            managerScheduler.clear(`api_timeout_${accountId}_${id}`);
+            const req = worker.requests.get(id);
+            if (req) {
+                if (error)
+                    req.reject(errorFromWorkerPayload(error));
+                else
+                    req.resolve(result);
+                worker.requests.delete(id);
+            }
+        }
+        else if (msg.type === 'friend_blacklist_add') {
+            const gid = Number(msg.gid) || 0;
+            if (gid > 0) {
+                const { addFriendToBlacklist: addToBlacklist } = require('../models/store');
+                addToBlacklist(accountId, gid);
+                log('好友', `已将好友 ${msg.friendName || `GID:${gid}`} 加入黑名单`, {
+                    accountId: String(accountId),
+                    accountName: worker.name,
+                    friendGid: gid,
+                    friendName: msg.friendName,
+                    reason: msg.reason,
+                });
+                const worker_process = workers[accountId];
+                if (worker_process && worker_process.process) {
+                    worker_process.process.send({ type: 'config_sync', config: buildConfigSnapshotForAccount(accountId) });
+                }
+            }
+        }
+        else if (msg.type === 'known_friend_gids_sync') {
+            const { setKnownFriendGids } = require('../models/store');
+            const gids = Array.isArray(msg.gids)
+                ? msg.gids.map(Number).filter((gid) => Number.isFinite(gid) && gid > 0)
+                : [];
+            const saved = setKnownFriendGids(accountId, gids);
+            worker.process.send({
+                type: 'config_sync',
+                config: buildConfigSnapshotForAccount(accountId),
+            });
+            log('好友', `已同步并持久化 ${saved.length} 个好友 GID`, {
+                accountId: String(accountId),
+                accountName: worker.name,
+                friendCount: saved.length,
+            });
+        }
+        else if (msg.type === 'push_notify') {
+            const title = String(msg.title || '').trim();
+            const content = String(msg.content || '').trim();
+            if (!title || !content || typeof sendConfiguredPush !== 'function')
+                return;
+            Promise.resolve(sendConfiguredPush({
+                title,
+                content,
+                accountId,
+                accountName: worker.name,
+            })).catch((e) => {
+                log('错误', `事件提醒发送异常: ${e && e.message ? e.message : e}`);
+            });
+        }
+        else if (msg.type === 'known_friend_gid_remove') {
+            const { getKnownFriendGids, setKnownFriendGids } = require('../models/store');
+            const gid = Number(msg.gid) || 0;
+            if (gid > 0) {
+                const current = getKnownFriendGids(accountId);
+                setKnownFriendGids(accountId, current.filter((item) => Number(item) !== gid));
+                worker.process.send({
+                    type: 'config_sync',
+                    config: buildConfigSnapshotForAccount(accountId),
+                });
+            }
+        }
+    }
+    function callWorkerApi(accountId, method, ...args) {
+        const worker = workers[accountId];
+        if (!worker)
+            return Promise.reject(new Error('账号未运行'));
+        if (worker.stopping || worker.terminalHandled)
+            return Promise.reject(new Error('账号已离线'));
+        return new Promise((resolve, reject) => {
+            const id = worker.reqId++;
+            worker.requests.set(id, { resolve, reject });
+            managerScheduler.setTimeoutTask(`api_timeout_${accountId}_${id}`, 10000, () => {
+                if (worker.requests.has(id)) {
+                    worker.requests.delete(id);
+                    reject(new Error('API Timeout'));
+                }
+            });
+            worker.process.send({ type: 'api_call', id, method, args });
+        });
+    }
+    return {
+        startWorker,
+        stopWorker,
+        restartWorker,
+        callWorkerApi,
+    };
+}
+module.exports = {
+    createWorkerManager,
+};
+//# sourceMappingURL=worker-manager.js.map

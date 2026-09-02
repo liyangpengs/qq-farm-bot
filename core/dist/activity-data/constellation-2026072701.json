@@ -1,0 +1,1785 @@
+{
+    "catalogVersion": 1,
+    "activityId": "2026072701",
+    "eventUid": "SAIJI_MEGA_EVENT",
+    "displayName": "观星礼录",
+    "serverName": "千星同明",
+    "rules": {
+        "title": "活动说明",
+        "lines": [
+            "<b>【活动简介】</b>",
+            "<b>1. 星宿轮转，每日馈赠</b>",
+            "活动期间，观星礼录以星宿为主线，星宿共有二十八个，逐日点亮。奖励每日投放，玩家每日可通过点亮星宿领取当日星宿馈赠。<br/>",
+            "<b>【参与方式】</b>",
+            "点击【心许千灯星垂野】界面底部导航栏的观星礼录入口，进入星宿礼录面板。查看当日星宿事件、每日奖励和可领取状态。每日奖励开放后即可领取，点击一键领取按钮可领取已解锁的全部星宿奖励。<br/>",
+            "<b>【注意事项】</b>",
+            "活动共计二十八个星宿，结束后，将不再开放新的每日奖励。观星礼录奖励仅在当前游记周期生效，不跨活动继承。超出补领范围的奖励无法补领，请及时领取每日奖励。<br/>"
+        ]
+    },
+    "groups": [
+        {
+            "id": "1",
+            "order": 1,
+            "nodeId": 1,
+            "name": "角宿",
+            "category": "青龙",
+            "explain": "属木，为蛟。为东方七宿之首，有两颗星如苍龙的两角。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21353",
+                    "name": "紫薇种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "0;0:1;1:0;2:0;3:0;4:0;5:0;6:0",
+            "links": {
+                "chartIndex": 0,
+                "nodeIds": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                "structure": [
+                    {
+                        "nodeId": 1,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 2,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 3,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 4,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 5,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 6,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 7,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "2",
+            "order": 2,
+            "nodeId": 2,
+            "name": "亢宿",
+            "category": "青龙",
+            "explain": "属金，为龙。是东方第二宿，为苍龙的颈。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20264",
+                    "name": "帝王血种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "0;0:1;1:1;2:0;3:0;4:0;5:0;6:0",
+            "links": {
+                "chartIndex": 0,
+                "nodeIds": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                "structure": [
+                    {
+                        "nodeId": 1,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 2,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 3,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 4,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 5,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 6,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 7,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "3",
+            "order": 3,
+            "nodeId": 3,
+            "name": "氐宿",
+            "category": "青龙",
+            "explain": "属土，为貉。氐，为根为本，如木之有根始能往上支天柱、往下扎深根，但当其根露现时即是冬寒草木枯黄之时。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21404",
+                    "name": "月光花种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "0;0:1;1:1;2:1;3:0;4:0;5:0;6:0",
+            "links": {
+                "chartIndex": 0,
+                "nodeIds": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                "structure": [
+                    {
+                        "nodeId": 1,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 2,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 3,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 4,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 5,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 6,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 7,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "4",
+            "order": 4,
+            "nodeId": 4,
+            "name": "房宿",
+            "category": "青龙",
+            "explain": "为日，为兔。为东方第四宿，为苍龙腹房，古人也称之为“天驷”，取龙为天马和房宿有四颗星之意。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20108",
+                    "name": "铃兰种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "0;0:1;1:1;2:1;3:1;4:0;5:0;6:0",
+            "links": {
+                "chartIndex": 0,
+                "nodeIds": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                "structure": [
+                    {
+                        "nodeId": 1,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 2,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 3,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 4,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 5,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 6,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 7,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "5",
+            "order": 5,
+            "nodeId": 5,
+            "name": "心宿",
+            "category": "青龙",
+            "explain": "为月，为狐。为东方第五宿，为苍龙腰部。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21037",
+                    "name": "银星海棠种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "0;0:1;1:1;2:1;3:1;4:1;5:0;6:0",
+            "links": {
+                "chartIndex": 0,
+                "nodeIds": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                "structure": [
+                    {
+                        "nodeId": 1,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 2,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 3,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 4,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 5,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 6,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 7,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "6",
+            "order": 6,
+            "nodeId": 6,
+            "name": "尾宿",
+            "category": "青龙",
+            "explain": "属火，为虎。为东方第六宿，尾宿九颗星形成苍龙之尾。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "26032",
+                    "name": "月见草种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "0;0:1;1:1;2:1;3:1;4:1;5:1;6:0",
+            "links": {
+                "chartIndex": 0,
+                "nodeIds": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                "structure": [
+                    {
+                        "nodeId": 1,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 2,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 3,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 4,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 5,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 6,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 7,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "7",
+            "order": 7,
+            "nodeId": 7,
+            "name": "箕宿",
+            "category": "青龙",
+            "explain": "属水，为豹。为东方最后一宿，为龙尾摆动所引发之旋风。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21050",
+                    "name": "萱草种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "0;0:1;1:1;2:1;3:1;4:1;5:1;6:1",
+            "links": {
+                "chartIndex": 0,
+                "nodeIds": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                "structure": [
+                    {
+                        "nodeId": 1,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 2,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 3,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 4,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 5,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 6,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 7,
+                        "flag": 1
+                    }
+                ]
+            }
+        },
+        {
+            "id": "8",
+            "order": 8,
+            "nodeId": 8,
+            "name": "斗宿",
+            "category": "玄武",
+            "explain": "属木，为獬。为北方之首宿，因其星群组合状如斗而得名，古人又称“天庙”，是属于天子的星。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "21251",
+                    "name": "紫茉莉种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "1;7:1;8:0;9:0;10:0;11:0;12:0;13:0",
+            "links": {
+                "chartIndex": 1,
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                ],
+                "structure": [
+                    {
+                        "nodeId": 8,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 9,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 10,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 11,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 12,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 13,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 14,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "9",
+            "order": 9,
+            "nodeId": 9,
+            "name": "牛宿",
+            "category": "玄武",
+            "explain": "属金，为牛。为北方第二宿，因其星群组合如牛角而得名，其中最著名的是织女与牵牛星。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21353",
+                    "name": "紫薇种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "1;7:1;8:1;9:0;10:0;11:0;12:0;13:0",
+            "links": {
+                "chartIndex": 1,
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                ],
+                "structure": [
+                    {
+                        "nodeId": 8,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 9,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 10,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 11,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 12,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 13,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 14,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "10",
+            "order": 10,
+            "nodeId": 10,
+            "name": "女宿",
+            "category": "玄武",
+            "explain": "属土，为幅（蝠）。为北方第三宿，其星群组合状如箕。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20264",
+                    "name": "帝王血种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "1;7:1;8:1;9:1;10:0;11:0;12:0;13:0",
+            "links": {
+                "chartIndex": 1,
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                ],
+                "structure": [
+                    {
+                        "nodeId": 8,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 9,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 10,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 11,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 12,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 13,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 14,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "11",
+            "order": 11,
+            "nodeId": 11,
+            "name": "虚宿",
+            "category": "玄武",
+            "explain": "为日，为鼠。为北方第四宿，古人称为“天节”。当半夜时虚宿居于南中正是冬至的节令。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21380",
+                    "name": "梧桐种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "1;7:1;8:1;9:1;10:1;11:0;12:0;13:0",
+            "links": {
+                "chartIndex": 1,
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                ],
+                "structure": [
+                    {
+                        "nodeId": 8,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 9,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 10,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 11,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 12,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 13,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 14,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "12",
+            "order": 12,
+            "nodeId": 12,
+            "name": "危宿",
+            "category": "玄武",
+            "explain": "为月，为燕。为北方第五宿，居龟蛇尾部之处，故此而得名“危”（战斗中，断后者常常有危险）。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20108",
+                    "name": "铃兰种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "1;7:1;8:1;9:1;10:1;11:1;12:0;13:0",
+            "links": {
+                "chartIndex": 1,
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                ],
+                "structure": [
+                    {
+                        "nodeId": 8,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 9,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 10,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 11,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 12,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 13,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 14,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "13",
+            "order": 13,
+            "nodeId": 13,
+            "name": "室宿",
+            "category": "玄武",
+            "explain": "属火，为猪。为北方第六宿，因其星群组合象房屋状而得名“室”。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21404",
+                    "name": "月光花种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "1;7:1;8:1;9:1;10:1;11:1;12:1;13:0",
+            "links": {
+                "chartIndex": 1,
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                ],
+                "structure": [
+                    {
+                        "nodeId": 8,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 9,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 10,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 11,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 12,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 13,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 14,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "14",
+            "order": 14,
+            "nodeId": 14,
+            "name": "壁宿",
+            "category": "玄武",
+            "explain": "属水，为貐。为北方第七宿，居室宿之外，形如室宿的围墙，故此而得名“壁”。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "26032",
+                    "name": "月见草种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "1;7:1;8:1;9:1;10:1;11:1;12:1;13:1",
+            "links": {
+                "chartIndex": 1,
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                ],
+                "structure": [
+                    {
+                        "nodeId": 8,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 9,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 10,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 11,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 12,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 13,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 14,
+                        "flag": 1
+                    }
+                ]
+            }
+        },
+        {
+            "id": "15",
+            "order": 15,
+            "nodeId": 15,
+            "name": "奎宿",
+            "category": "白虎",
+            "explain": "属木，为狼。为西方第一宿，有天之府库的意思。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21037",
+                    "name": "银星海棠种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "2;14:1;15:0;16:0;17:0;18:0;19:0;20:0",
+            "links": {
+                "chartIndex": 2,
+                "nodeIds": [
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21
+                ],
+                "structure": [
+                    {
+                        "nodeId": 15,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 16,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 17,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 18,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 19,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 20,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 21,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "16",
+            "order": 16,
+            "nodeId": 16,
+            "name": "娄宿",
+            "category": "白虎",
+            "explain": "属金，为狗。为西方第二宿，娄，同“屡”，有聚众的含意，也有牧养众畜以供祭祀的意思。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "21251",
+                    "name": "紫茉莉种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "2;14:1;15:1;16:0;17:0;18:0;19:0;20:0",
+            "links": {
+                "chartIndex": 2,
+                "nodeIds": [
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21
+                ],
+                "structure": [
+                    {
+                        "nodeId": 15,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 16,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 17,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 18,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 19,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 20,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 21,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "17",
+            "order": 17,
+            "nodeId": 17,
+            "name": "胃宿",
+            "category": "白虎",
+            "explain": "属土，为雉。为西方第三宿，如同人体胃之作用一样，胃宿就像天的仓库屯积粮食。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21050",
+                    "name": "萱草种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "2;14:1;15:1;16:1;17:0;18:0;19:0;20:0",
+            "links": {
+                "chartIndex": 2,
+                "nodeIds": [
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21
+                ],
+                "structure": [
+                    {
+                        "nodeId": 15,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 16,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 17,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 18,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 19,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 20,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 21,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "18",
+            "order": 18,
+            "nodeId": 18,
+            "name": "昴宿",
+            "category": "白虎",
+            "explain": "为日，为鸡。为西方第四宿，居白虎七宿的中央。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20264",
+                    "name": "帝王血种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "2;14:1;15:1;16:1;17:1;18:0;19:0;20:0",
+            "links": {
+                "chartIndex": 2,
+                "nodeIds": [
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21
+                ],
+                "structure": [
+                    {
+                        "nodeId": 15,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 16,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 17,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 18,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 19,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 20,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 21,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "19",
+            "order": 19,
+            "nodeId": 19,
+            "name": "毕宿",
+            "category": "白虎",
+            "explain": "为月，为乌。为西方第五宿，又名“罕车”。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "20129",
+                    "name": "勿忘我种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "2;14:1;15:1;16:1;17:1;18:1;19:0;20:0",
+            "links": {
+                "chartIndex": 2,
+                "nodeIds": [
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21
+                ],
+                "structure": [
+                    {
+                        "nodeId": 15,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 16,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 17,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 18,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 19,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 20,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 21,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "20",
+            "order": 20,
+            "nodeId": 20,
+            "name": "觜宿",
+            "category": "白虎",
+            "explain": "属火，为猴。为西方第六宿，居白虎之口，口福之象征。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20108",
+                    "name": "铃兰种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "2;14:1;15:1;16:1;17:1;18:1;19:1;20:0",
+            "links": {
+                "chartIndex": 2,
+                "nodeIds": [
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21
+                ],
+                "structure": [
+                    {
+                        "nodeId": 15,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 16,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 17,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 18,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 19,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 20,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 21,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "21",
+            "order": 21,
+            "nodeId": 21,
+            "name": "参宿",
+            "category": "白虎",
+            "explain": "属水，为猿。为西方第七宿，居白虎之前胸。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21380",
+                    "name": "梧桐种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "2;14:1;15:1;16:1;17:1;18:1;19:1;20:1",
+            "links": {
+                "chartIndex": 2,
+                "nodeIds": [
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21
+                ],
+                "structure": [
+                    {
+                        "nodeId": 15,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 16,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 17,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 18,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 19,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 20,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 21,
+                        "flag": 1
+                    }
+                ]
+            }
+        },
+        {
+            "id": "22",
+            "order": 22,
+            "nodeId": 22,
+            "name": "井宿",
+            "category": "朱雀",
+            "explain": "属木，为犴，狴犴。为南方第一宿，其组合星群状如网，由此而得名“井”（井字如网状）。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "26032",
+                    "name": "月见草种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "3;21:1;22:0;23:0;24:0;25:0;26:0;27:0",
+            "links": {
+                "chartIndex": 3,
+                "nodeIds": [
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28
+                ],
+                "structure": [
+                    {
+                        "nodeId": 22,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 23,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 24,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 25,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 26,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 27,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 28,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "23",
+            "order": 23,
+            "nodeId": 23,
+            "name": "鬼宿",
+            "category": "朱雀",
+            "explain": "属金，为羊。为南方第二宿，犹如一顶戴在朱雀头上的帽子，鸟类在受到惊吓时头顶羽毛成冠状。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "20129",
+                    "name": "勿忘我种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "3;21:1;22:1;23:0;24:0;25:0;26:0;27:0",
+            "links": {
+                "chartIndex": 3,
+                "nodeIds": [
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28
+                ],
+                "structure": [
+                    {
+                        "nodeId": 22,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 23,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 24,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 25,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 26,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 27,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 28,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "24",
+            "order": 24,
+            "nodeId": 24,
+            "name": "柳宿",
+            "category": "朱雀",
+            "explain": "属土，为獐。为南方第三宿，居朱雀之嘴，其状如柳叶（鸟类嘴之形状大多如此）。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "21251",
+                    "name": "紫茉莉种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "3;21:1;22:1;23:1;24:0;25:0;26:0;27:0",
+            "links": {
+                "chartIndex": 3,
+                "nodeIds": [
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28
+                ],
+                "structure": [
+                    {
+                        "nodeId": 22,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 23,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 24,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 25,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 26,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 27,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 28,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "25",
+            "order": 25,
+            "nodeId": 25,
+            "name": "星宿",
+            "category": "朱雀",
+            "explain": "为日，为马。为南方第四宿，居朱雀之目，鸟类的眼睛多如星星般明亮，故由此而得名“星”。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "21404",
+                    "name": "月光花种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "3;21:1;22:1;23:1;24:1;25:0;26:0;27:0",
+            "links": {
+                "chartIndex": 3,
+                "nodeIds": [
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28
+                ],
+                "structure": [
+                    {
+                        "nodeId": 22,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 23,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 24,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 25,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 26,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 27,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 28,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "26",
+            "order": 26,
+            "nodeId": 26,
+            "name": "张宿",
+            "category": "朱雀",
+            "explain": "为月，为鹿。为南方第五宿，居朱雀身体与翅膀连接处，翅膀张开才意味着飞翔。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20264",
+                    "name": "帝王血种子",
+                    "count": 36
+                }
+            ],
+            "linksRaw": "3;21:1;22:1;23:1;24:1;25:1;26:0;27:0",
+            "links": {
+                "chartIndex": 3,
+                "nodeIds": [
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28
+                ],
+                "structure": [
+                    {
+                        "nodeId": 22,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 23,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 24,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 25,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 26,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 27,
+                        "flag": 0
+                    },
+                    {
+                        "nodeId": 28,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "27",
+            "order": 27,
+            "nodeId": 27,
+            "name": "翼宿",
+            "category": "朱雀",
+            "explain": "属火，为蛇。为南方第六宿，居朱雀之翅膀之位，故而得名“翼”。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 2
+                },
+                {
+                    "itemId": "20375",
+                    "name": "木槿种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "3;21:1;22:1;23:1;24:1;25:1;26:1;27:0",
+            "links": {
+                "chartIndex": 3,
+                "nodeIds": [
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28
+                ],
+                "structure": [
+                    {
+                        "nodeId": 22,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 23,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 24,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 25,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 26,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 27,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 28,
+                        "flag": 0
+                    }
+                ]
+            }
+        },
+        {
+            "id": "28",
+            "order": 28,
+            "nodeId": 28,
+            "name": "轸宿",
+            "category": "朱雀",
+            "explain": "属水，为蚓。为南方第七宿，居朱雀之尾。",
+            "rewards": [
+                {
+                    "itemId": "29003",
+                    "name": "星语铃花种子",
+                    "count": 1
+                },
+                {
+                    "itemId": "20375",
+                    "name": "木槿种子",
+                    "count": 28
+                }
+            ],
+            "linksRaw": "3;21:1;22:1;23:1;24:1;25:1;26:1;27:1",
+            "links": {
+                "chartIndex": 3,
+                "nodeIds": [
+                    22,
+                    23,
+                    24,
+                    25,
+                    26,
+                    27,
+                    28
+                ],
+                "structure": [
+                    {
+                        "nodeId": 22,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 23,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 24,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 25,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 26,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 27,
+                        "flag": 1
+                    },
+                    {
+                        "nodeId": 28,
+                        "flag": 1
+                    }
+                ]
+            }
+        }
+    ]
+}
