@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NTab, NTabs } from 'naive-ui'
+import { NTab, NTabs } from 'naive-ui/es/tabs'
 import { ref, watch } from 'vue'
 import BagPanel from '@/components/BagPanel.vue'
 import FarmPanel from '@/components/FarmPanel.vue'

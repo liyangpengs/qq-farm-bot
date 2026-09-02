@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NSwitch } from 'naive-ui'
+import { NSwitch } from 'naive-ui/es/switch'
 
 const props = defineProps<{
   label?: string

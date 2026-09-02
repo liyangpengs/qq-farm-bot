@@ -58,10 +58,6 @@ function selectGoods(item: ShopGoodsDto) {
 
 <template>
   <div class="shop-tab">
-    <section class="shop-banner">
-      <strong>{{ shop?.title || shop?.name || '星砂商店' }}</strong>
-      <span>{{ shop?.description || '使用星砂兑换心仪奖励' }}</span>
-    </section>
     <div class="shop-categories">
       <button type="button" :class="{ active: activeCategory === allCategory }" @click="activeCategory = allCategory">
         全部
@@ -106,29 +102,6 @@ function selectGoods(item: ShopGoodsDto) {
   min-height: 100%;
   padding: calc(126px + env(safe-area-inset-top)) 14px 120px;
   background: radial-gradient(ellipse at 50% 25%, rgba(42, 136, 196, 0.38), transparent 54%);
-}
-.shop-banner {
-  padding: 14px 16px;
-  border: 1px solid rgba(158, 224, 255, 0.42);
-  border-radius: 15px;
-  background: linear-gradient(100deg, rgba(16, 100, 164, 0.93), rgba(28, 72, 143, 0.85));
-  box-shadow: inset 0 0 14px rgba(127, 212, 255, 0.14);
-}
-.shop-banner strong {
-  display: block;
-  overflow: hidden;
-  color: white;
-  font-size: 19px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.shop-banner span {
-  display: block;
-  min-height: 1em;
-  margin-top: 4px;
-  color: #bde5f7;
-  font-size: 11px;
-  white-space: pre-line;
 }
 .shop-categories {
   display: flex;
@@ -175,7 +148,8 @@ article.disabled {
 }
 .goods-card {
   width: 100%;
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   padding: 6px;
   border: 0;
   color: inherit;
@@ -196,14 +170,20 @@ article.disabled {
   height: 87px;
   display: grid;
   place-items: center;
+  padding: 6px;
+  box-sizing: border-box;
   overflow: hidden;
   border-radius: 9px;
   background: linear-gradient(180deg, rgba(139, 213, 242, 0.55), rgba(39, 104, 163, 0.3));
 }
 .goods-image img {
-  width: 88%;
-  height: 88%;
+  position: absolute;
+  inset: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  display: block;
   object-fit: contain;
+  object-position: center;
 }
 .goods-image > span:not(.goods-action) {
   width: 30px;
@@ -222,7 +202,11 @@ article.disabled {
   font-size: 9px;
   font-style: normal;
 }
-h3 {
+.goods-card > h3 {
+  position: static;
+  z-index: auto;
+  width: 100%;
+  box-sizing: border-box;
   min-height: 32px;
   margin: 6px 2px 2px;
   overflow: hidden;
@@ -279,27 +263,12 @@ h3 {
 .shop-empty p {
   margin: 0;
 }
-/* Generic activity gameplay layout. */
+/* Shared activity gameplay layout. */
 .shop-tab {
   min-height: 100%;
   padding: 24px;
   color: #203a32;
   background: transparent;
-}
-.shop-banner {
-  padding: 17px 18px;
-  border: 1px solid rgba(43, 105, 82, 0.16);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.68);
-  box-shadow: 0 10px 28px rgba(38, 72, 59, 0.07);
-}
-.shop-banner strong {
-  color: #203a32;
-  font-size: 18px;
-}
-.shop-banner span {
-  color: #6c7d76;
-  font-size: 11px;
 }
 .shop-categories {
   gap: 7px;
@@ -340,10 +309,11 @@ article {
 }
 .goods-image {
   height: 116px;
+  padding: 8px;
   border-radius: 10px;
   background: rgba(232, 239, 236, 0.7);
 }
-h3 {
+.goods-card > h3 {
   min-height: 38px;
   margin-top: 8px;
   color: #273d36;
@@ -384,11 +354,5 @@ h3 {
   .goods-image {
     height: 92px;
   }
-}
-</style>
-
-<style scoped>
-.shop-banner {
-  display: none;
 }
 </style>

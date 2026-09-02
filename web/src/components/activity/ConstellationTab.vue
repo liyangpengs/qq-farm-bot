@@ -3,11 +3,7 @@ import type { ComponentPublicInstance } from 'vue'
 import type { ConstellationDto, ConstellationGroupDto } from '@/stores/activity-center'
 import { computed, nextTick, ref, watch } from 'vue'
 import ActivityRulesDialog from './ActivityRulesDialog.vue'
-import ConstellationBookPanel from './ConstellationBookPanel.vue'
 import RewardItem from './RewardItem.vue'
-
-interface Point { x: number, y: number }
-interface StarShape { points: Point[], links: Array<[number, number]> }
 
 const props = defineProps<{
   constellation: ConstellationDto | null
@@ -16,41 +12,11 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ light: [] }>()
 const selectedGroupId = ref('')
-const bookOpen = ref(false)
 const rulesOpen = ref(false)
 const tabButtons = new Map<string, HTMLButtonElement>()
 
-const shapes: StarShape[] = [
-  { points: [{ x: 0, y: 4 }, { x: 7, y: 0 }, { x: 13, y: 7 }], links: [[0, 1], [1, 2]] },
-  { points: [{ x: 0, y: 1 }, { x: 6, y: 7 }, { x: 13, y: 3 }, { x: 17, y: 10 }], links: [[0, 1], [1, 2], [2, 3]] },
-  { points: [{ x: 1, y: 0 }, { x: 0, y: 9 }, { x: 8, y: 5 }, { x: 15, y: 10 }], links: [[0, 2], [1, 2], [2, 3]] },
-  { points: [{ x: 0, y: 3 }, { x: 7, y: 0 }, { x: 7, y: 10 }, { x: 15, y: 7 }], links: [[0, 1], [0, 2], [1, 3], [2, 3]] },
-  { points: [{ x: 0, y: 5 }, { x: 6, y: 0 }, { x: 12, y: 5 }, { x: 6, y: 10 }], links: [[0, 1], [1, 2], [2, 3], [3, 0]] },
-  { points: [{ x: 0, y: 0 }, { x: 5, y: 8 }, { x: 11, y: 2 }, { x: 16, y: 10 }], links: [[0, 1], [1, 2], [2, 3]] },
-  { points: [{ x: 0, y: 7 }, { x: 5, y: 0 }, { x: 11, y: 4 }, { x: 16, y: 1 }, { x: 20, y: 9 }], links: [[0, 1], [1, 2], [2, 3], [2, 4]] },
-]
-
-// Catalog仅提供四象索引与连线成员，不含坐标；这里是稳定的前端展示布局。
-const chartOrigins: ReadonlyArray<ReadonlyArray<Point>> = [
-  [{ x: 18, y: 24 }, { x: 39, y: 17 }, { x: 62, y: 22 }, { x: 27, y: 43 }, { x: 52, y: 42 }, { x: 70, y: 52 }, { x: 43, y: 65 }],
-  [{ x: 19, y: 18 }, { x: 43, y: 21 }, { x: 67, y: 17 }, { x: 27, y: 39 }, { x: 57, y: 40 }, { x: 18, y: 59 }, { x: 53, y: 62 }],
-  [{ x: 20, y: 21 }, { x: 48, y: 16 }, { x: 67, y: 29 }, { x: 18, y: 43 }, { x: 44, y: 40 }, { x: 67, y: 52 }, { x: 35, y: 63 }],
-  [{ x: 17, y: 19 }, { x: 42, y: 16 }, { x: 65, y: 21 }, { x: 29, y: 37 }, { x: 55, y: 39 }, { x: 17, y: 58 }, { x: 53, y: 61 }],
-]
-
 const orderedGroups = computed(() => [...(props.constellation?.groups ?? [])].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)))
 const selectedGroup = computed(() => orderedGroups.value.find(group => group.id === selectedGroupId.value) ?? null)
-const chartIndex = computed(() => Math.min(3, Math.max(0, selectedGroup.value?.chartIndex ?? Math.floor(Math.max(0, (selectedGroup.value?.order ?? 1) - 1) / 7))))
-const chartGroups = computed(() => orderedGroups.value.filter(group => (group.chartIndex ?? Math.floor(Math.max(0, (group.order ?? 1) - 1) / 7)) === chartIndex.value).slice(0, 7))
-const chartMarks = computed(() => chartGroups.value.map((group, index) => {
-  const origin = chartOrigins[chartIndex.value]?.[index] ?? chartOrigins[0]![index]!
-  const shape = shapes[index] ?? shapes[0]!
-  return {
-    group,
-    points: shape.points.map(point => ({ x: origin.x + point.x, y: origin.y + point.y })),
-    links: shape.links,
-  }
-}))
 const catalogUnsupported = computed(() => props.constellation?.catalogStatus.toLowerCase() === 'unsupported')
 const stateLabel = computed(() => {
   if (selectedGroup.value?.visualState === 'lit')
@@ -72,7 +38,6 @@ function setTabRef(groupId: string, value: Element | ComponentPublicInstance | n
 
 function selectGroup(group: ConstellationGroupDto, focus = false) {
   selectedGroupId.value = group.id
-  bookOpen.value = false
   nextTick(() => {
     const button = tabButtons.get(group.id)
     button?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
@@ -91,7 +56,8 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     target = 0
   else if (event.key === 'End')
     target = orderedGroups.value.length - 1
-  else return
+  else
+    return
   event.preventDefault()
   const group = orderedGroups.value[target]
   if (group)
@@ -122,7 +88,7 @@ watch(() => props.constellation, (value) => {
           type="button"
           role="tab"
           :aria-selected="item.id === selectedGroupId"
-          :aria-controls="`constellation-panel-${item.id}`"
+          :aria-controls="`constellation-rewards-${item.id}`"
           :tabindex="item.id === selectedGroupId ? 0 : -1"
           :class="[`state-${item.visualState}`, { active: item.id === selectedGroupId }]"
           @click="selectGroup(item)"
@@ -136,41 +102,8 @@ watch(() => props.constellation, (value) => {
         </button>
       </div>
 
-      <section
-        v-if="selectedGroup"
-        :id="`constellation-panel-${selectedGroup.id}`"
-        class="constellation-scene"
-        role="tabpanel"
-        :aria-labelledby="`constellation-tab-${selectedGroup.id}`"
-      >
-        <div class="constellation-heading">
-          <div>
-            <strong>{{ selectedGroup.name }}</strong>
-            <span>{{ selectedGroup.category }}</span>
-          </div>
-          <button type="button" class="book-button" aria-label="查看星宿书册" :aria-expanded="bookOpen" @click="bookOpen = true">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22zM20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22z" /></svg>
-          </button>
-        </div>
-
-        <svg class="star-chart" viewBox="0 0 100 78" role="img" :aria-label="`${selectedGroup.category}七宿展示图，当前选中${selectedGroup.name}；坐标为页面展示布局`">
-          <defs>
-            <filter id="star-blue-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="1.1" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-            <filter id="star-gold-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="1.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-          </defs>
-          <g v-for="mark in chartMarks" :key="mark.group.id" class="star-constellation" :class="{ selected: mark.group.id === selectedGroupId }">
-            <line v-for="([from, to], lineIndex) in mark.links" :key="lineIndex" :x1="mark.points[from]?.x" :y1="mark.points[from]?.y" :x2="mark.points[to]?.x" :y2="mark.points[to]?.y" />
-            <circle v-for="(point, pointIndex) in mark.points" :key="pointIndex" :cx="point.x" :cy="point.y" :r="mark.group.id === selectedGroupId ? 1.05 : .72">
-              <title>{{ mark.group.name }}</title>
-            </circle>
-          </g>
-        </svg>
-
-        <ConstellationBookPanel :open="bookOpen" :name="selectedGroup.name" :explain="selectedGroup.explain" @close="bookOpen = false" />
-      </section>
-
-      <section v-if="selectedGroup" class="star-reward" aria-labelledby="constellation-reward-title">
-        <h2 id="constellation-reward-title" class="star-reward__title">
+      <section v-if="selectedGroup" :id="`constellation-rewards-${selectedGroup.id}`" class="star-reward" role="tabpanel" :aria-labelledby="`constellation-tab-${selectedGroup.id}`">
+        <h2 class="star-reward__title">
           <span>星宿福利</span>
           <button type="button" aria-label="查看观星礼录活动说明" title="查看活动说明" @click.stop="rulesOpen = true">
             ?
@@ -205,381 +138,6 @@ watch(() => props.constellation, (value) => {
 
 <style scoped>
 .constellation-tab {
-  position: relative;
-  min-height: 100%;
-  padding: calc(128px + env(safe-area-inset-top)) 10px calc(105px + env(safe-area-inset-bottom));
-  isolation: isolate;
-}
-.constellation-tab::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background: radial-gradient(ellipse at 50% 42%, rgba(35, 100, 188, 0.22), transparent 54%);
-  content: '';
-}
-.group-strip {
-  display: flex;
-  gap: 10px;
-  margin: 0 -10px;
-  padding: 13px 17px 11px;
-  overflow-x: auto;
-  overflow-y: visible;
-  overscroll-behavior-x: contain;
-  scroll-behavior: smooth;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-}
-.group-strip::-webkit-scrollbar {
-  display: none;
-}
-.group-strip button {
-  position: relative;
-  min-width: 72px;
-  height: 29px;
-  flex: none;
-  padding: 2px 20px 3px;
-  border: 1px solid rgba(104, 133, 202, 0.68);
-  border-radius: 999px;
-  color: #8299ce;
-  background: linear-gradient(180deg, rgba(49, 68, 134, 0.78), rgba(33, 50, 112, 0.75));
-  box-shadow: inset 0 1px rgba(197, 221, 255, 0.15);
-  scroll-snap-align: center;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.group-strip button::before,
-.group-strip button::after {
-  position: absolute;
-  top: 50%;
-  width: 11px;
-  height: 1px;
-  background: rgba(115, 150, 216, 0.48);
-  content: '';
-}
-.group-strip button::before {
-  right: calc(100% + 1px);
-}
-.group-strip button::after {
-  left: calc(100% + 1px);
-}
-.group-strip button.active {
-  border-color: #d7e5ff;
-  color: #6985cc;
-  background: linear-gradient(#fff, #e8efff);
-  box-shadow:
-    0 0 10px rgba(213, 229, 255, 0.72),
-    inset 0 -2px 4px rgba(120, 150, 215, 0.25);
-}
-.group-strip button.state-lit:not(.active) {
-  color: #b9cdf0;
-}
-.group-strip button:focus-visible {
-  outline: 2px solid #fff0a2;
-  outline-offset: 2px;
-}
-.group-strip__dot {
-  position: absolute;
-  top: -7px;
-  right: 2px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: #ff4f68;
-  box-shadow: 0 0 5px rgba(255, 69, 93, 0.8);
-}
-.group-strip__sync {
-  position: absolute;
-  top: -9px;
-  right: 1px;
-  width: 16px;
-  height: 16px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #c5e8ff;
-  border-radius: 50%;
-  color: #e8f7ff;
-  background: #496da8;
-  box-shadow: 0 1px 4px rgba(5, 26, 70, 0.65);
-  font-size: 10px;
-  line-height: 1;
-}
-.group-strip__lock,
-.group-strip__done {
-  position: absolute;
-  top: -11px;
-  left: calc(50% - 8px);
-  width: 16px;
-  height: 16px;
-  overflow: visible;
-}
-.group-strip__lock {
-  fill: #314773;
-  stroke: #d5e1ff;
-  stroke-width: 2;
-  filter: drop-shadow(0 1px 2px rgba(7, 24, 67, 0.75));
-}
-.group-strip__done {
-  padding: 2px;
-  border: 1px solid rgba(255, 239, 124, 0.7);
-  border-radius: 50%;
-  fill: none;
-  stroke: #fff285;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  background: #766719;
-  filter: drop-shadow(0 1px 3px rgba(71, 53, 0, 0.75));
-}
-.constellation-scene {
-  position: relative;
-  height: 355px;
-}
-.constellation-heading {
-  position: absolute;
-  z-index: 7;
-  top: 8px;
-  left: 24px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.constellation-heading div {
-  display: flex;
-  flex-direction: column;
-}
-.constellation-heading strong {
-  color: #a9eaff;
-  font-size: 22px;
-  line-height: 1.1;
-  text-shadow:
-    0 2px 3px #16497f,
-    0 0 7px rgba(84, 210, 255, 0.4);
-}
-.constellation-heading span {
-  margin-top: 3px;
-  color: #d4efff;
-  font-size: 14px;
-  letter-spacing: 0.16em;
-}
-.book-button {
-  width: 29px;
-  height: 29px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 2px solid #bfdcff;
-  border-radius: 50%;
-  color: #ecf8ff;
-  background: linear-gradient(#679ee4, #456abd);
-  box-shadow: 0 2px 4px rgba(0, 33, 87, 0.5);
-  cursor: pointer;
-}
-.book-button svg {
-  width: 17px;
-  fill: currentColor;
-}
-.book-button:focus-visible {
-  outline: 2px solid #fff0a2;
-  outline-offset: 2px;
-}
-.star-chart {
-  position: absolute;
-  z-index: 3;
-  top: 26px;
-  right: 0;
-  left: 0;
-  width: 100%;
-  height: 318px;
-  overflow: visible;
-}
-.star-constellation line {
-  stroke: rgba(146, 225, 255, 0.67);
-  stroke-width: 0.28;
-  stroke-linecap: round;
-  filter: url('#star-blue-glow');
-}
-.star-constellation circle {
-  fill: #2f9bc3;
-  stroke: #86ddff;
-  stroke-width: 0.22;
-  filter: url('#star-blue-glow');
-}
-.star-constellation.selected line {
-  stroke: #b46b27;
-  stroke-width: 0.48;
-  filter: url('#star-gold-glow');
-}
-.star-constellation.selected circle {
-  fill: #fff3a2;
-  stroke: #ff982f;
-  stroke-width: 0.42;
-  filter: url('#star-gold-glow');
-}
-.star-reward {
-  position: relative;
-  width: min(258px, 75vw);
-  min-height: 73px;
-  margin: -4px auto 0;
-  padding: 14px 11px 9px;
-  border: 2px solid #e9cf73;
-  border-radius: 17px;
-  background: linear-gradient(145deg, rgba(25, 100, 182, 0.95), rgba(31, 80, 158, 0.94));
-  box-shadow:
-    inset 0 0 0 3px rgba(113, 195, 250, 0.22),
-    0 5px 12px rgba(0, 31, 80, 0.45);
-}
-.star-reward::after {
-  position: absolute;
-  bottom: -12px;
-  left: calc(50% - 7px);
-  width: 12px;
-  height: 12px;
-  transform: rotate(45deg);
-  border-right: 2px solid #e9cf73;
-  border-bottom: 2px solid #e9cf73;
-  background: #1d559d;
-  content: '';
-}
-.star-reward__title {
-  position: absolute;
-  z-index: 6;
-  top: -35px;
-  right: 0;
-  left: 0;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  margin: 0;
-  color: #edf9ff;
-  font-size: 16px;
-  text-align: center;
-  text-shadow: 0 2px #22528c;
-  pointer-events: none;
-}
-.star-reward__title button {
-  position: relative;
-  z-index: 7;
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  margin: 0 -5px 0 -2px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  color: #8d633f;
-  background: transparent;
-  font-size: 0;
-  cursor: pointer;
-  pointer-events: auto;
-  touch-action: manipulation;
-}
-.star-reward__title button::before {
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #d4bd91;
-  border-radius: 50%;
-  background: #fff8df;
-  box-shadow: 0 1px 4px rgba(8, 37, 84, 0.35);
-  content: '?';
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-}
-.star-reward__title button:hover::before {
-  background: #fff3c4;
-  transform: scale(1.05);
-}
-.star-reward__title button:focus-visible {
-  outline: 2px solid #fff0a2;
-  outline-offset: 1px;
-}
-.star-reward__items {
-  min-height: 54px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-}
-.light-action {
-  min-height: 67px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-top: 10px;
-}
-.light-action strong {
-  color: #d9f5ff;
-  font-size: 21px;
-  text-shadow:
-    0 2px #13518b,
-    0 0 12px rgba(74, 207, 255, 0.65);
-}
-.light-action--unknown strong {
-  color: #b6cbe0;
-  font-size: 17px;
-}
-.light-action--claimableUnknown button {
-  min-width: 190px;
-  border-radius: 28px;
-  font-size: 15px;
-}
-.light-action button {
-  min-width: 118px;
-  min-height: 51px;
-  padding: 8px 25px;
-  border: 2px solid #fff0a1;
-  border-radius: 50%;
-  color: #fff3b5;
-  background: radial-gradient(circle, #f7c660 10%, #ce852d 68%, #9d5b24);
-  box-shadow:
-    0 0 26px rgba(255, 203, 80, 0.68),
-    inset 0 1px rgba(255, 255, 255, 0.62);
-  font-size: 20px;
-  font-weight: 800;
-  text-shadow: 0 2px #a35b1f;
-  cursor: pointer;
-}
-.light-action button:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
-.catalog-unsupported {
-  min-height: calc(100vh - 217px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #cdeaff;
-  text-align: center;
-}
-.catalog-unsupported span {
-  color: #8fdfff;
-  font-size: 50px;
-  text-shadow: 0 0 15px #58bde9;
-}
-.catalog-unsupported strong {
-  font-size: 16px;
-}
-@media (max-height: 720px) {
-  .constellation-scene {
-    height: 320px;
-  }
-  .star-chart {
-    height: 285px;
-  }
-}
-
-/* Generic activity gameplay layout. */
-.constellation-tab {
   min-height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.75fr);
@@ -587,92 +145,93 @@ watch(() => props.constellation, (value) => {
   gap: 14px;
   padding: 24px;
   color: #203a32;
-  background: transparent;
-  isolation: auto;
-}
-.constellation-tab::before {
-  display: none;
 }
 .group-strip {
   grid-column: 1 / -1;
+  display: flex;
   gap: 7px;
   margin: 0;
   padding: 4px 0 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.group-strip::-webkit-scrollbar {
+  display: none;
 }
 .group-strip button {
+  position: relative;
   min-width: 82px;
   height: 42px;
+  flex: none;
   padding: 5px 12px 5px 32px;
   border: 1px solid rgba(48, 82, 70, 0.14);
   border-radius: 10px;
   color: #697a73;
   background: rgba(255, 255, 255, 0.58);
-  box-shadow: none;
-}
-.group-strip button::before,
-.group-strip button::after {
-  display: none;
+  cursor: pointer;
 }
 .group-strip button.active {
   border-color: rgba(54, 118, 166, 0.3);
   color: #315f80;
   background: rgba(230, 240, 248, 0.94);
-  box-shadow: none;
 }
 .group-strip button.state-lit:not(.active) {
   color: #456e5e;
 }
+.group-strip button:focus-visible {
+  outline: 2px solid rgba(46, 138, 102, 0.45);
+  outline-offset: 2px;
+}
 .group-strip__dot {
+  position: absolute;
   top: 5px;
   right: 5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #e34d5f;
 }
 .group-strip__sync {
+  position: absolute;
   top: 50%;
   right: 8px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #8bbda8;
+  border-radius: 50%;
+  color: #2e8a66;
+  background: #e6f4ed;
   transform: translateY(-50%);
+  font-size: 10px;
 }
 .group-strip__lock,
 .group-strip__done {
+  position: absolute;
   top: 50%;
   left: 9px;
+  width: 16px;
+  height: 16px;
   transform: translateY(-50%);
 }
-.constellation-scene {
-  height: 480px;
-  overflow: hidden;
-  border: 1px solid rgba(55, 87, 104, 0.2);
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 70% 18%, rgba(79, 139, 177, 0.24), transparent 34%),
-    linear-gradient(145deg, #203846, #152831);
-  box-shadow: 0 14px 34px rgba(35, 58, 67, 0.14);
+.group-strip__lock {
+  fill: #c5d6cd;
+  stroke: #6e8b7d;
+  stroke-width: 2;
 }
-.constellation-heading {
-  top: 22px;
-  left: 24px;
-}
-.constellation-heading strong {
-  color: #e6f3f6;
-  font-size: 22px;
-  text-shadow: none;
-}
-.constellation-heading span {
-  color: #94b5c2;
-  letter-spacing: 0;
-}
-.book-button {
-  border: 1px solid rgba(200, 226, 235, 0.28);
-  border-radius: 10px;
-  color: #d8ebf1;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: none;
-}
-.star-chart {
-  top: 58px;
-  height: 395px;
+.group-strip__done {
+  padding: 2px;
+  border: 1px solid rgba(47, 142, 105, 0.4);
+  border-radius: 50%;
+  fill: none;
+  stroke: #2e8a66;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  background: #e5f4ec;
 }
 .star-reward {
-  width: auto;
   min-height: 220px;
   margin: 0;
   padding: 52px 18px 20px;
@@ -681,24 +240,45 @@ watch(() => props.constellation, (value) => {
   background: rgba(255, 255, 255, 0.66);
   box-shadow: 0 12px 30px rgba(38, 69, 57, 0.07);
 }
-.star-reward::after {
-  display: none;
-}
 .star-reward__title {
-  top: 18px;
-  justify-content: flex-start;
-  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
   color: #2b493f;
   font-size: 16px;
-  text-align: left;
-  text-shadow: none;
+}
+.star-reward__title button {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d4bd91;
+  border-radius: 50%;
+  color: #8d633f;
+  background: #fff8df;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+  appearance: none;
 }
 .star-reward__items {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: flex-start;
+  gap: 10px;
 }
 .light-action {
   min-height: 82px;
   align-self: start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 14px;
   border: 1px solid rgba(49, 82, 70, 0.1);
   border-radius: 14px;
@@ -707,10 +287,8 @@ watch(() => props.constellation, (value) => {
 .light-action strong {
   color: #416858;
   font-size: 16px;
-  text-shadow: none;
 }
-.light-action button,
-.light-action--claimableUnknown button {
+.light-action button {
   min-width: 126px;
   min-height: 40px;
   padding: 8px 18px;
@@ -720,16 +298,26 @@ watch(() => props.constellation, (value) => {
   background: #2e8a66;
   box-shadow: 0 8px 18px rgba(35, 113, 83, 0.18);
   font-size: 14px;
-  text-shadow: none;
+  cursor: pointer;
+}
+.light-action button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 .catalog-unsupported {
   grid-column: 1 / -1;
   min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   color: #667a72;
+  text-align: center;
 }
 .catalog-unsupported span {
   color: #4b8b72;
-  text-shadow: none;
+  font-size: 50px;
 }
 @media (max-width: 760px) {
   .constellation-tab {
@@ -740,35 +328,11 @@ watch(() => props.constellation, (value) => {
   .group-strip {
     grid-column: auto;
   }
-  .constellation-scene {
-    height: 360px;
-  }
-  .star-chart {
-    top: 50px;
-    height: 300px;
-  }
   .star-reward {
     min-height: 150px;
   }
   .light-action {
     min-height: 66px;
   }
-}
-</style>
-
-<style scoped>
-/* The mobile-friendly reward view keeps the selectable star groups and rewards, without the decorative chart panel. */
-.constellation-scene {
-  display: none;
-}
-.star-reward,
-.light-action {
-  grid-column: 1 / -1;
-}
-.star-reward {
-  width: auto;
-}
-.star-reward__items {
-  justify-content: center;
 }
 </style>

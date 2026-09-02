@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { DogFoodInfo, PetInfo } from '@/stores/pet'
 import { useStorage } from '@vueuse/core'
-import { NButton, NInputNumber, NModal, NTag } from 'naive-ui'
+import { NButton } from 'naive-ui/es/button'
+import { NInputNumber } from 'naive-ui/es/input-number'
+import { NModal } from 'naive-ui/es/modal'
+import { NTag } from 'naive-ui/es/tag'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useAccountStore } from '@/stores/account'
@@ -17,7 +20,21 @@ const statusStore = useStatusStore()
 const toastStore = useToastStore()
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
 const { status, loading: statusLoading, realtimeConnected } = storeToRefs(statusStore)
-const { snapshot, dogs, foods, activeDog, loading, usingFood, operatingDogId, protectLogs, protectLogsTotal, protectLogsLoading, error } = storeToRefs(petStore)
+const {
+  snapshot,
+  dogs,
+  foods,
+  activeDog,
+  loading,
+  usingFood,
+  operatingDogId,
+  protectLogs,
+  protectLogsTotal,
+  protectLogsLoading,
+  claimingGifts,
+  giftError,
+  error,
+} = storeToRefs(petStore)
 
 const useCounts = reactive<Record<number, number>>({})
 const tokenRef = useStorage('admin_token', '')
@@ -27,6 +44,7 @@ const isConnected = computed(() => !!status.value?.connection?.connected)
 const maxDuration = computed(() => Number(snapshot.value?.maxProtectDuration || 30 * 86400))
 const protectDuration = computed(() => Math.max(0, Number(snapshot.value?.protectDuration || 0)))
 const durationPercent = computed(() => Math.min(100, Math.round((protectDuration.value / maxDuration.value) * 100)))
+const pendingGiftCount = computed(() => Math.max(0, Number(snapshot.value?.pendingGiftCount || 0)))
 
 function formatDuration(secondsInput: unknown) {
   let seconds = Math.max(0, Math.floor(Number(secondsInput) || 0))
@@ -127,6 +145,24 @@ async function refreshPetInfo() {
     await petStore.fetchPetInfo(id)
 }
 
+async function handleClaimGifts() {
+  const id = String(currentAccountId.value || '')
+  if (!id || claimingGifts.value)
+    return
+
+  const result = await petStore.claimDogSkillGifts(id)
+  if (!result) {
+    toastStore.error(giftError.value || '拾取同气连枝礼包失败')
+    return
+  }
+
+  const claimed = Math.max(0, Number(result.claimed || 0))
+  if (claimed > 0)
+    toastStore.success(`已拾取同气连枝礼包 x${claimed}`)
+  else
+    toastStore.warning('当前没有待拾取的同气连枝礼包')
+}
+
 async function handleUseFood(food: DogFoodInfo) {
   if (!canUseFood(food))
     return
@@ -207,6 +243,33 @@ watch(currentAccountId, () => {
     </div>
 
     <template v-else-if="snapshot">
+      <section v-if="pendingGiftCount > 0" class="pet-gift">
+        <div class="pet-gift__icon" aria-hidden="true">
+          <span class="i-carbon-gift" />
+        </div>
+        <div class="pet-gift__copy">
+          <div class="pet-eyebrow">
+            SKILL REWARD
+          </div>
+          <div class="pet-gift__title">
+            <h3>同气连枝礼包待拾取</h3>
+            <span class="pet-gift__count">x{{ pendingGiftCount }}</span>
+          </div>
+          <p>好友协助农场时由宠物技能掉落，拾取后奖励会直接进入背包。</p>
+          <span v-if="giftError" class="pet-gift__error">{{ giftError }}</span>
+        </div>
+        <NButton
+          type="warning"
+          class="pet-gift__action"
+          :loading="claimingGifts"
+          :disabled="!isConnected"
+          @click="handleClaimGifts"
+        >
+          <span class="i-carbon-download" />
+          拾取全部
+        </NButton>
+      </section>
+
       <section class="pet-overview pet-card">
         <div class="pet-overview__copy">
           <div class="pet-eyebrow">
@@ -408,6 +471,88 @@ watch(currentAccountId, () => {
 .pet-state--error {
   flex-direction: column;
   color: #a44848;
+}
+
+.pet-gift {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 15px 16px;
+  border: 1px solid rgba(205, 145, 54, 0.34);
+  border-left: 4px solid #d79a3e;
+  border-radius: 12px;
+  background: rgba(255, 249, 233, 0.9);
+  box-shadow: 0 8px 22px rgba(119, 84, 31, 0.08);
+}
+
+.pet-gift__icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(201, 137, 39, 0.24);
+  border-radius: 10px;
+  background: rgba(244, 184, 86, 0.16);
+  color: #b87518;
+  font-size: 25px;
+}
+
+.pet-gift__copy {
+  min-width: 0;
+}
+
+.pet-gift__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.pet-gift__title h3 {
+  margin: 0;
+  color: #543b1b;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.pet-gift__count {
+  display: inline-flex;
+  min-width: 30px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid rgba(188, 119, 23, 0.25);
+  border-radius: 999px;
+  background: rgba(230, 154, 45, 0.12);
+  color: #a8650d;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pet-gift__copy p {
+  margin: 5px 0 0;
+  color: #7b6648;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pet-gift__error {
+  display: block;
+  margin-top: 5px;
+  color: #a44848;
+  font-size: 11px;
+}
+
+.pet-gift__action {
+  min-width: 104px;
+  font-weight: 700;
+}
+
+:deep(.pet-gift__action .n-button__content) {
+  gap: 6px;
 }
 
 .pet-overview {
@@ -798,6 +943,22 @@ watch(currentAccountId, () => {
 }
 
 @media (max-width: 700px) {
+  .pet-gift {
+    grid-template-columns: 42px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .pet-gift__icon {
+    width: 42px;
+    height: 42px;
+    font-size: 22px;
+  }
+
+  .pet-gift__action {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
   .pet-overview {
     grid-template-columns: 1fr;
     gap: 14px;

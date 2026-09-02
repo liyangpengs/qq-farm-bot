@@ -66,6 +66,58 @@ message ConstellationData {
     repeated ConstellationGroup groups = 5;
 }
 
+// 雨落成诗：天气采集瓶的产出配置。尚未抓到语义的字段保留协议字段名，
+// 避免把客户端静态配置误当成账号动态进度。
+message WeatherBottleReward {
+    int64 reward_id = 1;
+    ActivityItem reward = 3;
+    int64 status = 4;
+    string probability = 6;
+}
+
+message WeatherBottleConfig {
+    int64 field_3 = 3;
+    int64 field_4 = 4;
+    int64 collector_item_id = 5;
+    int64 collector_item_count = 6;
+    repeated WeatherBottleReward rewards = 8;
+    int64 field_9 = 9;
+}
+
+message WeatherActivityTask {
+    int64 task_id = 1;
+    int64 trigger_item_id = 2;
+    ActivityItem reward = 3;
+    string title = 4;
+    int64 daily_limit = 5;
+    int64 current = 6;
+}
+
+message WeatherActivityTasks {
+    repeated WeatherActivityTask tasks = 1;
+}
+
+message WeatherResearchNode {
+    int64 node_id = 1;
+    repeated int64 prerequisite_node_ids = 2 [packed = true];
+    int64 status = 3;
+    bool claimed = 4;
+    int64 field_5 = 5;
+    ActivityItem cost = 6;
+    ActivityItem reward = 7;
+    int64 field_8 = 8;
+    int64 field_9 = 9;
+}
+
+message WeatherResearchTrack {
+    int64 current_stage = 1;
+    repeated WeatherResearchNode nodes = 2;
+}
+
+message WeatherResearchData {
+    WeatherResearchTrack track = 1;
+}
+
 message ActivityData {
     ActivityContent activity = 1;
     repeated ActivityData children = 2;
@@ -76,6 +128,53 @@ message ActivityData {
     QixiBridgeConfig qixi_bridge = 112;
     QixiGiftProgress qixi_gift = 113;
     QingMeiQuote qingmei_quote = 114;
+    WeatherBottleConfig weather_bottle = 105;
+    CharityRedFlowerData charity_red_flower = 116;
+    WeatherActivityTasks weather_tasks = 117;
+    WeatherResearchData weather_research = 118;
+}
+
+message CharityRedFlowerProgressReward {
+    int64 target = 1;
+    ActivityItem reward = 2;
+    int64 status = 3;
+}
+
+message CharityRedFlowerGlobalReward {
+    int64 target = 1;
+    ActivityItem reward = 2;
+}
+
+message CharityRedFlowerPublicFund {
+    int64 date = 1;
+    string order_id = 2;
+    string token = 3;
+    int64 status = 4;
+}
+
+message CharityRedFlowerData {
+    int64 love_item_id = 1;
+    int64 love_balance = 2;
+    int64 donated_love = 3;
+    int64 global_donated_love = 4;
+    int64 global_target_love = 5;
+    int64 seed_reward_status = 6;
+    ActivityItem seed_reward = 7;
+    int64 field_8 = 8;
+    repeated CharityRedFlowerProgressReward progress_rewards = 9;
+    CharityRedFlowerGlobalReward global_reward = 10;
+    int64 settlement_required_love = 11;
+    ActivityItem settlement_reward = 12;
+    int64 end_time = 13;
+    int64 field_14 = 14;
+    int64 field_15 = 15;
+    int64 field_16 = 16;
+    int64 flow_status = 17;
+    CharityRedFlowerPublicFund public_fund = 18;
+    int64 agreement_status = 19;
+    int64 field_20 = 20;
+    ActivityItem daily_reward = 21;
+    int64 daily_reward_status = 22;
 }
 
 message ActivityWindow {
@@ -190,6 +289,50 @@ message ExchangeShopRequest {
     ExchangeShopOperateParams exchange_shop_operate = 101;
 }
 
+// 雨落成诗：推进一个气象研究节点。
+// 实机协议为 operate_type=40，选择器位于 field 140。
+message WeatherResearchOperateParams {
+    int64 node_id = 1;
+}
+
+message AdvanceWeatherResearchRequest {
+    int64 activity_id = 1;
+    int64 operate_type = 2;
+    WeatherResearchOperateParams weather_research_operate = 140;
+}
+
+// 雨落成诗：在好友雷雨现场使用天气采集瓶。
+// 实机协议为 activity_id=2026070303、operate_type=9，好友 GID 位于
+// field 107 的 field 3；这条链路不经过 ItemService.Use。
+message WeatherCollectOperateParams {
+    int64 host_gid = 3;
+}
+
+message CollectWeatherRequest {
+    int64 activity_id = 1;
+    int64 operate_type = 2;
+    WeatherCollectOperateParams weather_collect_operate = 107;
+}
+
+// Compatibility aliases used by the upstream activity-center implementation.
+// The verified wire selectors remain field 107 for friend collection and
+// field 140 for weather research.
+message WeatherResearchOperateRequest {
+    int64 activity_id = 1;
+    int64 operate_type = 2;
+    WeatherResearchOperateParams params = 140;
+}
+
+message WeatherTaskOperateParams {
+    int64 target_gid = 3;
+}
+
+message WeatherTaskOperateRequest {
+    int64 activity_id = 1;
+    int64 operate_type = 2;
+    WeatherTaskOperateParams params = 107;
+}
+
 message OperateConstellationRequest {
     message Empty {}
 
@@ -247,6 +390,40 @@ message GiftQixiSachetRequest {
     Params params = 124;
 }
 
+message CharityRedFlowerOperateRequest {
+    message Empty {}
+    message QueryParams { bool accepted = 1; }
+
+    int64 activity_id = 1;
+    int64 operate_type = 2;
+    Empty claim_seed = 134;
+    Empty donate_love = 135;
+    Empty send_public_fund = 137;
+    QueryParams query = 138;
+}
+
+message CharityRedFlowerSeedResult {
+    corepb.Item reward = 1;
+}
+
+message CharityRedFlowerDonateResult {
+    int64 donated = 1;
+    int64 count = 2;
+    int64 status = 3;
+    int64 global_donated = 4;
+}
+
+message CharityRedFlowerPublicFundResult {
+    int64 status = 1;
+    string order_id = 2;
+    corepb.Item reward = 3;
+    string token = 4;
+}
+
+message CharityRedFlowerQueryResult {
+    bool accepted = 1;
+}
+
 message QixiGiftResult {
     int64 total_send_count = 1;
 }
@@ -267,6 +444,35 @@ message ActivityOperateReply {
     QingMeiSettlement qingmei_settlement = 115;
     QixiGiftResult qixi_gift_result = 125;
     QixiBridgeRewardResult qixi_bridge_result = 126;
+    ExchangeShopResult weather_exchange_result = 101;
+    WeatherTaskOperateResult weather_task_result = 108;
+    WeatherResearchOperateResult weather_research_result = 140;
+    CharityRedFlowerSeedResult charity_seed_result = 135;
+    CharityRedFlowerDonateResult charity_donate_result = 136;
+    CharityRedFlowerPublicFundResult charity_public_fund_result = 138;
+    CharityRedFlowerQueryResult charity_query_result = 139;
+}
+
+message ExchangeShopResult {
+    corepb.Item item = 1;
+    ActivityItem cost = 2;
+}
+
+message WeatherTaskRewardLink {
+    int64 task_id = 1;
+    ActivityItem item = 2;
+}
+
+message WeatherTaskOperateResult {
+    WeatherTaskRewardLink task_reward = 1;
+    corepb.Item gained = 2;
+    corepb.Item consumed = 3;
+}
+
+message WeatherResearchOperateResult {
+    int64 node_id = 1;
+    corepb.Item reward = 2;
+    repeated int64 unlocked_node_ids = 3 [packed = true];
 }
 
 message ActiviesChangeNotify {

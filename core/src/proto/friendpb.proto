@@ -3,6 +3,7 @@ syntax = "proto3";
 package gamepb.friendpb;
 
 import "avatarframepb.proto";
+import "weatherpb.proto";
 
 // ============ 好友农场摘要信息 ============
 message Plant {
@@ -42,6 +43,7 @@ message GameFriend {
     FriendTitle title = 16;
     FriendActivity activity = 18;
     int64 last_active_time = 19;
+    gamepb.weatherpb.WeatherStatus weather = 20;
     // field 11 reserved
     // Illustrated illustrated = 12;  // 略
     // repeated AvatarFrame equip_avatar_frames = 13;  // 略
@@ -141,6 +143,14 @@ message RejectFriendsRequest {
 }
 
 message RejectFriendsReply {}
+
+// --- 删除好友 ---
+// 抓包样例: gamepb.friendpb.FriendService.DelFriend
+message DelFriendRequest {
+    int64 friend_gid = 1;
+}
+
+message DelFriendReply {}
 
 // --- 设置屏蔽申请 ---
 message SetBlockApplicationsRequest {

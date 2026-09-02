@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { NCard, NModal, NRadio, NRadioGroup, NTab, NTabs } from 'naive-ui'
+import { NCard } from 'naive-ui/es/card'
+import { NModal } from 'naive-ui/es/modal'
+import { NRadio, NRadioGroup } from 'naive-ui/es/radio'
+import { NTab, NTabs } from 'naive-ui/es/tabs'
 import { onBeforeUnmount, reactive, ref, watch } from 'vue'
 import api from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -38,13 +41,20 @@ const form = reactive({
 
 // 添加账号
 async function addAccount(data: any) {
+  const name = String(data?.name || '').trim()
+  if (!name) {
+    errorMessage.value = '请输入账号备注'
+    return false
+  }
+
   loading.value = true
   errorMessage.value = ''
   try {
-    const res = await api.post('/api/accounts', data)
+    const res = await api.post('/api/accounts', { ...data, name })
     if (res.data.ok) {
       emit('saved')
       close()
+      return true
     }
     else {
       errorMessage.value = `保存失败: ${res.data.error}`
@@ -56,15 +66,22 @@ async function addAccount(data: any) {
   finally {
     loading.value = false
   }
+
+  return false
 }
 
 // 手动提交
 async function submitManual() {
   errorMessage.value = ''
+  if (!form.name.trim()) {
+    errorMessage.value = '请输入账号备注'
+    return
+  }
   if (!form.code) {
     errorMessage.value = '请输入Code'
     return
   }
+  form.name = form.name.trim()
 
   let code = form.code.trim()
   const match = code.match(/[?&]code=([^&]+)/i)
@@ -138,6 +155,10 @@ function isWxFlowActive(taskId: string, flowVersion: number) {
 async function getWxCodeAndAdd(taskId: string, flowVersion: number) {
   if (!isWxFlowActive(taskId, flowVersion))
     return
+  if (!form.name.trim()) {
+    wxError.value = '请先填写账号备注'
+    return
+  }
   const codeResult = await api.post(`/api/wx-login/tasks/${taskId}/code`)
   if (!isWxFlowActive(taskId, flowVersion))
     return
@@ -181,6 +202,11 @@ async function pollWxLoginRequest(taskId: string, flowVersion: number) {
       wxStatus.value = '已扫码，请在手机上确认'
     }
     else if (status === 'authorized') {
+      if (!form.name.trim()) {
+        wxError.value = '请先填写账号备注'
+        wxPollTimer = setTimeout(() => void pollWxLogin(taskId, flowVersion), 1200)
+        return
+      }
       stopWxPolling()
       await confirmWxLogin(taskId, flowVersion)
       return
@@ -329,8 +355,8 @@ onBeforeUnmount(resetWxLogin)
         <div v-if="editData || activeLoginTab === 'code'" class="space-y-4">
           <BaseInput
             v-model="form.name"
-            label="账号备注（可选）"
-            placeholder="留空默认账号"
+            label="账号备注（必填）"
+            placeholder="请输入账号备注"
             class="farm-input"
           />
 
@@ -365,8 +391,8 @@ onBeforeUnmount(resetWxLogin)
         <div v-else class="space-y-4" role="tabpanel" aria-label="微信扫码登录">
           <BaseInput
             v-model="form.name"
-            label="账号备注（可选）"
-            placeholder="留空使用默认账号"
+            label="账号备注（必填）"
+            placeholder="请输入账号备注"
             class="farm-input"
           />
           <div class="min-h-64 flex flex-col items-center justify-center gap-3">

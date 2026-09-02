@@ -25,6 +25,7 @@ module.exports = {
     getAvailableSeeds: planting.getAvailableSeeds,
     runFarmOperation: scheduler.runFarmOperation,
     runFertilizerByConfig: planting.runFertilizerByConfig,
+    fertilizeOwnLand: planting.fertilizeOwnLand,
     buildLandMap: landAnalysis.buildLandMap,
     buildSlaveToMasterMap: landAnalysis.buildSlaveToMasterMap,
     getDisplayLandContext: landAnalysis.getDisplayLandContext,

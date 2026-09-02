@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useMessage } from 'naive-ui'
+import { useMessage } from 'naive-ui/es/message'
 import { storeToRefs } from 'pinia'
 import { watch } from 'vue'
 import { useToastStore } from '@/stores/toast'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NSelect } from 'naive-ui'
+import { NSelect } from 'naive-ui/es/select'
 import { computed, useAttrs } from 'vue'
 
 defineOptions({ inheritAttrs: false })

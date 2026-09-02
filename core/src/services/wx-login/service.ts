@@ -46,7 +46,7 @@ interface HttpResult {
 }
 
 function cookieHeader(cookies: Map<string, string>): string {
-    return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+    return Array.from(cookies, ([name, value]) => `${name}=${value}`).join('; ');
 }
 
 function storeCookies(cookies: Map<string, string>, headers: Headers): void {

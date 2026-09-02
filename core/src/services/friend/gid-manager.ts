@@ -150,7 +150,7 @@ export function getEffectiveKnownQqFriendGids(): number[] {
     return normalizeFriendGids(currentKnownGids).filter((gid: number) => !invalidGidSet.has(gid) && !blacklistSet.has(gid));
 }
 
-export async function syncKnownFriendGidsFromRecentVisitors(force: boolean = false): Promise<number[]> {
+export async function syncKnownFriendGidsFromRecentVisitors(force: boolean = false, priority: 'low' | 'normal' = 'normal'): Promise<number[]> {
     const now: number = Date.now();
     const interval: number = lastVisitorGidSyncAt > 0 ? getKnownFriendGidSyncIntervalMs() : 0;
     if (!force && interval > 0 && now - lastVisitorGidSyncAt < interval) {
@@ -160,7 +160,7 @@ export async function syncKnownFriendGidsFromRecentVisitors(force: boolean = fal
     const accountId: string = process.env.FARM_ACCOUNT_ID || '';
 
     try {
-        const records: any[] = await getInteractRecords();
+        const records: any[] = await getInteractRecords(priority);
         const invalidGidSet: Set<number> = getInvalidKnownFriendGidSet(now);
         const visitorGids: number[] = normalizeFriendGids(
             (Array.isArray(records) ? records : []).map(record => record && record.visitorGid),
@@ -245,7 +245,7 @@ export function removeKnownFriendGid(friendGid: any, friendName?: string, reason
     return true;
 }
 
-export async function fetchQqFriendsByKnownGids(): Promise<any[]> {
+export async function fetchQqFriendsByKnownGids(priority: 'low' | 'normal' = 'normal'): Promise<any[]> {
     if (!types.GetGameFriendsRequest || !types.GetAllFriendsReply) {
         throw new Error('GetGameFriends 接口类型未加载');
     }
@@ -262,7 +262,7 @@ export async function fetchQqFriendsByKnownGids(): Promise<any[]> {
             gids: batch.map((gid: number) => toLong(gid)),
         })).finish();
         try {
-            const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetGameFriends', body);
+            const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetGameFriends', body, { priority });
             const reply: any = types.GetAllFriendsReply.decode(replyBody);
             allFriends.push(...extractReplyFriends(reply));
         } catch (e: any) {
@@ -282,7 +282,7 @@ export async function fetchQqFriendsByKnownGids(): Promise<any[]> {
     return dedupeFriendsByGid(allFriends);
 }
 
-export async function fetchQqFriendsByLegacyMethod(): Promise<any[]> {
+export async function fetchQqFriendsByLegacyMethod(priority: 'low' | 'normal' = 'normal'): Promise<any[]> {
     const errors: string[] = [];
 
     try {
@@ -290,7 +290,7 @@ export async function fetchQqFriendsByLegacyMethod(): Promise<any[]> {
         const syncRep: any = types.SyncAllReply || types.SyncAllFriendsReply;
         if (!syncReq || !syncRep) throw new Error('SyncAll 接口类型未加载');
         const body: Uint8Array = syncReq.encode(syncReq.create({ open_ids: [] })).finish();
-        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'SyncAll', body);
+        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'SyncAll', body, { priority });
         return extractReplyFriends(syncRep.decode(replyBody));
     } catch (e: any) {
         errors.push(`SyncAll: ${e.message}`);
@@ -299,7 +299,7 @@ export async function fetchQqFriendsByLegacyMethod(): Promise<any[]> {
     try {
         if (!types.GetAllFriendsRequest || !types.GetAllFriendsReply) throw new Error('GetAll 接口类型未加载');
         const body: Uint8Array = types.GetAllFriendsRequest.encode(types.GetAllFriendsRequest.create({})).finish();
-        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body);
+        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body, { priority });
         return extractReplyFriends(types.GetAllFriendsReply.decode(replyBody));
     } catch (e: any) {
         errors.push(`GetAll: ${e.message}`);

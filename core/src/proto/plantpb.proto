@@ -200,9 +200,17 @@ message AllLandsRequest {
     int64 host_gid = 1;      // 0或自己的GID=查看自己
 }
 
+// 农场级社交事件。实机已确认 5005=青蛙使坏瓶；它不绑定某一块土地。
+message FarmSocialEvent {
+    int64 item_id = 1;
+    int64 visitor_gid = 2;
+    int64 timestamp = 3;
+}
+
 message AllLandsReply {
     repeated LandInfo lands = 1;
     repeated OperationLimit operation_limits = 2;
+    repeated FarmSocialEvent social_events = 3;
 }
 
 // --- 收获 ---
@@ -236,6 +244,8 @@ message FarmingRequest {
     int64 host_gid = 2;
     int32 field_3 = 3; // 场景字段，自家与普通好友抓包均显式编码为 0
     int32 field_4 = 4; // 场景字段，自家抓包显式编码为 0，普通好友抓包值为 2
+    // 自家农场待清理的农场级社交道具 ID。青蛙存在时官方单点与一键务农均发送 5005。
+    repeated int64 social_event_item_ids = 5 [packed = true];
 }
 
 message FarmingResult {
@@ -243,10 +253,16 @@ message FarmingResult {
     corepb.Item reward = 2;
 }
 
+message FarmingSocialEventReward {
+    int64 item_id = 1;
+    corepb.Item reward = 2;
+}
+
 message FarmingReply {
     repeated LandInfo land = 1;
     repeated OperationLimit operation_limits = 2;
     repeated FarmingResult results = 3;
+    repeated FarmingSocialEventReward social_event_rewards = 4;
 }
 
 // --- 除草 (旧版兼容) ---
@@ -304,10 +320,18 @@ message FertilizeRequest {
     int64 fertilizer_id = 2;
 }
 
+// 单次施肥实际消耗。field 1 的语义尚未完全确认；field 3 已通过
+// FertilizeReply 与紧随其后的 ItemNotify 交叉验证为本次消耗的肥料秒数。
+message FertilizerUse {
+    int64 field_1 = 1;
+    corepb.Item consumed = 3;
+}
+
 message FertilizeReply {
     repeated LandInfo land = 1;
     repeated OperationLimit operation_limits = 2;
-    int64 fertilizer = 3;  // 剩余肥料时间
+    corepb.Item fertilizer = 3;       // 肥料 ID 与剩余肥料时间
+    FertilizerUse fertilizer_use = 4; // 本次实际消耗
 }
 
 // --- 放虫 ---
@@ -377,4 +401,10 @@ message PutSocialItemReply {
 message LandsNotify {
     repeated LandInfo lands = 1;   // 变化的土地列表
     int64 host_gid = 2;            // 农场主GID
+}
+
+// 青蛙等农场级社交事件变化；清空事件时 social_events 为空。
+message FarmSocialEventsNotify {
+    repeated FarmSocialEvent social_events = 1;
+    int64 host_gid = 2;
 }

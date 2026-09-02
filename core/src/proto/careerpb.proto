@@ -2,19 +2,28 @@ syntax = "proto3";
 
 package gamepb.careerpb;
 
-// ============ 职业/生涯服务 ============
-
-message CareerInfo {
-    int64 career_id = 1;
-    string name = 2;
-    int32 level = 3;
-    int64 exp = 4;
-    int32 status = 5;
+service CareerService {
+    rpc CareerInfoGet(CareerInfoGetRequest) returns (CareerInfoGetReply);
 }
 
-// --- 获取生涯信息 ---
-message CareerInfoGetRequest {}
+message CareerInfoGetRequest {
+    int64 gid = 1;
+}
+
+message CareerHarvestItem {
+    int64 fruit_id = 1;
+    int64 harvest_count = 2;
+}
 
 message CareerInfoGetReply {
-    repeated CareerInfo careers = 1;
+    repeated CareerHarvestItem harvest_items = 1;
+    int64 total_harvest_count = 2;
+    int64 total_steal_count = 3;
+    string name = 4;
+    string avatar_url = 5;
+    int64 level = 9;
+    int64 exp = 10;
+    int64 gid = 11;
+    int32 platform = 13;
+    string open_id = 15;
 }

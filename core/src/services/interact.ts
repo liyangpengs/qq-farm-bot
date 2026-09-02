@@ -10,6 +10,8 @@ const RPC_CANDIDATES: Array<[string, string]> = [
     ['gamepb.interactpb.VisitorService', 'InteractRecords'],
     ['gamepb.interactpb.VisitorService', 'GetInteractRecords'],
 ];
+let preferredRpcCandidate: [string, string] | null = null;
+const interactRecordRequests: Partial<Record<'low' | 'normal', Promise<any[]>>> = {};
 
 const ACTION_LABELS: Record<number, string> = {
     1: '偷取作物',
@@ -44,7 +46,7 @@ function buildActionDetail(record: any): string {
     return parts.join(' · ');
 }
 
-async function fetchInteractReply(): Promise<any> {
+async function fetchInteractReply(priority: 'low' | 'normal' = 'normal'): Promise<any> {
     if (!types.InteractRecordsRequest || !types.InteractRecordsReply) {
         throw new Error('访客记录 proto 未加载');
     }
@@ -52,13 +54,20 @@ async function fetchInteractReply(): Promise<any> {
     const body: Uint8Array = types.InteractRecordsRequest.encode(types.InteractRecordsRequest.create({})).finish();
     const errors: string[] = [];
 
-    for (const [serviceName, methodName] of RPC_CANDIDATES) {
+    const candidates = preferredRpcCandidate
+        ? [preferredRpcCandidate, ...RPC_CANDIDATES.filter(candidate => candidate !== preferredRpcCandidate)]
+        : RPC_CANDIDATES;
+    for (const candidate of candidates) {
+        const [serviceName, methodName] = candidate;
         try {
-            const { body: replyBody } = await sendMsgAsync(serviceName, methodName, body, 2500);
+            const { body: replyBody } = await sendMsgAsync(serviceName, methodName, body, { timeoutMs: 2500, priority });
+            preferredRpcCandidate = candidate;
             return types.InteractRecordsReply.decode(replyBody);
         } catch (error: any) {
             const message: string = error && error.message ? error.message : String(error || 'unknown');
             errors.push(`${serviceName}.${methodName}: ${message}`);
+            // 只有服务端明确拒绝当前 RPC 名称时才探测下一个候选；超时/断线不再连续制造请求。
+            if (!error || error.name !== 'GatewayError') throw error;
         }
     }
 
@@ -119,12 +128,26 @@ function normalizeInteractRecord(record: any, index: number): any {
     return normalized;
 }
 
-async function getInteractRecords(): Promise<any[]> {
-    const reply: any = await fetchInteractReply();
+async function fetchInteractRecords(priority: 'low' | 'normal'): Promise<any[]> {
+    const reply: any = await fetchInteractReply(priority);
     const records: any[] = Array.isArray(reply && reply.records) ? reply.records : [];
     return records
         .map((record: any, index: number) => normalizeInteractRecord(record, index))
         .sort((a: any, b: any) => (b.serverTimeSec - a.serverTimeSec) || (b.visitorGid - a.visitorGid) || (b.actionType - a.actionType));
+}
+
+async function getInteractRecords(priority: 'low' | 'normal' = 'normal'): Promise<any[]> {
+    if (priority === 'low' && interactRecordRequests.normal) return interactRecordRequests.normal;
+    const current = interactRecordRequests[priority];
+    if (current) return current;
+
+    const request = fetchInteractRecords(priority);
+    interactRecordRequests[priority] = request;
+    try {
+        return await request;
+    } finally {
+        if (interactRecordRequests[priority] === request) delete interactRecordRequests[priority];
+    }
 }
 
 async function getInteractInfo(): Promise<any> {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NInput, NInputNumber } from 'naive-ui'
+import { NInput } from 'naive-ui/es/input'
+import { NInputNumber } from 'naive-ui/es/input-number'
 import { computed, useAttrs } from 'vue'
 
 defineOptions({ inheritAttrs: false })

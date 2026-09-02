@@ -8,6 +8,7 @@ const axios = require('axios').default;
 const pushoo = require('pushoo').default;
 
 const DINGTALK_WEBHOOK_PREFIX = 'https://oapi.dingtalk.com/robot/send?access_token=';
+const MEOW_DEFAULT_BASE_URL = 'https://api.chuckfang.com';
 
 function assertRequiredText(name: string, value: any): string {
     const text: string = String(value || '').trim();
@@ -75,6 +76,42 @@ async function sendDingTalkMessage(payload: any): Promise<any> {
 }
 
 /**
+ * 发送 MeoW 推送（鸿蒙 MeoW 消息推送 API）
+ * @param payload
+ * @param payload.token 必填 用户昵称（作为路径参数）
+ * @param payload.endpoint 可选 自定义接口地址（默认 https://api.chuckfang.com）
+ * @param payload.title 必填 推送标题
+ * @param payload.content 必填 推送内容
+ * @returns MeoW 推送结果
+ */
+async function sendMeowMessage(payload: any): Promise<any> {
+    const nickname = assertRequiredText('MeoW 昵称', payload.token);
+    const title = assertRequiredText('title', payload.title);
+    const content = assertRequiredText('content', payload.content);
+    const baseUrl = String(payload.endpoint || MEOW_DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(baseUrl)) {
+        throw new Error('MeoW 接口地址格式无效');
+    }
+    const url = `${baseUrl}/${encodeURIComponent(nickname)}`;
+    const response = await axios.post(url, {
+        title,
+        msg: content,
+    });
+    const data: any = (response && response.data && typeof response.data === 'object') ? response.data : {};
+    const status: number = Number(data.status);
+    if (Number.isFinite(status) && status !== 200) {
+        // MeoW 业务状态码非 200 视为失败，转为 error 结构便于统一结果判断
+        return {
+            status,
+            error: {
+                message: String(data.msg || data.message || 'MeoW 推送失败'),
+            },
+        };
+    }
+    return data;
+}
+
+/**
  * 发送推送
  * @param payload
  * @param payload.channel 必填 推送渠道（pushoo 平台名，如 webhook）
@@ -108,7 +145,9 @@ async function sendPushooMessage(payload: any = {}): Promise<{ ok: boolean; code
 
     const result: any = channel === 'dingtalk'
         ? await sendDingTalkMessage({ endpoint, token, secret, title, content })
-        : await pushoo(channel, request);
+        : channel === 'meow'
+            ? await sendMeowMessage({ endpoint, token, title, content })
+            : await pushoo(channel, request);
 
     const raw: any = (result && typeof result === 'object') ? result : { data: result };
     const hasError: boolean = !!(raw && raw.error);
@@ -127,5 +166,6 @@ async function sendPushooMessage(payload: any = {}): Promise<{ ok: boolean; code
 module.exports = {
     buildDingTalkWebhook,
     createDingTalkSign,
+    sendMeowMessage,
     sendPushooMessage,
 };

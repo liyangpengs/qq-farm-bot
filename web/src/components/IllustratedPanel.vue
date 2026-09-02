@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { NButton, NCard, NModal, NProgress, NTab, NTabs } from 'naive-ui'
+import { NButton } from 'naive-ui/es/button'
+import { NCard } from 'naive-ui/es/card'
+import { NModal } from 'naive-ui/es/modal'
+import { NProgress } from 'naive-ui/es/progress'
+import { NTab, NTabs } from 'naive-ui/es/tabs'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAccountStore } from '@/stores/account'

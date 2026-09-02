@@ -1,23 +1,32 @@
 <script setup lang="ts">
+import type { FertilizerType } from '@/stores/farm'
 import type { FriendInteractionItemDto, FriendInteractionResultDto } from '@/stores/friend'
 import { useIntervalFn } from '@vueuse/core'
-import { NButton } from 'naive-ui'
+import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import CareerHarvestSteal from '@/components/CareerHarvestSteal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import LandCard from '@/components/LandCard.vue'
 import { useAccountStore } from '@/stores/account'
 import { useFarmStore } from '@/stores/farm'
+import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
 import { useToastStore } from '@/stores/toast'
+import { interactionItemTargetReason } from '@/utils/interaction-item-rules'
 
 const farmStore = useFarmStore()
 const accountStore = useAccountStore()
+const settingStore = useSettingStore()
 const statusStore = useStatusStore()
 const toast = useToastStore()
+const route = useRoute()
 const {
   lands,
   summary,
+  socialEvents,
+  career,
   loading,
   loaded,
   error,
@@ -26,12 +35,11 @@ const {
   interactionItemsError,
   interactionUsePending,
   interactionUseError,
-  dogSkillGiftPendingCount,
-  dogSkillGiftStatusLoading,
-  dogSkillGiftClaiming,
-  dogSkillGiftError,
+  fertilizePending,
+  fertilizeError,
 } = storeToRefs(farmStore)
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
+const { settings } = storeToRefs(settingStore)
 const { status } = storeToRefs(statusStore)
 
 const currentAccountConnected = computed(() => {
@@ -45,6 +53,8 @@ const currentAccountRunning = computed(() => (
 ))
 
 const operating = ref(false)
+const fertilizingLandId = ref<number | null>(null)
+const farmingLandId = ref<number | null>(null)
 const manualRefreshing = ref(false)
 const refreshIconClass = 'i-carbon-renew'
 const confirmVisible = ref(false)
@@ -63,6 +73,39 @@ const interactionConfirmMessage = ref('')
 const selectedInteractionItem = computed<FriendInteractionItemDto | null>(() => (
   interactionItems.value.find(item => String(item.itemId) === selectedInteractionItemId.value) || null
 ))
+
+const showManualFertilizerButtons = computed(() => settings.value.automation?.show_manual_fertilizer !== false)
+
+const cleanableFarmSocialEvents = computed(() => (
+  (Array.isArray(socialEvents.value) ? socialEvents.value : []).filter((event: any) => event?.cleanable)
+))
+const cleanableFarmSocialEventNames = computed(() => cleanableFarmSocialEvents.value
+  .map((event: any) => String(event?.itemName || event?.itemId || '').trim())
+  .filter(Boolean)
+  .join('、'))
+
+function isValidFarmingLand(land: any) {
+  return !!land?.unlocked
+    && !land?.occupiedByMaster
+    && !!String(land?.plantName || '').trim()
+    && !['locked', 'empty'].includes(String(land?.status || ''))
+}
+
+const socialCleanupLandId = computed(() => {
+  if (cleanableFarmSocialEvents.value.length === 0)
+    return 0
+  return Number(lands.value.find(isValidFarmingLand)?.id) || 0
+})
+
+function isLandFarmingCandidate(land: any) {
+  if (!isValidFarmingLand(land))
+    return false
+  return !!land?.needWater
+    || !!land?.needWeed
+    || !!land?.needBug
+    || !!land?.needInteractionCleanup
+    || Number(land?.id) === socialCleanupLandId.value
+}
 
 async function executeOperate() {
   if (!currentAccountId.value || !confirmConfig.value.opType)
@@ -83,7 +126,7 @@ function handleOperate(opType: string) {
 
   const confirmMap: Record<string, string> = {
     harvest: '确定要收获所有成熟作物吗？',
-    clear: '确定要一键务农吗？（除草、除虫、浇水并清理黄金虫/足球）',
+    clear: '确定要一键务农吗？（除草、除虫、浇水并清理黄金虫、足球、乌云和青蛙）',
     plant: '确定要一键种植吗？(根据策略配置)',
     upgrade: '确定要升级所有可升级的土地吗？(消耗金币)',
     all: '确定要一键全收吗？(包含收获、除草、种植等)',
@@ -127,10 +170,8 @@ function hasConfirmedInteractionEffect(land: any, itemId: unknown = selectedInte
 
 // 与好友页保持同一口径：只有仍在生长期的作物才允许提交道具使用。
 function isInteractionLandCandidate(land: any) {
-  return !!land?.unlocked
-    && !land?.occupiedByMaster
-    && !!String(land?.plantName || '').trim()
-    && !['locked', 'empty', 'dead', 'harvestable', 'stealable', 'harvested'].includes(String(land?.status || ''))
+  return !!selectedInteractionItem.value
+    && !interactionItemTargetReason(selectedInteractionItem.value.itemId, land)
 }
 
 function isInteractionLandSelected(land: any) {
@@ -153,11 +194,9 @@ function interactionLandSelectionLabel(land: any) {
     return '已生效'
   if (usedInteractionIdSet().has(landId))
     return '本次已用'
-  if (['harvestable', 'stealable', 'harvested'].includes(String(land?.status || '')))
-    return '成熟不可用'
-  if (!isInteractionLandCandidate(land))
-    return '不可用'
-  return ''
+  return selectedInteractionItem.value
+    ? interactionItemTargetReason(selectedInteractionItem.value.itemId, land)
+    : ''
 }
 
 function setSelectedInteractionIds(ids: string[], itemId: unknown = selectedInteractionItemId.value) {
@@ -202,6 +241,81 @@ function selectAllInteractionLands() {
 function interactionFailures() {
   const results = lastInteractionResults.value[interactionSelectionKey()] || []
   return results.filter(result => !result.ok)
+}
+
+function isFertilizeCandidate(land: any) {
+  return !!land?.unlocked
+    && !land?.occupiedByMaster
+    && String(land?.status || '') === 'growing'
+    && Number(land?.matureInSec) > 0
+}
+
+function canOrganicFertilize(land: any) {
+  const left = land?.leftInorcFertTimes
+  return left == null || Number(left) > 0
+}
+
+function organicFertilizerLabel(land: any) {
+  const left = land?.leftInorcFertTimes
+  if (left != null && Number(left) <= 0)
+    return '已无法再施有机肥'
+  return ''
+}
+
+function formatFertilizerRemaining(sec: number) {
+  const remaining = Number(sec) || 0
+  if (remaining <= 0)
+    return ''
+  return `剩余 ${(remaining / 3600).toFixed(1)}h`
+}
+
+async function handleFertilize(land: any, fertilizerType: FertilizerType) {
+  if (!currentAccountId.value || fertilizePending.value || !isFertilizeCandidate(land))
+    return
+  if (fertilizerType === 'organic' && !canOrganicFertilize(land)) {
+    toast.info('该地块已无法再施有机肥')
+    return
+  }
+
+  const typeName = fertilizerType === 'organic' ? '有机化肥' : '普通化肥'
+  const landId = Number(land.id)
+  fertilizingLandId.value = landId
+  try {
+    const result = await farmStore.fertilizeLand(currentAccountId.value, landId, fertilizerType)
+    if (!result) {
+      toast.error(fertilizeError.value || `${typeName}使用失败`)
+      return
+    }
+    const remainingText = formatFertilizerRemaining(Number(result.fertilizerRemainingSec || 0))
+    toast.success(remainingText ? `已施${typeName}，${remainingText}` : `已施${typeName}`)
+  }
+  finally {
+    if (fertilizingLandId.value === landId)
+      fertilizingLandId.value = null
+  }
+}
+
+async function handleFarmLand(land: any) {
+  if (!currentAccountId.value || farmingLandId.value !== null || operating.value || !isLandFarmingCandidate(land))
+    return
+  const landId = Number(land?.id) || 0
+  if (!landId)
+    return
+  farmingLandId.value = landId
+  try {
+    const result = await farmStore.operate(currentAccountId.value, 'clear', landId)
+    if (result?.hadWork)
+      toast.success(`第 ${landId} 块土地务农完成`)
+    else
+      toast.info(`第 ${landId} 块土地当前无需务农`)
+  }
+  catch (cause: any) {
+    toast.error(String(cause?.response?.data?.error || cause?.message || '单点务农失败'))
+  }
+  finally {
+    if (farmingLandId.value === landId)
+      farmingLandId.value = null
+  }
 }
 
 function requestUseInteractionItem() {
@@ -254,10 +368,11 @@ async function refreshFarmData() {
   await Promise.all([
     farmStore.fetchLands(accountId),
     farmStore.fetchInteractionItems(accountId),
+    settingStore.fetchSettings(accountId),
   ])
 }
 
-async function refreshWithDogGifts() {
+async function refreshFarm() {
   const accountId = currentAccountId.value
   if (!accountId || !currentAccountRunning.value)
     return
@@ -267,7 +382,7 @@ async function refreshWithDogGifts() {
     await Promise.all([
       farmStore.fetchLands(accountId),
       farmStore.fetchInteractionItems(accountId),
-      farmStore.fetchDogSkillGiftStatus(accountId),
+      settingStore.fetchSettings(accountId),
     ])
   }
   finally {
@@ -276,26 +391,10 @@ async function refreshWithDogGifts() {
   }
 }
 
-async function claimDogSkillGifts() {
-  const accountId = currentAccountId.value
-  if (!accountId)
-    return
-
-  const result = await farmStore.claimDogSkillGifts(accountId)
-  if (!result) {
-    toast.error(dogSkillGiftError.value || '拾取同气连枝礼包失败')
-    return
-  }
-
-  const claimed = Math.max(0, Number(result.claimed || 0))
-  if (claimed > 0)
-    toast.success(`已拾取同气连枝礼包 x${claimed}`)
-  else
-    toast.warning('当前没有待拾取的同气连枝礼包')
-}
-
 watch(currentAccountId, () => {
   farmStore.resetLandState()
+  fertilizingLandId.value = null
+  farmingLandId.value = null
   selectedInteractionItemId.value = ''
   selectedInteractionLandIds.value = {}
   lastInteractionResults.value = {}
@@ -307,6 +406,11 @@ watch(interactionItems, (items) => {
     selectedInteractionItemId.value = ''
     return
   }
+  const requestedItemId = String(route.query.interactionItem || '')
+  if (requestedItemId && items.some(item => String(item.itemId) === requestedItemId)) {
+    selectedInteractionItemId.value = requestedItemId
+    return
+  }
   if (!items.some(item => String(item.itemId) === selectedInteractionItemId.value))
     selectedInteractionItemId.value = String(first.itemId)
 })
@@ -316,8 +420,7 @@ watch([currentAccountId, () => currentAccount.value?.running, currentAccountConn
     farmStore.resetLandState()
     return
   }
-  farmStore.resetDogSkillGiftState()
-  void refreshWithDogGifts()
+  void refreshFarm()
 }, { immediate: true })
 
 const { pause, resume } = useIntervalFn(() => {
@@ -352,10 +455,10 @@ onUnmounted(() => {
           <NButton
             circle
             quaternary
-            title="刷新土地和待拾取礼包"
-            :loading="manualRefreshing || dogSkillGiftStatusLoading"
+            title="刷新土地"
+            :loading="manualRefreshing"
             :disabled="!currentAccountId || !currentAccountRunning"
-            @click="refreshWithDogGifts"
+            @click="refreshFarm"
           >
             <span :class="refreshIconClass" />
           </NButton>
@@ -365,51 +468,13 @@ onUnmounted(() => {
             v-for="op in operations"
             :key="op.type"
             :type="op.buttonType"
-            :disabled="operating || !currentAccountRunning"
+            :disabled="operating || farmingLandId !== null || !currentAccountRunning"
             @click="handleOperate(op.type)"
           >
             <span :class="op.icon" />
             {{ op.label }}
           </NButton>
         </div>
-      </div>
-
-      <div
-        v-if="dogSkillGiftPendingCount > 0"
-        class="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 sm:flex-row sm:items-center dark:border-amber-800 dark:bg-amber-950/30"
-      >
-        <span class="i-carbon-gift shrink-0 text-2xl text-amber-600 dark:text-amber-300" />
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-baseline gap-2 text-amber-950 dark:text-amber-100">
-            <strong>待拾取同气连枝礼包</strong>
-            <span>x{{ dogSkillGiftPendingCount }}</span>
-          </div>
-          <div class="text-xs text-amber-700 dark:text-amber-300">
-            护主犬技能掉落，等待主人拾取
-          </div>
-        </div>
-        <NButton type="warning" size="small" :loading="dogSkillGiftClaiming" @click="claimDogSkillGifts">
-          <span class="i-carbon-download mr-1" />
-          拾取
-        </NButton>
-      </div>
-
-      <div
-        v-if="dogSkillGiftError"
-        class="flex flex-col gap-3 border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700 sm:flex-row sm:items-center dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
-      >
-        <span class="i-carbon-warning-alt shrink-0 text-lg" />
-        <span class="min-w-0 flex-1">{{ dogSkillGiftError }}</span>
-        <NButton
-          size="small"
-          secondary
-          type="error"
-          :loading="dogSkillGiftStatusLoading"
-          :disabled="!currentAccountId || !currentAccountRunning"
-          @click="refreshWithDogGifts"
-        >
-          重新查询
-        </NButton>
       </div>
 
       <!-- Summary -->
@@ -430,6 +495,7 @@ onUnmounted(() => {
           <div class="i-carbon-warning" />
           <span class="font-body font-semibold">枯萎: {{ loaded && !error ? (summary?.dead || 0) : '--' }}</span>
         </div>
+        <CareerHarvestSteal v-if="loaded && !error" :career="career" />
       </div>
 
       <!-- Grid -->
@@ -467,7 +533,7 @@ onUnmounted(() => {
           <div class="max-w-xl text-sm">
             {{ error }}
           </div>
-          <NButton secondary type="error" @click="refreshWithDogGifts">
+          <NButton secondary type="error" @click="refreshFarm">
             重新读取
           </NButton>
         </div>
@@ -477,7 +543,7 @@ onUnmounted(() => {
           <div class="text-lg font-display">
             尚未读取土地详情
           </div>
-          <NButton secondary @click="refreshWithDogGifts">
+          <NButton secondary @click="refreshFarm">
             立即读取
           </NButton>
         </div>
@@ -490,12 +556,19 @@ onUnmounted(() => {
           <div class="font-body text-sm text-gray-400">
             暂未读取到可展示的土地，可重新读取确认
           </div>
-          <NButton secondary @click="refreshWithDogGifts">
+          <NButton secondary @click="refreshFarm">
             重新读取
           </NButton>
         </div>
 
         <div v-else>
+          <div v-if="cleanableFarmSocialEvents.length > 0" class="mb-4 flex flex-wrap items-center justify-between gap-2 border border-emerald-200 rounded-xl bg-emerald-50/85 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
+            <span class="flex items-center gap-2">
+              <span class="i-carbon-pedestrian-child" />
+              好友放置了 {{ cleanableFarmSocialEventNames }}，可一键务农或点击下方标记地块的“务农”清理。
+            </span>
+          </div>
+
           <div v-if="interactionItemsLoading || interactionItemsError || interactionItems.length > 0" class="mb-4 border border-amber-200 rounded-xl bg-amber-50/80 p-3 dark:border-amber-800 dark:bg-amber-950/25">
             <div v-if="interactionItemsLoading" class="flex items-center justify-center gap-2 py-2 text-sm text-amber-700 dark:text-amber-300">
               <span class="i-svg-spinners-90-ring-with-bg" />
@@ -576,7 +649,17 @@ onUnmounted(() => {
               :selected="isInteractionLandSelected(land)"
               :selection-disabled="isInteractionLandDisabled(land)"
               :selection-label="interactionLandSelectionLabel(land)"
+              :show-fertilizer-actions="showManualFertilizerButtons && isFertilizeCandidate(land)"
+              :fertilizer-pending="fertilizePending && fertilizingLandId === land.id"
+              :normal-fertilizer-disabled="fertilizePending"
+              :organic-fertilizer-disabled="fertilizePending || !canOrganicFertilize(land)"
+              :organic-fertilizer-label="organicFertilizerLabel(land)"
+              :show-farming-action="isLandFarmingCandidate(land)"
+              :farming-pending="farmingLandId === land.id"
+              :farming-disabled="farmingLandId !== null || operating"
               @select="toggleInteractionLand(land)"
+              @fertilize="handleFertilize"
+              @farm="handleFarmLand"
             />
           </div>
         </div>

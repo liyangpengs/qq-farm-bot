@@ -115,18 +115,31 @@ function normalizeBook(type: number, listReply: any, levelReply: any): any {
     };
 }
 
-async function getIllustratedSnapshot(): Promise<any> {
-    const [cropList, cropLevels, mutantList, mutantLevels] = await Promise.all([
-        getIllustratedList(1),
-        getIllustratedLevels(1),
-        getIllustratedList(2),
-        getIllustratedLevels(2),
-    ]);
+let pendingSnapshot: Promise<any> | null = null;
+
+async function buildIllustratedSnapshot(): Promise<any> {
+    // 按官方客户端顺序串行请求：normal 优先级只有 2 个并发槽，一次性并发 4 个请求
+    // 会把自己的请求挤进队列并触发网关压力告警。
+    const cropList = await getIllustratedList(1);
+    const cropLevels = await getIllustratedLevels(1);
+    const mutantList = await getIllustratedList(2);
+    const mutantLevels = await getIllustratedLevels(2);
     return {
         crop: normalizeBook(1, cropList, cropLevels),
         mutant: normalizeBook(2, mutantList, mutantLevels),
         updatedAt: Date.now(),
     };
+}
+
+// 面板重复打开或多个请求并发时合并为同一轮读取，避免重复发起 4 个 RPC。
+function getIllustratedSnapshot(): Promise<any> {
+    if (pendingSnapshot) return pendingSnapshot;
+    const request = buildIllustratedSnapshot();
+    pendingSnapshot = request;
+    request.finally(() => {
+        if (pendingSnapshot === request) pendingSnapshot = null;
+    }).catch(() => {});
+    return request;
 }
 
 module.exports = {

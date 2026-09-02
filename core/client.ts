@@ -6,9 +6,11 @@ export {};
 const path = require('node:path');
 const fs = require('node:fs');
 
-// Detect if running compiled (dist/) or source (tsx)
+// tsx/bun 直接跑 client.ts 时用 src，避免 stale dist 缺新路由。
+// node client.js / 打包产物仍优先加载已编译的 dist。
+const runningFromSource = /\.[cm]?tsx?$/.test(__filename);
 const distDir = path.join(__dirname, 'dist');
-const baseDir = fs.existsSync(distDir) ? './dist' : './src';
+const baseDir = !runningFromSource && fs.existsSync(distDir) ? './dist' : './src';
 
 const {
     startAdminServer,

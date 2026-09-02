@@ -10,8 +10,8 @@ const { CONFIG } = require('../config/config');
 const { ensureDataDir, getResourcePath } = require('../config/runtime-paths');
 const { log, logWarn } = require('./utils');
 
-const TSDK_VERSION = 'v3.9.0.1787056896';
-const TSDK_SHA256 = '1959d2baed17ba3cb28e8fd1c760684e4120a2bde1863551a3c3a7f844627e77';
+const TSDK_VERSION = 'v3.9.0.1787640848';
+const TSDK_SHA256 = '9ceb64e05a1b1a96666d77d938e0d9e6131864a01480b6b424358a8e891ec8da';
 const MINI_PROGRAM_APP_ID = 'wx5306c5978fdb76e4';
 const TSDK_GAME_ID = 3167;
 const TSDK_APP_KEY = '0';

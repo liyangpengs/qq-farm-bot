@@ -10,6 +10,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.core.tsbuildinfo",
     "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,

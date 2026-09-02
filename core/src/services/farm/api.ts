@@ -6,7 +6,7 @@ export {};
 const protobuf = require('protobufjs');
 const { sendMsgAsync, getUserState } = require('../../utils/network');
 const { types } = require('../../utils/proto');
-const { toLong, sleep, randomDelay, logWarn } = require('../../utils/utils');
+const { toLong, toNum, sleep, randomDelay, logWarn } = require('../../utils/utils');
 
 // 操作限制更新回调 (由 friend.js 设置)
 let onOperationLimitsUpdate: ((limits: any) => void) | null = null;
@@ -59,23 +59,34 @@ async function waterLand(landIds: number[]): Promise<any> {
     return sendPlantRequest(types.WaterLandRequest, types.WaterLandReply, 'WaterLand', landIds, state.gid);
 }
 
-async function farming(landIds: number[]): Promise<any> {
+async function farming(landIds: number[], socialEventItemIds: Array<number | string> = []): Promise<any> {
     const state = getUserState();
-    const body = encodeOwnFarmingRequest(landIds, state.gid);
+    const body = encodeOwnFarmingRequest(landIds, state.gid, socialEventItemIds);
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'Farming', body);
     return types.FarmingReply.decode(replyBody);
 }
 
 /**
- * 自家一键务农。官方抓包会显式编码两个值为 0 的场景字段；不能依赖 proto3 默认省略。
+ * 自家单点/一键务农。官方抓包会显式编码两个值为 0 的场景字段；不能依赖 proto3 默认省略。
+ * 青蛙使坏瓶属于农场级社交事件，存在时还会以 packed int64 写入 field 5。
  * 好友帮助务农使用 field_4=2，由 friend/api.ts 单独编码。
  */
-function encodeOwnFarmingRequest(landIds: number[], hostGid: number | string): Uint8Array {
+function encodeOwnFarmingRequest(
+    landIds: number[],
+    hostGid: number | string,
+    socialEventItemIds: Array<number | string> = [],
+): Uint8Array {
+    const normalizedSocialEventItemIds = [...new Set(
+        (Array.isArray(socialEventItemIds) ? socialEventItemIds : [])
+            .map((value: number | string) => toNum(value))
+            .filter((value: number) => value > 0),
+    )];
     return types.FarmingRequest.encode(types.FarmingRequest.create({
         land_ids: landIds,
         host_gid: toLong(hostGid),
         field_3: 0,
         field_4: 0,
+        social_event_item_ids: normalizedSocialEventItemIds.map((value: number) => toLong(value)),
     })).finish();
 }
 
@@ -85,6 +96,19 @@ const NORMAL_FERTILIZER_ID: number = 1011;
 const ORGANIC_FERTILIZER_ID: number = 1012;
 const MAX_ORGANIC_FERTILIZE_OPERATIONS: number = 240;
 const MAX_ORGANIC_FERTILIZE_ROUNDS: number = 20;
+
+async function fertilizeOne(landId: number, fertilizerId: number = NORMAL_FERTILIZER_ID): Promise<any> {
+    const body = types.FertilizeRequest.encode(types.FertilizeRequest.create({
+        land_ids: [toLong(landId)],
+        fertilizer_id: toLong(fertilizerId),
+    })).finish();
+    const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'Fertilize', body);
+    const reply = types.FertilizeReply.decode(replyBody);
+    if (reply.operation_limits && onOperationLimitsUpdate) {
+        onOperationLimitsUpdate(reply.operation_limits);
+    }
+    return reply;
+}
 
 /**
  * 施肥 - 必须逐块进行，服务器不支持批量
@@ -224,6 +248,7 @@ module.exports = {
     waterLand,
     farming,
     encodeOwnFarmingRequest,
+    fertilizeOne,
     fertilize,
     fertilizeOrganicLoop,
     removePlant,

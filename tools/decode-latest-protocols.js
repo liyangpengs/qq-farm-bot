@@ -15,6 +15,7 @@ const options = process.argv.slice(3);
 const methodFilter = String(options.find(value => !value.startsWith('--')) || '');
 const shapeOnly = options.includes('--shape');
 const includeAllMethods = options.includes('--all');
+const summaryOnly = options.includes('--summary');
 const protoDir = path.resolve(__dirname, '../core/src/proto');
 const protoFiles = fs.readdirSync(protoDir)
     .filter((name) => name.endsWith('.proto'))
@@ -24,6 +25,7 @@ const selected = new Set([
     'gamepb.userpb.UserService.Login',
     'gamepb.userpb.UserService.Heartbeat',
     'gamepb.friendpb.FriendService.SyncAll',
+    'gamepb.friendpb.FriendService.GetGameFriends',
     'gamepb.bulletinboardpb.BulletinBoardService.GetBulletinList',
     'gamepb.userpb.UserService.GetUserSettings',
     'gamepb.userpb.UserService.BatchClientReportFlow',
@@ -48,6 +50,7 @@ const selected = new Set([
     'gamepb.itempb.ItemService.Bag',
     'gamepb.itempb.ItemService.Use',
     'gamepb.itempb.ItemService.BatchUse',
+    'gamepb.weatherpb.WeatherService.GetWeatherStatus',
     'gamepb.dogpb.DogService.GetDogInfo',
     'gamepb.dogpb.DogService.DeployDog',
     'gamepb.dogpb.DogService.WithdrawDog',
@@ -57,6 +60,7 @@ const selected = new Set([
     'gamepb.visitpb.VisitService.Leave',
     'gamepb.plantpb.PlantService.AllLands',
     'gamepb.plantpb.PlantService.Plant',
+    'gamepb.plantpb.PlantService.Farming',
     'gamepb.taskpb.TaskService.TaskInfo',
     'gamepb.taskpb.TaskService.ClaimTaskReward',
     'gamepb.seasonpb.SeasonService.GetSeasonInfo',
@@ -158,10 +162,13 @@ function knownType(root, service, method, messageType) {
     const request = messageType === 1;
     const names = {
         'gamepb.activitypb.ActivityService.List': request ? 'gamepb.activitypb.ActivityListRequest' : 'gamepb.activitypb.ActivityListReply',
+        'gamepb.friendpb.FriendService.GetGameFriends': request ? 'gamepb.friendpb.GetGameFriendsRequest' : 'gamepb.friendpb.GetGameFriendsReply',
+        'gamepb.friendpb.FriendService.SyncAll': request ? 'gamepb.friendpb.SyncAllRequest' : 'gamepb.friendpb.SyncAllReply',
         'gamepb.activitypb.ActivityService.GetGroup': request ? 'gamepb.activitypb.GetGroupRequest' : 'gamepb.activitypb.GetGroupReply',
         'gamepb.itempb.ItemService.Bag': request ? 'gamepb.itempb.BagRequest' : 'gamepb.itempb.BagReply',
         'gamepb.itempb.ItemService.Use': request ? 'gamepb.itempb.UseRequest' : 'gamepb.itempb.UseReply',
         'gamepb.itempb.ItemService.BatchUse': request ? 'gamepb.itempb.BatchUseRequest' : 'gamepb.itempb.BatchUseReply',
+        'gamepb.weatherpb.WeatherService.GetWeatherStatus': request ? 'gamepb.weatherpb.GetWeatherStatusRequest' : 'gamepb.weatherpb.GetWeatherStatusReply',
         'gamepb.dogpb.DogService.GetDogInfo': request ? 'gamepb.dogpb.GetDogInfoRequest' : 'gamepb.dogpb.GetDogInfoReply',
         'gamepb.dogpb.DogService.DeployDog': request ? 'gamepb.dogpb.DeployDogRequest' : 'gamepb.dogpb.DeployDogReply',
         'gamepb.dogpb.DogService.WithdrawDog': request ? 'gamepb.dogpb.WithdrawDogRequest' : 'gamepb.dogpb.WithdrawDogReply',
@@ -171,6 +178,7 @@ function knownType(root, service, method, messageType) {
         'gamepb.visitpb.VisitService.Leave': request ? 'gamepb.visitpb.LeaveRequest' : 'gamepb.visitpb.LeaveReply',
         'gamepb.plantpb.PlantService.AllLands': request ? 'gamepb.plantpb.AllLandsRequest' : 'gamepb.plantpb.AllLandsReply',
         'gamepb.plantpb.PlantService.Plant': request ? 'gamepb.plantpb.PlantRequest' : 'gamepb.plantpb.PlantReply',
+        'gamepb.plantpb.PlantService.Farming': request ? 'gamepb.plantpb.FarmingRequest' : 'gamepb.plantpb.FarmingReply',
         'gamepb.taskpb.TaskService.TaskInfo': request ? 'gamepb.taskpb.TaskInfoRequest' : 'gamepb.taskpb.TaskInfoReply',
         'gamepb.taskpb.TaskService.ClaimTaskReward': request ? 'gamepb.taskpb.ClaimTaskRewardRequest' : 'gamepb.taskpb.ClaimTaskRewardReply',
         'gamepb.seasonpb.SeasonService.GetSeasonInfo': request ? 'gamepb.seasonpb.GetSeasonInfoRequest' : 'gamepb.seasonpb.GetSeasonInfoReply',
@@ -202,6 +210,10 @@ async function main() {
             const event = eventType.decode(Buffer.from(message.body || []));
             const eventName = String(event.message_type || '');
             if (methodFilter && eventName !== methodFilter && !eventName.endsWith(`.${methodFilter}`)) continue;
+            if (summaryOnly) {
+                console.log(JSON.stringify({ file: name, direction: 'NOTIFY', event: eventName }));
+                continue;
+            }
             const eventBody = Buffer.from(event.body || []);
             console.log(JSON.stringify({
                 file: name,
@@ -216,6 +228,18 @@ async function main() {
         const method = String(meta.method_name || '');
         if (!includeAllMethods && !selected.has(`${service}.${method}`)) continue;
         if (methodFilter && method !== methodFilter) continue;
+
+        if (summaryOnly) {
+            console.log(JSON.stringify({
+                file: name,
+                direction: messageType === 1 ? 'SEND' : 'RECV',
+                service,
+                method,
+                errorCode: scalar(meta.error_code),
+                errorMessage: String(meta.error_message || ''),
+            }));
+            continue;
+        }
 
         let body = Buffer.from(message.body || []);
         if (messageType === 1 && body.length) body = await cryptoWasm.decryptBuffer(body);

@@ -1,7 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { DEFAULT_CLIENT_VERSION } = require('../dist/config/config');
+const {
+    DEFAULT_CLIENT_VERSION,
+    DEFAULT_CLIENT_VERSION_UPDATED_AT,
+    resolveClientVersion,
+    resolveClientVersionUpdatedAt,
+} = require('../dist/config/config');
 const { GatewayTokenProvider, createGatewayToken } = require('../dist/utils/gateway-token');
 const {
     HEARTBEAT_STALE_AFTER_MS,
@@ -9,31 +14,61 @@ const {
     shouldTerminateForHeartbeat,
 } = require('../dist/utils/keepalive-policy');
 const {
-    LEGACY_DEFAULT_CLIENT_VERSIONS,
-    isManagedDefaultClientVersion,
-} = require('../dist/models/store/shared-state');
+    REQUEST_PRESSURE_LOG_INTERVAL_MS,
+    countBlockingQueuedRequests,
+    shouldLogRequestPressure,
+} = require('../dist/utils/request-pressure');
 const {
     compareHandshakeUrls,
     redactHandshakeCode,
 } = require('../../tools/analyze-keepalive-capture');
 
-test('official client version is the capture-verified 1.13.2.10 build', () => {
-    assert.equal(DEFAULT_CLIENT_VERSION, '1.13.2.10_20260723');
+test('default client version has a release timestamp', () => {
+    assert.equal(DEFAULT_CLIENT_VERSION, '1.13.3.16_20260826');
+    assert.equal(DEFAULT_CLIENT_VERSION_UPDATED_AT, 1788238800000);
 });
 
-test('legacy defaults migrate while explicit custom client versions survive', () => {
-    assert.deepEqual(
-        [...LEGACY_DEFAULT_CLIENT_VERSIONS],
-        ['1.13.2.8_20260723', '1.13.2.9_20260723'],
+test('newer timestamp wins when resolving the client version', () => {
+    const older = DEFAULT_CLIENT_VERSION_UPDATED_AT - 1;
+    const newer = DEFAULT_CLIENT_VERSION_UPDATED_AT + 1;
+    assert.deepEqual(resolveClientVersion('stored-without-time', undefined), {
+        clientVersion: DEFAULT_CLIENT_VERSION,
+        clientVersionUpdatedAt: DEFAULT_CLIENT_VERSION_UPDATED_AT,
+    });
+    assert.deepEqual(resolveClientVersion('stored-older', older), {
+        clientVersion: DEFAULT_CLIENT_VERSION,
+        clientVersionUpdatedAt: DEFAULT_CLIENT_VERSION_UPDATED_AT,
+    });
+    assert.deepEqual(resolveClientVersion('stored-equal', DEFAULT_CLIENT_VERSION_UPDATED_AT), {
+        clientVersion: DEFAULT_CLIENT_VERSION,
+        clientVersionUpdatedAt: DEFAULT_CLIENT_VERSION_UPDATED_AT,
+    });
+    assert.deepEqual(resolveClientVersion('stored-newer', newer), {
+        clientVersion: 'stored-newer',
+        clientVersionUpdatedAt: newer,
+    });
+});
+
+test('client version timestamp changes only when the version changes', () => {
+    const currentUpdatedAt = DEFAULT_CLIENT_VERSION_UPDATED_AT + 10;
+    const now = currentUpdatedAt + 20;
+    assert.equal(
+        resolveClientVersionUpdatedAt('same', 'same', currentUpdatedAt, undefined, now),
+        currentUpdatedAt,
     );
-    assert.equal(isManagedDefaultClientVersion('1.13.2.9_20260723'), true);
-    assert.equal(isManagedDefaultClientVersion(DEFAULT_CLIENT_VERSION), true);
-    assert.equal(isManagedDefaultClientVersion('custom-client-version'), false);
+    assert.equal(
+        resolveClientVersionUpdatedAt('changed', 'same', currentUpdatedAt, undefined, now),
+        now,
+    );
+    assert.equal(
+        resolveClientVersionUpdatedAt('default', 'custom', currentUpdatedAt, DEFAULT_CLIENT_VERSION_UPDATED_AT, now),
+        DEFAULT_CLIENT_VERSION_UPDATED_AT,
+    );
 });
 
 test('ordinary gateway tokens retain the official random format', () => {
     for (let index = 0; index < 256; index += 1) {
-        assert.match(createGatewayToken(), /^[A-Za-z0-9]{64,127}=$/);
+        assert.match(createGatewayToken(), /^[A-Z0-9]{64,127}=$/i);
     }
 });
 
@@ -43,7 +78,7 @@ test('the TSDK initialization credential is consumed exactly once', () => {
 
     assert.equal(provider.stageInitToken(initToken), 152);
     assert.equal(provider.next(), initToken);
-    assert.match(provider.next(), /^[A-Za-z0-9]{64,127}=$/);
+    assert.match(provider.next(), /^[A-Z0-9]{64,127}=$/i);
 
     provider.stageInitToken(initToken);
     provider.clear();
@@ -81,4 +116,22 @@ test('handshake comparison removes only Code and compares every other URL byte',
         allCodesPresentAndDistinct: true,
     });
     assert.equal(compareHandshakeUrls([first, changed]).identicalExceptCode, false);
+});
+
+test('a background only backlog is not reported as gateway pressure', () => {
+    const backgroundOnly = [{ requestClass: 'background' }, { requestClass: 'background' }, { requestClass: 'background' }];
+
+    assert.equal(countBlockingQueuedRequests(backgroundOnly), 0);
+    assert.equal(shouldLogRequestPressure(backgroundOnly, 60000, 0), false);
+    assert.equal(shouldLogRequestPressure([], 60000, 0), false);
+});
+
+test('undispatchable requests are reported once per throttle window', () => {
+    const queue = [{ requestClass: 'background' }, { requestClass: 'farm' }, { requestClass: 'critical' }];
+
+    assert.equal(REQUEST_PRESSURE_LOG_INTERVAL_MS, 5000);
+    assert.equal(countBlockingQueuedRequests(queue), 2);
+    assert.equal(shouldLogRequestPressure(queue, 20000, 0), true);
+    assert.equal(shouldLogRequestPressure(queue, 20000, 20000 - REQUEST_PRESSURE_LOG_INTERVAL_MS), true);
+    assert.equal(shouldLogRequestPressure(queue, 20000, 20001 - REQUEST_PRESSURE_LOG_INTERVAL_MS), false);
 });

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package gamepb.weatherpb;
+
+// 当前农场的特殊天气。雨落成诗活动中 weather_type=1 表示雷雨。
+message WeatherStatus {
+    int64 weather_type = 1;
+    int64 status = 2;
+    int64 begin_time = 3;
+    int64 end_time = 4;
+    int64 source = 5;
+    int64 field_8 = 8;
+    // 好友现场天气附带的活动标记。实机已见晴天=1、雷雨已采=4；
+    // 不能再沿用旧实现把 field_8 当作该标记。
+    int64 field_9 = 9;
+}
+
+message GetWeatherStatusRequest {}
+
+message GetWeatherStatusReply {
+    WeatherStatus weather = 1;
+}
+
+message WeatherChangeNotify {
+    WeatherStatus weather = 1;
+    int64 host_gid = 2;
+}

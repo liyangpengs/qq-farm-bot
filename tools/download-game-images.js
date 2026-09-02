@@ -9,7 +9,7 @@ const zlib = require('node:zlib');
 const { TextDecoder } = require('node:util');
 
 const DEFAULT_INPUT = path.join(__dirname, 'json');
-const DEFAULT_OUTPUT = path.join(__dirname, 'img');
+const DEFAULT_OUTPUT = path.join(__dirname, 'img', 'seed_images');
 const DEFAULT_SOURCE = 'D:\\wxsource\\wx5306c5978fdb76e4-code';
 const DEFAULT_CONCURRENCY = 8;
 const DEFAULT_RETRIES = 3;
@@ -806,7 +806,23 @@ async function main() {
     }
 }
 
-main().catch(error => {
-    console.error(`[失败] ${error.message}`);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    main().catch(error => {
+        console.error(`[失败] ${error.message}`);
+        process.exitCode = 1;
+    });
+}
+
+module.exports = {
+    DEFAULT_SOURCE,
+    DEFAULT_CONCURRENCY,
+    DEFAULT_RETRIES,
+    parseIntegerOption,
+    readJsonArray,
+    readSettings,
+    loadManifests,
+    buildPathIndex,
+    createMappingRecord,
+    downloadImages,
+    writeReportAtomically,
+};

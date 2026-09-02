@@ -22,7 +22,6 @@ watch(() => props.solar, (solar) => {
     selectedId.value = activeTermId(solar) || solar?.currentTermId || solar?.terms.find(term => term.current)?.id || solar?.terms[0]?.id || ''
 }, { immediate: true })
 const current = computed(() => props.solar?.terms.find(term => term.id === selectedId.value) ?? null)
-const description = computed(() => current.value?.description || props.solar?.description || '')
 const rewardTitle = computed(() => current.value?.rewardTitle || props.solar?.rewardTitle || '')
 const rewardDescription = computed(() => current.value?.rewardDescription || props.solar?.rewardDescription || '')
 const timeStatus = computed(() => {
@@ -70,13 +69,6 @@ function claim() {
         <span>{{ term.name || '—' }}</span><i v-if="term.claimable" aria-label="可领取" />
       </button>
     </div>
-    <section class="solar-hero">
-      <span v-if="current?.englishName" class="solar-english">{{ current.englishName }}</span>
-      <h2>{{ current?.title || current?.name || solar?.title || '—' }}</h2>
-      <p v-if="description">
-        {{ description }}
-      </p>
-    </section>
     <section class="solar-reward">
       <h3 v-if="rewardTitle">
         {{ rewardTitle }}
@@ -99,175 +91,6 @@ function claim() {
 
 <style scoped>
 .solar-tab {
-  position: relative;
-  min-height: 100%;
-  padding: calc(118px + env(safe-area-inset-top)) 18px 122px;
-  color: #275b63;
-  background: linear-gradient(180deg, rgba(69, 183, 231, 0.08), rgba(232, 247, 210, 0.1));
-  isolation: isolate;
-}
-.solar-background {
-  position: absolute;
-  z-index: -2;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
-}
-.solar-tab::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 58% 0 0;
-  background: linear-gradient(transparent, rgba(214, 238, 185, 0.5) 30%, rgba(116, 190, 104, 0.42));
-}
-.term-rail {
-  position: absolute;
-  z-index: 3;
-  top: calc(126px + env(safe-area-inset-top));
-  left: 13px;
-  bottom: 112px;
-  width: 66px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 9px;
-  overflow-y: auto;
-  padding: 5px 8px 25px;
-  scrollbar-width: none;
-}
-.term-rail::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  top: 15px;
-  bottom: 15px;
-  left: 50%;
-  border-left: 2px dotted rgba(53, 113, 136, 0.5);
-}
-.term-rail button {
-  position: relative;
-  flex: none;
-  width: 50px;
-  min-height: 45px;
-  padding: 5px;
-  border: 2px solid rgba(80, 139, 161, 0.65);
-  border-radius: 50%;
-  color: #326e83;
-  background: rgba(222, 246, 239, 0.88);
-  box-shadow: 0 2px 7px rgba(43, 105, 120, 0.24);
-  font-weight: 700;
-  cursor: pointer;
-}
-.term-rail button.active {
-  width: 58px;
-  min-height: 53px;
-  border-color: #d9f9f0;
-  color: #fff;
-  background: linear-gradient(#45bad3, #2b7699);
-  box-shadow: 0 0 0 3px rgba(74, 157, 181, 0.38);
-}
-.term-rail button.locked {
-  filter: grayscale(0.65);
-  opacity: 0.6;
-}
-.term-rail i {
-  position: absolute;
-  top: -1px;
-  right: 0;
-  width: 9px;
-  height: 9px;
-  border: 1px solid white;
-  border-radius: 50%;
-  background: #ff4058;
-}
-.solar-hero {
-  padding: 58px 15px 12px 74px;
-  text-align: center;
-  text-shadow: 0 1px rgba(255, 255, 255, 0.8);
-}
-.solar-english {
-  display: block;
-  color: #417288;
-  font:
-    11px Georgia,
-    serif;
-  letter-spacing: 0.17em;
-}
-.solar-hero h2 {
-  margin: 4px 0 12px;
-  color: #27586b;
-  font:
-    800 clamp(38px, 12vw, 56px) 'STKaiti',
-    'KaiTi',
-    serif;
-  line-height: 1.06;
-  overflow-wrap: anywhere;
-}
-.solar-hero p {
-  margin: 0;
-  color: #397483;
-  font-size: 12px;
-  line-height: 1.7;
-  white-space: pre-line;
-}
-.solar-reward {
-  position: relative;
-  margin: 15px 0 0 70px;
-  padding: 17px 12px 13px;
-  border: 2px solid rgba(79, 144, 137, 0.56);
-  border-radius: 18px;
-  background: rgba(239, 253, 231, 0.84);
-  box-shadow:
-    inset 0 0 14px rgba(255, 255, 255, 0.72),
-    0 4px 10px rgba(49, 114, 99, 0.2);
-  text-align: center;
-}
-.solar-reward h3 {
-  margin: 0;
-  color: #326d68;
-  font-size: 17px;
-}
-.solar-reward p {
-  min-height: 1em;
-  margin: 4px 0 10px;
-  color: #61908a;
-  font-size: 10px;
-  white-space: pre-line;
-}
-.solar-reward__items {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-}
-.solar-reward__empty {
-  padding: 16px;
-  color: #719b95;
-  font-size: 12px;
-}
-.solar-reward button {
-  display: block;
-  width: 118px;
-  margin: 12px auto 0;
-  padding: 9px;
-  border: 2px solid #d8f5dd;
-  border-radius: 20px;
-  color: white;
-  background: linear-gradient(#6ec8e2, #3796be);
-  box-shadow: 0 2px 6px rgba(35, 100, 87, 0.28);
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.solar-reward button:disabled {
-  filter: grayscale(0.5);
-  opacity: 0.58;
-  cursor: not-allowed;
-}
-/* Generic activity gameplay layout. */
-.solar-tab {
   min-height: 100%;
   display: grid;
   grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.2fr);
@@ -277,9 +100,7 @@ function claim() {
   color: #203a32;
   background: transparent;
 }
-.solar-tab::after {
-  display: none;
-}
+
 .term-rail {
   position: static;
   width: auto;
@@ -291,29 +112,55 @@ function claim() {
   gap: 7px;
   overflow-x: auto;
   padding: 0 0 8px;
+  scrollbar-width: none;
 }
+
 .term-rail::before {
   display: none;
 }
+
 .term-rail button,
 .term-rail button.active {
+  position: relative;
   width: auto;
   min-width: 72px;
   min-height: 36px;
+  flex: none;
   padding: 7px 11px;
   border: 1px solid rgba(48, 82, 70, 0.14);
   border-radius: 10px;
   color: #677871;
   background: rgba(255, 255, 255, 0.58);
   box-shadow: none;
+  font-weight: 400;
+  cursor: pointer;
 }
+
 .term-rail button.active {
   border-color: rgba(38, 128, 94, 0.28);
   color: #236e52;
   background: rgba(226, 245, 237, 0.9);
+  font-weight: 700;
 }
-.solar-hero,
+
+.term-rail button.locked {
+  filter: grayscale(0.65);
+  opacity: 0.6;
+}
+
+.term-rail i {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border: 1px solid white;
+  border-radius: 50%;
+  background: #ff4058;
+}
+
 .solar-reward {
+  grid-column: 1 / -1;
   min-height: 280px;
   margin: 0;
   padding: 28px;
@@ -322,97 +169,77 @@ function claim() {
   background: rgba(255, 255, 255, 0.66);
   box-shadow: 0 12px 30px rgba(38, 69, 57, 0.07);
   text-align: left;
-  text-shadow: none;
 }
-.solar-hero {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.solar-english {
-  color: #82918b;
-  font:
-    11px Georgia,
-    serif;
-  letter-spacing: 0.12em;
-}
-.solar-hero h2 {
-  margin: 8px 0 14px;
-  color: #254c3f;
-  font:
-    800 36px 'Microsoft YaHei',
-    'PingFang SC',
-    sans-serif;
-  line-height: 1.2;
-}
-.solar-hero p {
-  color: #64776f;
-  font-size: 12px;
-  line-height: 1.8;
-}
+
 .solar-reward h3 {
+  margin: 0;
   color: #2b5b4a;
   font-size: 18px;
 }
+
 .solar-reward p {
+  min-height: 1em;
   margin: 6px 0 18px;
   color: #73847d;
   font-size: 11px;
+  white-space: pre-line;
 }
+
 .solar-reward__items {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: flex-start;
+  gap: 8px;
 }
+
+.solar-reward__empty {
+  padding: 16px;
+  color: #719b95;
+  font-size: 12px;
+}
+
 .solar-reward button {
+  display: block;
   width: 124px;
   margin: 22px 0 0;
+  padding: 9px;
   border: 1px solid #2f8d69;
   border-radius: 10px;
   color: white;
   background: #2f8d69;
   box-shadow: 0 8px 18px rgba(35, 113, 83, 0.18);
   font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
 }
+
+.solar-reward button:disabled {
+  filter: grayscale(0.5);
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
 @media (max-width: 760px) {
   .solar-tab {
     grid-template-columns: 1fr;
     gap: 10px;
     padding: 14px;
   }
+
   .term-rail {
     grid-column: auto;
   }
-  .solar-hero,
-  .solar-reward {
-    min-height: auto;
-    padding: 20px;
-  }
-  .solar-hero h2 {
-    font-size: 28px;
-  }
-}
-</style>
 
-<style scoped>
-/* Keep the term selector and reward panel; the oversized seasonal title is intentionally omitted. */
-.solar-hero {
-  display: none;
-}
-.solar-reward {
-  grid-column: 1 / -1;
-}
-.solar-reward__items {
-  justify-content: center;
-}
-@media (max-width: 760px) {
   .solar-reward {
     min-height: auto;
     padding: 16px;
     text-align: center;
   }
-  .solar-reward__items :deep(.reward-item) {
-    width: 46px;
-    height: 46px;
+
+  .solar-reward__items {
+    justify-content: center;
   }
+
   .solar-reward button {
     width: 96px;
     min-height: 34px;

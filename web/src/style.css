@@ -246,7 +246,7 @@ body {
 .n-modal,
 .n-dialog,
 .n-drawer,
-.n-popover:not(.n-popover--raw),
+.n-popover:not(.n-popover--raw):not(.n-tooltip),
 .n-dropdown-menu {
   border: 1px solid var(--glass-border) !important;
   background-color: var(--glass-elevated) !important;
@@ -559,12 +559,12 @@ select:focus-visible {
 }
 
 @media (max-width: 767px) {
-  .glass-mobile-header,
+  .glass-app-header,
   .app-sidebar,
   .n-modal,
   .n-dialog,
   .n-drawer,
-  .n-popover:not(.n-popover--raw),
+  .n-popover:not(.n-popover--raw):not(.n-tooltip),
   .n-dropdown-menu {
     -webkit-backdrop-filter: blur(12px) saturate(125%);
     backdrop-filter: blur(12px) saturate(125%);
@@ -572,12 +572,12 @@ select:focus-visible {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .glass-mobile-header,
+  .glass-app-header,
   .app-sidebar,
   .n-modal,
   .n-dialog,
   .n-drawer,
-  .n-popover:not(.n-popover--raw),
+  .n-popover:not(.n-popover--raw):not(.n-tooltip),
   .n-dropdown-menu {
     background: var(--theme-bg) !important;
     -webkit-backdrop-filter: none !important;
@@ -586,12 +586,12 @@ select:focus-visible {
 }
 
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .glass-mobile-header,
+  .glass-app-header,
   .app-sidebar,
   .n-modal,
   .n-dialog,
   .n-drawer,
-  .n-popover:not(.n-popover--raw),
+  .n-popover:not(.n-popover--raw):not(.n-tooltip),
   .n-dropdown-menu {
     background: var(--glass-elevated) !important;
   }

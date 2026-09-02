@@ -75,9 +75,12 @@ export const usePetStore = defineStore('pet', () => {
   const protectLogs = ref<PetProtectLog[]>([])
   const protectLogsTotal = ref(0)
   const protectLogsLoading = ref(false)
+  const claimingGifts = ref(false)
+  const giftError = ref('')
   const error = ref('')
   const accountId = ref('')
   let requestSequence = 0
+  let giftRequestSequence = 0
 
   const dogs = computed(() => snapshot.value?.dogs || [])
   const foods = computed(() => snapshot.value?.foods || [])
@@ -85,6 +88,7 @@ export const usePetStore = defineStore('pet', () => {
 
   function clear() {
     requestSequence++
+    giftRequestSequence++
     snapshot.value = null
     loading.value = false
     usingFood.value = false
@@ -92,6 +96,8 @@ export const usePetStore = defineStore('pet', () => {
     protectLogs.value = []
     protectLogsTotal.value = 0
     protectLogsLoading.value = false
+    claimingGifts.value = false
+    giftError.value = ''
     error.value = ''
     accountId.value = ''
   }
@@ -134,6 +140,7 @@ export const usePetStore = defineStore('pet', () => {
     const sequence = ++requestSequence
     accountId.value = id
     loading.value = true
+    giftError.value = ''
     error.value = ''
     try {
       const res = await api.get('/api/pets', {
@@ -158,6 +165,47 @@ export const usePetStore = defineStore('pet', () => {
     finally {
       if (sequence === requestSequence && accountId.value === id)
         loading.value = false
+    }
+  }
+
+  async function claimDogSkillGifts(requestedAccountId: string) {
+    const id = String(requestedAccountId || '').trim()
+    if (!id || claimingGifts.value)
+      return null
+
+    const sequence = ++giftRequestSequence
+    claimingGifts.value = true
+    giftError.value = ''
+    try {
+      const res = await api.post('/api/dog/skill-gifts/claim', {}, {
+        headers: { 'x-account-id': id },
+        skipErrorToast: true,
+      } as any)
+      if (!res.data?.ok || res.data?.data?.error) {
+        if (sequence === giftRequestSequence && accountId.value === id)
+          giftError.value = String(res.data?.data?.error || res.data?.error || '拾取礼包失败')
+        return null
+      }
+
+      const data = res.data.data || {}
+      if (sequence !== giftRequestSequence || accountId.value !== id)
+        return null
+      if (snapshot.value) {
+        snapshot.value = {
+          ...snapshot.value,
+          pendingGiftCount: Math.max(0, Number(data.pending || 0)),
+        }
+      }
+      return data
+    }
+    catch (cause: any) {
+      if (sequence === giftRequestSequence && accountId.value === id)
+        giftError.value = String(cause?.response?.data?.error || cause?.message || '拾取礼包失败')
+      return null
+    }
+    finally {
+      if (sequence === giftRequestSequence)
+        claimingGifts.value = false
     }
   }
 
@@ -251,10 +299,13 @@ export const usePetStore = defineStore('pet', () => {
     protectLogs,
     protectLogsTotal,
     protectLogsLoading,
+    claimingGifts,
+    giftError,
     error,
     accountId,
     fetchPetInfo,
     fetchProtectLogs,
+    claimDogSkillGifts,
     useDogFood,
     deployDog,
     withdrawDog,

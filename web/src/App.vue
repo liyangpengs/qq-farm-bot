@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { dateZhCN, NConfigProvider, NDialogProvider, NGlobalStyle, NMessageProvider, NNotificationProvider, zhCN } from 'naive-ui'
+import { NConfigProvider } from 'naive-ui/es/config-provider'
+import { NDialogProvider } from 'naive-ui/es/dialog'
+import { NGlobalStyle } from 'naive-ui/es/global-style'
+import { dateZhCN, zhCN } from 'naive-ui/es/locales'
+import { NMessageProvider } from 'naive-ui/es/message'
+import { NNotificationProvider } from 'naive-ui/es/notification'
 import { RouterView } from 'vue-router'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createNaiveThemeOverrides } from '@/ui/naive-theme'

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ActivityRulesDto } from '@/stores/activity-center'
-import { NCard, NModal } from 'naive-ui'
+import { NCard } from 'naive-ui/es/card'
+import { NModal } from 'naive-ui/es/modal'
 
 withDefaults(defineProps<{
   open: boolean

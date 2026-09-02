@@ -3,7 +3,7 @@ export {};
  * 邮箱系统 - 自动领取邮箱奖励
  */
 
-const { sendMsgAsync, sendMsgNoReply } = require('../utils/network');
+const { sendMsgAsync } = require('../utils/network');
 const { types } = require('../utils/proto');
 const { log, toNum, getSystemDateKey } = require('../utils/utils');
 
@@ -11,6 +11,10 @@ const DAILY_KEY: string = 'email_rewards';
 let doneDateKey: string = '';
 let lastCheckAt: number = 0;
 const CHECK_COOLDOWN_MS: number = 5 * 60 * 1000;
+
+function isEmailCheckDue(previousCheckAt: number, now: number, force: boolean = false): boolean {
+    return force || now - previousCheckAt >= CHECK_COOLDOWN_MS;
+}
 
 function markDoneToday(): void {
     doneDateKey = getSystemDateKey();
@@ -37,12 +41,15 @@ async function claimEmail(boxType: number = 1, emailId: string = ''): Promise<an
     return types.ClaimEmailReply.decode(replyBody);
 }
 
-async function batchClaimEmail(boxType: number = 1, emailIds: string[] = []): Promise<void> {
+async function batchClaimEmail(boxType: number = 1, emailIds: string[] = []): Promise<any> {
     const body: Uint8Array = types.BatchClaimEmailRequest.encode(types.BatchClaimEmailRequest.create({
         box_type: normalizeBoxType(boxType),
         email_ids: emailIds.map(String).filter(Boolean),
     })).finish();
-    await sendMsgNoReply('gamepb.emailpb.EmailService', 'BatchClaimEmail', body);
+    // BatchClaimEmail 有正式响应。等待回包后才能把邮件计入已领取，
+    // 否则发送成功但网关返回业务错误时会被误判为成功。
+    const { body: replyBody } = await sendMsgAsync('gamepb.emailpb.EmailService', 'BatchClaimEmail', body);
+    return types.BatchClaimEmailReply.decode(replyBody);
 }
 
 function collectClaimableEmails(reply: any): any[] {
@@ -72,8 +79,7 @@ function getRewardSummary(items: any[]): string {
 
 async function checkAndClaimEmails(force: boolean = false): Promise<{ claimed: number; rewardItems: number }> {
     const now: number = Date.now();
-    if (!force && isDoneToday()) return { claimed: 0, rewardItems: 0 };
-    if (!force && now - lastCheckAt < CHECK_COOLDOWN_MS) return { claimed: 0, rewardItems: 0 };
+    if (!isEmailCheckDue(lastCheckAt, now, force)) return { claimed: 0, rewardItems: 0 };
     lastCheckAt = now;
 
     try {
@@ -87,7 +93,7 @@ async function checkAndClaimEmails(force: boolean = false): Promise<{ claimed: n
         const claimable: any[] = collectClaimableEmails({ emails: [...fromBox1, ...fromBox2] });
         if (claimable.length === 0) {
             markDoneToday();
-            log('邮箱', '今日暂无可领取邮箱奖励', {
+            log('邮箱', '当前暂无可领取邮箱奖励', {
                 module: 'task',
                 event: DAILY_KEY,
                 result: 'none',
@@ -170,6 +176,8 @@ module.exports = {
     batchClaimEmail,
     batchDeleteEmail,
     checkAndClaimEmails,
+    CHECK_COOLDOWN_MS,
+    isEmailCheckDue,
     getEmailDailyState: () => ({
         key: DAILY_KEY,
         doneToday: isDoneToday(),

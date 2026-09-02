@@ -189,38 +189,48 @@ function itemCount(uid: string) {
 <style scoped>
 .qingmei-page {
   min-height: 100%;
-  padding: 126px 14px 100px;
-  color: #193b2f;
-  background: linear-gradient(180deg, #cbead2 0, #eef5dc 36%, #f7edcb 100%);
+  padding: 24px 14px 100px;
+  color: #203a32;
+  background: linear-gradient(
+    145deg,
+    rgba(225, 241, 235, 0.96),
+    rgba(246, 248, 247, 0.98) 48%,
+    rgba(235, 239, 247, 0.96)
+  );
 }
 .qingmei-hero {
-  padding: 0 5px 16px;
+  margin: 0 auto 14px;
+  padding: 18px;
+  border: 1px solid rgba(49, 82, 70, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 10px 26px rgba(38, 68, 57, 0.07);
 }
 .qingmei-kicker {
   display: block;
-  color: #9b5d26;
+  color: #5c7b6c;
   font-size: 11px;
   font-weight: 700;
 }
 .qingmei-hero h1 {
   margin: 2px 0 5px;
-  color: #174d39;
+  color: #2b493f;
   font-size: 30px;
   line-height: 1.1;
   letter-spacing: 0;
 }
 .qingmei-hero p {
   margin: 0;
-  color: #557064;
+  color: #647a70;
   font-size: 12px;
 }
 .qingmei-panel {
   margin-bottom: 12px;
   padding: 14px;
-  border: 1px solid rgba(34, 91, 62, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 4px 14px rgba(64, 91, 53, 0.1);
+  border: 1px solid rgba(49, 82, 70, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 10px 26px rgba(38, 68, 57, 0.07);
 }
 .balance-panel {
   display: flex;
@@ -257,9 +267,9 @@ function itemCount(uid: string) {
   min-height: 38px;
   padding: 0 13px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 10px;
   color: #fff;
-  background: #397b4b;
+  background: #2e8a66;
   font-weight: 700;
   cursor: pointer;
 }
@@ -283,8 +293,9 @@ function itemCount(uid: string) {
 .base-price {
   padding: 4px 7px;
   border-radius: 4px;
-  color: #795a28 !important;
-  background: #f8e8b9;
+  color: #8d633f !important;
+  background: #fff8df;
+  border: 1px solid #ead9ad;
 }
 .brew-setup {
   display: grid;
@@ -304,7 +315,7 @@ function itemCount(uid: string) {
 }
 .setup-heading button {
   border: 0;
-  color: #397b4b;
+  color: #2e8a66;
   background: transparent;
   font-size: 12px;
   font-weight: 700;
@@ -322,15 +333,15 @@ function itemCount(uid: string) {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid #b8c9ba;
-  border-radius: 7px;
+  border: 1px solid rgba(49, 82, 70, 0.14);
+  border-radius: 10px;
   color: #315244;
-  background: #f6f8f1;
+  background: rgba(255, 255, 255, 0.56);
 }
 .ingredient-choice.selected {
-  border-color: #397b4b;
-  box-shadow: inset 0 0 0 1px #397b4b;
-  background: #edf6e9;
+  border-color: rgba(46, 138, 102, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(46, 138, 102, 0.35);
+  background: rgba(230, 244, 237, 0.88);
 }
 .ingredient-toggle {
   width: 100%;
@@ -376,13 +387,13 @@ function itemCount(uid: string) {
   display: grid !important;
   place-items: center;
   border: 1px solid #91aa99;
-  border-radius: 4px;
+  border-radius: 7px;
   color: white;
   background: white;
 }
 .ingredient-choice.selected .selection-mark {
-  border-color: #397b4b;
-  background: #397b4b;
+  border-color: #2e8a66;
+  background: #2e8a66;
 }
 .start-controls > button {
   min-width: 112px;
@@ -396,14 +407,14 @@ function itemCount(uid: string) {
 .count-control input {
   height: 38px;
   border: 1px solid #9eb5a7;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 .count-control button {
   display: grid;
   place-items: center;
   padding: 0;
   color: #315244;
-  background: #edf3e9;
+  background: rgba(236, 245, 240, 0.9);
 }
 .count-control button:disabled,
 .count-control input:disabled {
@@ -417,8 +428,8 @@ function itemCount(uid: string) {
   width: 100%;
   min-width: 0;
   padding: 0 6px;
-  color: #173a2e;
-  background: #fff;
+  color: #203a32;
+  background: rgba(255, 255, 255, 0.82);
   font-size: 15px;
   text-align: center;
 }
@@ -434,16 +445,10 @@ function itemCount(uid: string) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 1px solid #b7c8b8;
-  border-radius: 6px;
+  border: 1px solid rgba(49, 82, 70, 0.14);
+  border-radius: 10px;
   color: #436052;
-  background: #f5f8ef;
-  cursor: pointer;
-}
-.quote.selected {
-  border-color: #a46727;
-  box-shadow: inset 0 0 0 1px #a46727;
-  background: #fff2c9;
+  background: rgba(255, 255, 255, 0.56);
 }
 .quote span,
 .quote small {
@@ -452,13 +457,12 @@ function itemCount(uid: string) {
 .quote strong {
   max-width: 100%;
   overflow: hidden;
-  color: #7c4d1f;
+  color: #8d633f;
   font-size: 16px;
   text-overflow: ellipsis;
 }
 .quote.pending {
   opacity: 0.58;
-  cursor: default;
 }
 .quote.pending strong {
   color: #728079;
@@ -471,14 +475,14 @@ function itemCount(uid: string) {
   margin-top: 11px;
 }
 .continue-button {
-  background: #4d7c67 !important;
+  background: #3b9a73 !important;
 }
 .sell-button {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: #a96624 !important;
+  background: #2e8a66 !important;
 }
 .first-quote-hint {
   margin: 9px 0 0;
@@ -487,14 +491,18 @@ function itemCount(uid: string) {
   text-align: center;
 }
 .qingmei-rules {
-  padding: 14px 5px;
-  color: #546b5e;
+  margin-top: 12px;
+  padding: 16px 18px;
+  border: 1px solid rgba(49, 82, 70, 0.1);
+  border-radius: 14px;
+  color: #647a70;
+  background: rgba(255, 255, 255, 0.42);
   font-size: 11px;
   line-height: 1.65;
 }
 .qingmei-rules h2 {
   margin: 0 0 7px;
-  color: #294e3c;
+  color: #2b493f;
   font-size: 14px;
 }
 .qingmei-rules p {

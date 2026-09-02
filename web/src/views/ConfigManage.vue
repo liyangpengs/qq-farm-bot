@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
-import { NButton, NInput, NPagination } from 'naive-ui'
+import { NButton } from 'naive-ui/es/button'
+import { NInput } from 'naive-ui/es/input'
+import { NPagination } from 'naive-ui/es/pagination'
 import { computed, onMounted, ref, watch } from 'vue'
 import api from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'

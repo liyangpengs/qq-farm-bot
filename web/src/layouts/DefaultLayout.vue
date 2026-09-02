@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { NButton } from 'naive-ui'
+import { useMediaQuery } from '@vueuse/core'
+import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import MobileBottomNav from '@/components/MobileBottomNav.vue'
 import Sidebar from '@/components/Sidebar.vue'
@@ -8,7 +10,17 @@ import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
 const route = useRoute()
-const { sidebarOpen } = storeToRefs(appStore)
+const isDesktop = useMediaQuery('(min-width: 1024px)')
+const { sidebarOpen, sidebarCollapsed } = storeToRefs(appStore)
+const navigationExpanded = computed(() => isDesktop.value ? !sidebarCollapsed.value : sidebarOpen.value)
+const navigationToggleLabel = computed(() => navigationExpanded.value ? '收起侧栏' : '展开侧栏')
+
+function toggleNavigation() {
+  if (isDesktop.value)
+    appStore.toggleSidebarCollapsed()
+  else
+    appStore.toggleSidebar()
+}
 </script>
 
 <template>
@@ -22,19 +34,27 @@ const { sidebarOpen } = storeToRefs(appStore)
     <Sidebar />
 
     <main class="app-main relative h-full min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden">
-      <header v-if="!route.meta.fullBleed" class="glass-mobile-header lg:hidden">
+      <header v-if="!route.meta.fullBleed" class="glass-app-header">
         <div class="mobile-heading min-w-0">
           <span class="mobile-heading__brand">
             <span class="i-carbon-sprout" />
             QQ农场智能助手
           </span>
         </div>
-        <NButton quaternary circle aria-label="打开全部导航" @click="appStore.toggleSidebar">
+        <NButton
+          quaternary
+          circle
+          aria-controls="app-sidebar"
+          :aria-expanded="navigationExpanded"
+          :aria-label="navigationToggleLabel"
+          :title="navigationToggleLabel"
+          @click="toggleNavigation"
+        >
           <div class="i-carbon-menu text-xl" />
         </NButton>
       </header>
 
-      <div class="app-content flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div class="app-content min-h-0 flex flex-1 flex-col overflow-hidden">
         <div
           class="page-scroll custom-scrollbar flex flex-1 flex-col"
           :class="route.meta.fullBleed ? 'overflow-hidden p-0' : 'overflow-y-auto'"
@@ -63,7 +83,7 @@ const { sidebarOpen } = storeToRefs(appStore)
   backdrop-filter: blur(3px);
 }
 
-.glass-mobile-header {
+.glass-app-header {
   display: flex;
   min-height: 58px;
   flex: none;
@@ -140,7 +160,7 @@ const { sidebarOpen } = storeToRefs(appStore)
 }
 
 @media (max-width: 480px) {
-  .glass-mobile-header {
+  .glass-app-header {
     margin-inline: 8px;
   }
 

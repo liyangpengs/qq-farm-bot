@@ -1,3 +1,4 @@
+import type { CareerHarvestSteal } from '@/components/CareerHarvestSteal.vue'
 import type {
   FriendInteractionBatchDto,
   FriendInteractionEffectDto,
@@ -6,6 +7,8 @@ import type {
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '@/api'
+
+export type FertilizerType = 'normal' | 'organic'
 
 export interface Land {
   id: number
@@ -17,7 +20,23 @@ export interface Land {
   needWater?: boolean
   needWeed?: boolean
   needBug?: boolean
+  leftInorcFertTimes?: number | null
   [key: string]: any
+}
+
+export interface FertilizeLandResult {
+  landId: number
+  fertilizerType: FertilizerType
+  fertilizerRemainingSec: number
+  updatedLand?: Land | null
+}
+
+function userFacingFertilizeError(raw: unknown, fallback = '施肥失败') {
+  const text = String(raw || '').trim()
+  if (!text)
+    return fallback
+  const chinese = text.match(/错误:\s*code=\d+\s+(.+)$/)?.[1]
+  return (chinese || text).trim() || fallback
 }
 
 // UseReply.land 是刚成功操作后的权威快照，短期内不允许被随后的 AllLands 旧快照覆盖。
@@ -27,6 +46,8 @@ export const useFarmStore = defineStore('farm', () => {
   const lands = ref<Land[]>([])
   const seeds = ref<any[]>([])
   const summary = ref<any>({})
+  const socialEvents = ref<any[]>([])
+  const career = ref<CareerHarvestSteal | null>(null)
   const loading = ref(false)
   const loaded = ref(false)
   const error = ref('')
@@ -37,14 +58,10 @@ export const useFarmStore = defineStore('farm', () => {
   const interactionUseError = ref('')
   const interactionItemsAccountId = ref('')
   const interactionUsedLandIds = ref<Record<string, string[]>>({})
-  const dogSkillGiftPendingCount = ref(0)
-  const dogSkillGiftStatusLoading = ref(false)
-  const dogSkillGiftClaiming = ref(false)
-  const dogSkillGiftError = ref('')
-  const dogSkillGiftAccountId = ref('')
+  const fertilizePending = ref(false)
+  const fertilizeError = ref('')
   let landRequestSequence = 0
   let interactionItemsRequestSequence = 0
-  let dogSkillGiftRequestSequence = 0
   let landOverlay: { lands: any[], effects: FriendInteractionEffectDto[], updatedAt: number } | null = null
 
   function normalizeLandId(value: unknown) {
@@ -137,14 +154,20 @@ export const useFarmStore = defineStore('farm', () => {
       if (data && data.ok) {
         lands.value = applyLandOverlay(data.data.lands || [])
         summary.value = data.data.summary || {}
+        socialEvents.value = Array.isArray(data.data.socialEvents) ? data.data.socialEvents : []
+        career.value = data.data.career || null
         return true
       }
+      career.value = null
+      socialEvents.value = []
       error.value = String(data?.error || '无法读取土地数据')
       return false
     }
     catch (cause: any) {
       if (sequence !== landRequestSequence)
         return false
+      career.value = null
+      socialEvents.value = []
       error.value = String(cause?.response?.data?.error || cause?.message || '无法读取土地数据，请稍后重试')
       return false
     }
@@ -160,94 +183,15 @@ export const useFarmStore = defineStore('farm', () => {
     landRequestSequence++
     lands.value = []
     summary.value = {}
+    socialEvents.value = []
+    career.value = null
     loading.value = false
     loaded.value = false
     error.value = ''
     landOverlay = null
+    fertilizePending.value = false
+    fertilizeError.value = ''
     resetInteractionState()
-    resetDogSkillGiftState()
-  }
-
-  function resetDogSkillGiftState() {
-    dogSkillGiftRequestSequence++
-    dogSkillGiftPendingCount.value = 0
-    dogSkillGiftStatusLoading.value = false
-    dogSkillGiftClaiming.value = false
-    dogSkillGiftError.value = ''
-    dogSkillGiftAccountId.value = ''
-  }
-
-  async function fetchDogSkillGiftStatus(accountId: string) {
-    const requestedAccountId = String(accountId || '').trim()
-    if (!requestedAccountId)
-      return false
-
-    const sequence = ++dogSkillGiftRequestSequence
-    if (dogSkillGiftAccountId.value !== requestedAccountId) {
-      dogSkillGiftPendingCount.value = 0
-      dogSkillGiftAccountId.value = requestedAccountId
-    }
-    dogSkillGiftStatusLoading.value = true
-    dogSkillGiftError.value = ''
-    try {
-      const res = await api.get('/api/dog/skill-gifts', {
-        headers: { 'x-account-id': requestedAccountId },
-        skipErrorToast: true,
-      } as any)
-      if (sequence !== dogSkillGiftRequestSequence || dogSkillGiftAccountId.value !== requestedAccountId)
-        return false
-      if (!res.data?.ok) {
-        dogSkillGiftError.value = String(res.data?.error || '无法读取待拾取礼包')
-        return false
-      }
-      dogSkillGiftPendingCount.value = Math.max(0, Number(res.data?.data?.pendingCount || 0))
-      return true
-    }
-    catch (cause: any) {
-      if (sequence !== dogSkillGiftRequestSequence || dogSkillGiftAccountId.value !== requestedAccountId)
-        return false
-      dogSkillGiftError.value = String(cause?.response?.data?.error || cause?.message || '无法读取待拾取礼包')
-      return false
-    }
-    finally {
-      if (sequence === dogSkillGiftRequestSequence && dogSkillGiftAccountId.value === requestedAccountId)
-        dogSkillGiftStatusLoading.value = false
-    }
-  }
-
-  async function claimDogSkillGifts(accountId: string) {
-    const requestedAccountId = String(accountId || '').trim()
-    if (!requestedAccountId || dogSkillGiftClaiming.value)
-      return false
-
-    const sequence = ++dogSkillGiftRequestSequence
-    dogSkillGiftAccountId.value = requestedAccountId
-    dogSkillGiftClaiming.value = true
-    dogSkillGiftError.value = ''
-    try {
-      const res = await api.post('/api/dog/skill-gifts/claim', {}, {
-        headers: { 'x-account-id': requestedAccountId },
-        skipErrorToast: true,
-      } as any)
-      if (sequence !== dogSkillGiftRequestSequence || dogSkillGiftAccountId.value !== requestedAccountId)
-        return false
-      if (!res.data?.ok || res.data?.data?.error) {
-        dogSkillGiftError.value = String(res.data?.data?.error || res.data?.error || '拾取礼包失败')
-        return false
-      }
-      dogSkillGiftPendingCount.value = Math.max(0, Number(res.data?.data?.pending || 0))
-      return res.data.data
-    }
-    catch (cause: any) {
-      if (sequence !== dogSkillGiftRequestSequence || dogSkillGiftAccountId.value !== requestedAccountId)
-        return false
-      dogSkillGiftError.value = String(cause?.response?.data?.error || cause?.message || '拾取礼包失败')
-      return false
-    }
-    finally {
-      if (sequence === dogSkillGiftRequestSequence && dogSkillGiftAccountId.value === requestedAccountId)
-        dogSkillGiftClaiming.value = false
-    }
   }
 
   function interactionUsageKey(accountId: string, itemId: unknown) {
@@ -360,19 +304,55 @@ export const useFarmStore = defineStore('farm', () => {
       seeds.value = data.data || []
   }
 
-  async function operate(accountId: string, opType: string) {
+  async function fertilizeLand(accountId: string, landId: number, fertilizerType: FertilizerType) {
+    if (!accountId || !landId || fertilizePending.value)
+      return false
+    fertilizePending.value = true
+    fertilizeError.value = ''
+    try {
+      const res = await api.post('/api/farm/fertilize', {
+        landId,
+        fertilizerType,
+      }, {
+        headers: { 'x-account-id': accountId },
+        skipErrorToast: true,
+      } as any)
+      if (!res.data?.ok) {
+        fertilizeError.value = userFacingFertilizeError(res.data?.error)
+        return false
+      }
+      const result = res.data.data as FertilizeLandResult
+      if (result?.updatedLand)
+        recordLandUpdates([result.updatedLand])
+      else
+        await fetchLands(accountId)
+      return result
+    }
+    catch (cause: any) {
+      fertilizeError.value = userFacingFertilizeError(cause?.response?.data?.error || cause?.message)
+      return false
+    }
+    finally {
+      fertilizePending.value = false
+    }
+  }
+
+  async function operate(accountId: string, opType: string, landId: number | null = null) {
     if (!accountId)
-      return
-    await api.post('/api/farm/operate', { opType }, {
+      return false
+    const res = await api.post('/api/farm/operate', { opType, landId }, {
       headers: { 'x-account-id': accountId },
     })
     landOverlay = null
     await fetchLands(accountId)
+    return res.data?.data || { hadWork: false, actions: [] }
   }
 
   return {
     lands,
     summary,
+    socialEvents,
+    career,
     seeds,
     loading,
     loaded,
@@ -382,10 +362,8 @@ export const useFarmStore = defineStore('farm', () => {
     interactionItemsError,
     interactionUsePending,
     interactionUseError,
-    dogSkillGiftPendingCount,
-    dogSkillGiftStatusLoading,
-    dogSkillGiftClaiming,
-    dogSkillGiftError,
+    fertilizePending,
+    fertilizeError,
     fetchLands,
     resetLandState,
     fetchSeeds,
@@ -394,8 +372,6 @@ export const useFarmStore = defineStore('farm', () => {
     useInteractionItemBatch,
     getInteractionUsedLandIds,
     resetInteractionState,
-    fetchDogSkillGiftStatus,
-    claimDogSkillGifts,
-    resetDogSkillGiftState,
+    fertilizeLand,
   }
 })

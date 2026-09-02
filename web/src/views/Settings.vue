@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { NButton, NTab, NTabs, NTimePicker } from 'naive-ui'
+import { NButton } from 'naive-ui/es/button'
+import { NTab, NTabs } from 'naive-ui/es/tabs'
+import { NTimePicker } from 'naive-ui/es/time-picker'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -7,6 +9,7 @@ import api from '@/api'
 import AccountModal from '@/components/AccountModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import AutomationSettingsForm from '@/components/settings/AutomationSettingsForm.vue'
+import BagSeedPriorityItem from '@/components/settings/BagSeedPriorityItem.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
@@ -31,8 +34,6 @@ const initialTab = settingsTabKeys.includes(queryTab as SettingsTab)
   ? queryTab as SettingsTab
   : storedTab === 'user' ? 'system' : (storedTab as SettingsTab) || 'account'
 const activeTab = ref<SettingsTab>(initialTab)
-const chevronUpIconClass = 'i-carbon-chevron-up'
-const chevronDownIconClass = 'i-carbon-chevron-down'
 
 watch(activeTab, (newTab) => {
   localStorage.setItem('settings-active-tab', newTab)
@@ -250,11 +251,12 @@ const localStrategySettings = ref({
   plantingStrategy: 'max_exp',
   preferredSeedId: 0,
   bagSeedPriority: [] as number[],
+  bagSeedLandTypes: {} as Record<string, string[]>,
   bagSeedFallbackStrategy: 'level',
   stealDelaySeconds: 0,
   plantOrderRandom: false,
   plantDelaySeconds: 0,
-  intervals: { farmMin: 2, farmMax: 5, helpMin: 10, helpMax: 15, stealMin: 10, stealMax: 15 },
+  intervals: { farmMin: 2, farmMax: 5, friendMin: 10, friendMax: 15 },
   friendQuietHours: { enabled: false, start: '23:00', end: '07:00', continueFarm: true },
 })
 
@@ -283,6 +285,7 @@ interface BagSeedItem {
   count: number
   requiredLevel: number
   plantSize: number
+  image?: string
 }
 
 const bagSeeds = ref<BagSeedItem[]>([])
@@ -342,6 +345,42 @@ const sortedBagSeeds = computed(() => {
   return normalizeVisibleBagSeedOrder()
     .map(seedId => itemMap.get(seedId))
     .filter((seed): seed is BagSeedItem => !!seed)
+})
+
+function setBagSeedLandTypes(seedId: number, types: string[]) {
+  const next = { ...localStrategySettings.value.bagSeedLandTypes }
+  // 按固定顺序收敛；不勾或勾满都等价于不限制，直接去掉该 seedId。
+  const normalized = fertilizerLandTypeOptions
+    .map(option => option.value)
+    .filter(value => types.includes(value))
+  if (normalized.length === 0 || normalized.length === fertilizerLandTypeOptions.length)
+    delete next[String(seedId)]
+  else
+    next[String(seedId)] = normalized
+  localStrategySettings.value.bagSeedLandTypes = next
+}
+
+// 设置页只列背包里现有的种子，缺货种子的限制仍保留，这里显式列出以免出现看不见的规则。
+const orphanRestrictedSeeds = computed(() => {
+  // 背包列表未加载时无法判断谁真的缺货，此时不显示，避免误清除已有限制。
+  if (bagSeeds.value.length === 0)
+    return []
+  const visible = new Set(visibleBagSeedIds.value)
+  return Object.entries(localStrategySettings.value.bagSeedLandTypes)
+    .map(([seedId, types]) => ({ seedId: Number(seedId), types: types || [] }))
+    .filter(item => item.seedId > 0 && item.types.length > 0 && !visible.has(item.seedId))
+    .sort((a, b) => a.seedId - b.seedId)
+    .map((item) => {
+      const known = seedOptions.value.find(seed => seed.seedId === item.seedId)
+      const labels = fertilizerLandTypeOptions
+        .filter(option => item.types.includes(option.value))
+        .map(option => option.label)
+      return {
+        seedId: item.seedId,
+        name: known ? known.name : `种子 #${item.seedId}`,
+        scope: `仅种 ${labels.join('、')}`,
+      }
+    })
 })
 
 function isAccountConnected(accountId: string) {
@@ -673,6 +712,7 @@ function syncLocalStrategySettings() {
       plantingStrategy: settings.value.plantingStrategy,
       preferredSeedId: settings.value.preferredSeedId,
       bagSeedPriority: settings.value.bagSeedPriority ?? [],
+      bagSeedLandTypes: settings.value.bagSeedLandTypes ?? {},
       bagSeedFallbackStrategy: settings.value.bagSeedFallbackStrategy ?? 'level',
       stealDelaySeconds: settings.value.stealDelaySeconds ?? 0,
       plantOrderRandom: !!settings.value.plantOrderRandom,
@@ -793,12 +833,14 @@ const localAutomationSettings = ref({
     task: false,
     sell: true,
     friend: false,
+    friend_auto_accept: true,
     farm_push: false,
     land_upgrade: true,
     friend_steal: false,
     friend_help: false,
     friend_bad: true,
     friend_help_exp_limit: false,
+    friend_help_protect_dog_ignore_exp_limit: true,
     fertilizer_gift: false,
     fertilizer_buy_organic: false,
     fertilizer_buy_normal: false,
@@ -814,12 +856,18 @@ const localAutomationSettings = ref({
     fertilizer_multi_season: false,
     fertilizer_land_types: [...allFertilizerLandTypes],
     fertilizer_smart_seconds: 300,
+    show_manual_fertilizer: true,
   },
   fertilizerBuyOrganicCount: 10,
   fertilizerBuyOrganicThresholdHours: 10,
   fertilizerBuyNormalCount: 10,
   fertilizerBuyNormalThresholdHours: 10,
   fertilizerBuyCheckIntervalMinutes: 30,
+  autoAcceptFriendMinLevel: 0,
+  autoAcceptRequireOwnLevel: false,
+  autoAcceptHarvestStealEnabled: true,
+  autoAcceptHarvestStealHarvest: 8,
+  autoAcceptHarvestStealSteal: 1,
 })
 
 const fertilizerOptions = [
@@ -838,12 +886,14 @@ function syncLocalAutomationSettings() {
         task: false,
         sell: false,
         friend: false,
+        friend_auto_accept: true,
         farm_push: false,
         land_upgrade: false,
         friend_steal: false,
         friend_help: false,
         friend_bad: false,
         friend_help_exp_limit: false,
+        friend_help_protect_dog_ignore_exp_limit: true,
         fertilizer_gift: false,
         fertilizer_buy_organic: false,
         fertilizer_buy_normal: false,
@@ -859,6 +909,7 @@ function syncLocalAutomationSettings() {
         fertilizer_multi_season: false,
         fertilizer_land_types: [...allFertilizerLandTypes],
         fertilizer_smart_seconds: 300,
+        show_manual_fertilizer: true,
       }
     }
     else {
@@ -867,12 +918,14 @@ function syncLocalAutomationSettings() {
         task: false,
         sell: false,
         friend: false,
+        friend_auto_accept: true,
         farm_push: false,
         land_upgrade: false,
         friend_steal: false,
         friend_help: false,
         friend_bad: false,
         friend_help_exp_limit: false,
+        friend_help_protect_dog_ignore_exp_limit: true,
         fertilizer_gift: false,
         fertilizer_buy_organic: false,
         fertilizer_buy_normal: false,
@@ -888,6 +941,7 @@ function syncLocalAutomationSettings() {
         fertilizer_multi_season: false,
         fertilizer_land_types: [...allFertilizerLandTypes],
         fertilizer_smart_seconds: 300,
+        show_manual_fertilizer: true,
       }
       localAutomationSettings.value.automation = {
         ...defaults,
@@ -898,11 +952,19 @@ function syncLocalAutomationSettings() {
     if (localAutomationSettings.value.automation.fertilizer_smart_seconds === undefined) {
       localAutomationSettings.value.automation.fertilizer_smart_seconds = 300
     }
+    if (localAutomationSettings.value.automation.show_manual_fertilizer === undefined) {
+      localAutomationSettings.value.automation.show_manual_fertilizer = true
+    }
     localAutomationSettings.value.fertilizerBuyOrganicCount = settings.value.fertilizerBuyOrganicCount ?? 10
     localAutomationSettings.value.fertilizerBuyOrganicThresholdHours = settings.value.fertilizerBuyOrganicThresholdHours ?? 10
     localAutomationSettings.value.fertilizerBuyNormalCount = settings.value.fertilizerBuyNormalCount ?? 10
     localAutomationSettings.value.fertilizerBuyNormalThresholdHours = settings.value.fertilizerBuyNormalThresholdHours ?? 10
     localAutomationSettings.value.fertilizerBuyCheckIntervalMinutes = settings.value.fertilizerBuyCheckIntervalMinutes ?? 30
+    localAutomationSettings.value.autoAcceptFriendMinLevel = settings.value.autoAcceptFriendMinLevel ?? 0
+    localAutomationSettings.value.autoAcceptRequireOwnLevel = settings.value.autoAcceptRequireOwnLevel ?? false
+    localAutomationSettings.value.autoAcceptHarvestStealEnabled = settings.value.autoAcceptHarvestStealEnabled ?? true
+    localAutomationSettings.value.autoAcceptHarvestStealHarvest = settings.value.autoAcceptHarvestStealHarvest ?? 8
+    localAutomationSettings.value.autoAcceptHarvestStealSteal = settings.value.autoAcceptHarvestStealSteal ?? 1
   }
 }
 
@@ -999,6 +1061,7 @@ const channelOptions = [
   { label: '企业微信群机器人', value: 'wecombot' },
   { label: 'Discord', value: 'discord' },
   { label: 'WxPusher', value: 'wxpusher' },
+  { label: 'MeoW', value: 'meow' },
 ]
 
 const CHANNEL_DOCS: Record<string, string> = {
@@ -1021,15 +1084,21 @@ const CHANNEL_DOCS: Record<string, string> = {
   ifttt: 'https://ifttt.com/maker_webhooks',
   discord: 'https://discord.com/developers/docs/resources/webhook#execute-webhook',
   wxpusher: 'https://wxpusher.zjiecode.com/docs/#/',
+  meow: 'https://www.chuckfang.com/MeoW/api_doc.html',
 }
 
 const offlineChannel = computed(() => String(localOffline.value.channel || '').trim().toLowerCase())
 const isDingTalkChannel = computed(() => offlineChannel.value === 'dingtalk')
+const isMeowChannel = computed(() => offlineChannel.value === 'meow')
 const offlineChannelUsesEndpoint = computed(() => offlineChannel.value === 'webhook' || isDingTalkChannel.value)
 const offlineEndpointLabel = computed(() => isDingTalkChannel.value ? 'Webhook 地址' : '接口地址')
 const offlineEndpointPlaceholder = computed(() => isDingTalkChannel.value
   ? '从钉钉群机器人设置页复制完整 Webhook'
   : '接收消息的接口地址')
+const offlineTokenLabel = computed(() => isMeowChannel.value ? '昵称' : 'Token')
+const offlineTokenPlaceholder = computed(() => isMeowChannel.value
+  ? 'MeoW 注册昵称'
+  : '接收端 token')
 const currentChannelDocUrl = computed(() => CHANNEL_DOCS[offlineChannel.value] || '')
 
 function openChannelDocs() {
@@ -1590,6 +1659,9 @@ async function handleResetSystemConfig() {
                     <p class="mt-1 text-xs text-amber-700/90 dark:text-amber-300/90">
                       先按下方顺序消耗背包中的 1x1 / 2x2 种子；背包种子不足时，再按“第二优先策略”补种。切换第二优先策略或重置时会据此重新排序。
                     </p>
+                    <p class="mt-1 text-xs text-amber-700/90 dark:text-amber-300/90">
+                      配了土地限制的种子会先占用它能种的地块，再由不限制的种子使用剩余空地。
+                    </p>
                   </div>
                   <NButton
                     size="tiny"
@@ -1610,57 +1682,47 @@ async function handleResetSystemConfig() {
                   背包中暂无 1x1 / 2x2 种子
                 </div>
                 <div v-else class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  <div
+                  <BagSeedPriorityItem
                     v-for="(seed, index) in sortedBagSeeds"
                     :key="seed.seedId"
-                    class="min-h-18 flex items-center gap-2 border cartoon-card border-amber-200 rounded-xl bg-white px-3 py-2.5 dark:border-amber-700/50 dark:bg-gray-800"
-                    :class="{ 'opacity-60 ring-2 ring-amber-400': draggingBagSeedId === seed.seedId }"
-                    draggable="true"
-                    @dragstart="startBagSeedDrag(seed.seedId, $event)"
-                    @dragend="endBagSeedDrag"
-                    @dragover.prevent="dragOverBagSeed(seed.seedId, $event)"
+                    :seed="seed"
+                    :index="index"
+                    :land-types="localStrategySettings.bagSeedLandTypes[String(seed.seedId)]"
+                    :land-type-options="fertilizerLandTypeOptions"
+                    :dragging="draggingBagSeedId === seed.seedId"
+                    :can-move-up="index > 0"
+                    :can-move-down="index < sortedBagSeeds.length - 1"
+                    @move-up="moveBagSeedUp(seed.seedId)"
+                    @move-down="moveBagSeedDown(seed.seedId)"
+                    @update:land-types="setBagSeedLandTypes(seed.seedId, $event)"
+                    @drag-start="startBagSeedDrag(seed.seedId, $event)"
+                    @drag-end="endBagSeedDrag"
+                    @drag-over="dragOverBagSeed(seed.seedId, $event)"
                     @drop="dropBagSeed(seed.seedId, $event)"
-                  >
-                    <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-amber-100 text-xs text-amber-700 font-bold dark:bg-amber-900/50 dark:text-amber-300">
-                      {{ index + 1 }}
-                    </div>
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-1.5">
-                        <div class="truncate text-sm text-gray-800 font-semibold dark:text-gray-200">
-                          {{ seed.name }}
-                        </div>
-                        <span class="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 font-semibold dark:bg-amber-900/50 dark:text-amber-300">
-                          {{ seed.plantSize }}x{{ seed.plantSize }}
-                        </span>
-                      </div>
-                      <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                        库存 {{ seed.count }} · {{ seed.requiredLevel }} 级 · ID {{ seed.seedId }}
-                      </div>
-                    </div>
-                    <div class="flex shrink-0 flex-col gap-2">
-                      <NButton
-                        quaternary
-                        circle
-                        size="tiny"
-                        :disabled="index === 0"
-                        title="上移"
-                        aria-label="上移"
-                        @click="moveBagSeedUp(seed.seedId)"
-                      >
-                        <span :class="chevronUpIconClass" />
-                      </NButton>
-                      <NButton
-                        quaternary
-                        circle
-                        size="tiny"
-                        :disabled="index === sortedBagSeeds.length - 1"
-                        title="下移"
-                        aria-label="下移"
-                        @click="moveBagSeedDown(seed.seedId)"
-                      >
-                        <span :class="chevronDownIconClass" />
-                      </NButton>
-                    </div>
+                  />
+                </div>
+                <div v-if="orphanRestrictedSeeds.length > 0" class="border-t border-amber-200 pt-2 dark:border-amber-800/50">
+                  <div class="text-xs text-amber-800 dark:text-amber-300">
+                    未持有但已配限制
+                  </div>
+                  <p class="mt-1 text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                    这些种子当前不在背包中，限制已保留，重新入库后仍生效。
+                  </p>
+                  <div class="mt-2 flex flex-wrap gap-1.5">
+                    <span
+                      v-for="item in orphanRestrictedSeeds"
+                      :key="item.seedId"
+                      class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                    >
+                      {{ item.name }} · {{ item.scope }}
+                      <button
+                        type="button"
+                        class="i-carbon-close text-amber-600 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+                        :title="`清除 ${item.name} 的土地限制`"
+                        :aria-label="`清除 ${item.name} 的土地限制`"
+                        @click="setBagSeedLandTypes(item.seedId, [])"
+                      />
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1683,29 +1745,14 @@ async function handleResetSystemConfig() {
 
             <div class="grid grid-cols-2 gap-3 md:grid-cols-2">
               <BaseInput
-                v-model.number="localStrategySettings.intervals.helpMin"
-                label="帮助巡查最小 (秒)"
+                v-model.number="localStrategySettings.intervals.friendMin"
+                label="好友任务最小 (秒)"
                 type="number"
                 min="1"
               />
               <BaseInput
-                v-model.number="localStrategySettings.intervals.helpMax"
-                label="帮助巡查最大 (秒)"
-                type="number"
-                min="1"
-              />
-            </div>
-
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-2">
-              <BaseInput
-                v-model.number="localStrategySettings.intervals.stealMin"
-                label="偷菜巡查最小 (秒)"
-                type="number"
-                min="1"
-              />
-              <BaseInput
-                v-model.number="localStrategySettings.intervals.stealMax"
-                label="偷菜巡查最大 (秒)"
+                v-model.number="localStrategySettings.intervals.friendMax"
+                label="好友任务最大 (秒)"
                 type="number"
                 min="1"
               />
@@ -2026,9 +2073,9 @@ async function handleResetSystemConfig() {
                 <BaseInput
                   v-if="!isDingTalkChannel"
                   v-model="localOffline.token"
-                  label="Token"
+                  :label="offlineTokenLabel"
                   type="text"
-                  placeholder="接收端 token"
+                  :placeholder="offlineTokenPlaceholder"
                 />
 
                 <template v-else>

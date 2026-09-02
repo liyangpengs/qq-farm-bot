@@ -10963,5 +10963,48 @@
     "exp_alter": 4531.2,
     "fruit_root": 0,
     "fruit_alter": 0
+  },
+  {
+    "id": 1020883,
+    "mutant_effect_plant": null,
+    "name": "小红花",
+    "fruit": {
+      "id": 40883,
+      "count": 32
+    },
+    "seed_id": 20883,
+    "land_level_need": 1,
+    "seasons": 1,
+    "grow_phases": "种子:5760;发芽:5760;小叶子:5760;大叶子:5760;花蕾:5760;盛开:0;",
+    "exp": 960,
+    "special_fruit": null,
+    "size": null,
+    "offsetPosition": {
+      "x": 0,
+      "y": 0
+    },
+    "mutantEffectScale": {
+      "x": 1,
+      "y": 1
+    },
+    "harvestOffsetPosition": {
+      "x": -35,
+      "y": 5
+    },
+    "harvestRandom": null,
+    "harvestAllSpineRes": null,
+    "harvestAllOffsetPosition": null,
+    "harvestAniName": "anim_harvest_xiyou",
+    "all_state_spine": null,
+    "mature_effect": "effect/prefab/effect_plant_maturation",
+    "mature_effect_offset": {
+      "x": 0,
+      "y": 0
+    },
+    "rare_plant_light_pos": null,
+    "exp_root": 1.6,
+    "exp_alter": 566,
+    "fruit_root": 2,
+    "fruit_alter": 24
   }
 ]

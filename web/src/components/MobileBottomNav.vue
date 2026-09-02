@@ -15,7 +15,7 @@ const items = [
       :key="item.path"
       :to="item.path"
       class="mobile-bottom-nav__item"
-      :class="{ 'mobile-bottom-nav__item--home': item.path === '/' }"
+      exact-active-class="mobile-bottom-nav__item--active"
     >
       <div :class="item.icon" class="mobile-bottom-nav__icon" />
       <span>{{ item.label }}</span>
@@ -72,15 +72,9 @@ const items = [
   height: 22px;
 }
 
-.mobile-bottom-nav__item.router-link-active,
-.mobile-bottom-nav__item.router-link-exact-active {
+.mobile-bottom-nav__item--active {
   color: var(--ui-primary);
   background: rgba(225, 241, 230, 0.82);
   box-shadow: none !important;
-}
-
-.mobile-bottom-nav__item--home.router-link-active,
-.mobile-bottom-nav__item--home.router-link-exact-active {
-  color: var(--ui-ink);
 }
 </style>

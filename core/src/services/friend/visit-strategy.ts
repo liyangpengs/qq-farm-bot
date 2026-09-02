@@ -13,7 +13,7 @@ const {
 } = require('../../models/store');
 const { getUserState } = require('../../utils/network');
 const { toNum, getServerTimeSec, getSystemClockMinutes, log, logWarn, sleep, randomDelay } = require('../../utils/utils');
-const { types } = require('../../utils/proto');
+
 const {
     getCurrentPhase,
     buildLandMap,
@@ -21,10 +21,12 @@ const {
     getPlantStatusFlags,
     isOccupiedSlaveLand,
 } = require('../farm');
+const { getCareerInfoOrNull } = require('../career');
 const { recordOperation } = require('../stats');
 const { sellAllFruits } = require('../warehouse');
 const {
     getAllFriends,
+    delFriend,
     enterFriendFarm,
     leaveFriendFarm,
     helpFarming,
@@ -35,9 +37,12 @@ const {
     putWeedsDetailed,
 } = require('./api');
 const {
+    extractReplyFriends,
     postToMaster,
     removeKnownFriendGid,
 } = require('./gid-manager');
+const { PROTECT_DOG_ID, getFriendDogState, getFriendDogId } = require('./pet-cache');
+const { getItemById, getItemImageById } = require('../../config/gameConfig');
 
 // 延迟引用 scheduler 模块，避免循环依赖
 let _scheduler: any = null;
@@ -49,6 +54,15 @@ function schedulerRef(): any {
 // ============ 内部状态 ============
 let friendsListCache: any[] | null = null;
 let friendsListCacheTime: number = 0;
+
+function isProtectDog(dogInfo: any): boolean {
+    return toNum(dogInfo && (dogInfo.dog_id ?? dogInfo.dogId)) === PROTECT_DOG_ID;
+}
+
+function canBypassHelpExpLimitForProtectDog(enterReply: any): boolean {
+    return !!isAutomationOn('friend_help_protect_dog_ignore_exp_limit')
+        && isProtectDog(enterReply && (enterReply.brief_dog_info ?? enterReply.briefDogInfo));
+}
 
 interface FarmingOutcome {
     effect: 'confirmed' | 'noop' | 'uncertain';
@@ -356,52 +370,90 @@ export function analyzeFriendLands(lands: any[], myGid: number, friendName: stri
 
 // ============ 好友列表与土地详情 ============
 
+export type FriendPetState = 'protect' | 'other' | 'none' | 'unknown';
+
+/**
+ * 好友上场宠物的展示信息，数据全部来自按天缓存（进好友农场时顺手写入 + 每日同步补齐），
+ * 为了展示不会额外发任何 RPC；当天还没确认过的好友是 unknown，交由每日同步补齐。
+ */
+export function buildFriendPetView(friendGid: any): { petState: FriendPetState; pet: any } {
+    if (getFriendDogState(friendGid) === 'unknown') return { petState: 'unknown', pet: null };
+    const dogId: number = getFriendDogId(friendGid);
+    // 当天确认过但没有上场狗，同样是有效结论
+    if (dogId <= 0) return { petState: 'none', pet: null };
+    const metadata: any = getItemById(dogId);
+    return {
+        petState: dogId === PROTECT_DOG_ID ? 'protect' : 'other',
+        pet: {
+            id: String(dogId),
+            name: String(metadata?.name || `宠物 ${dogId}`),
+            image: getItemImageById(dogId) || '',
+        },
+    };
+}
+
+// 宠物结论随时会被 Enter 回包刷新，所以不写进好友列表缓存，只在返回前附加
+function withFriendPetView(list: any[]): any[] {
+    return (Array.isArray(list) ? list : []).map((friend: any) => ({ ...friend, ...buildFriendPetView(friend.gid) }));
+}
+
 /**
  * 获取好友列表 (供面板)
  */
-export async function getFriendsList(forceSync: boolean = false): Promise<any[]> {
+export function cacheFriendsListFromReply(reply: any): any[] {
+    const state: any = getUserState();
+    const result: any[] = extractReplyFriends(reply)
+        .filter((f: any) => toNum(f.gid) !== state.gid && f.name !== '小小农夫' && f.remark !== '小小农夫')
+        .map((f: any) => ({
+            gid: toNum(f.gid),
+            name: f.remark || f.name || `GID:${toNum(f.gid)}`,
+            avatarUrl: String(f.avatar_url || '').trim(),
+            level: toNum(f.level),
+            gold: toNum(f.gold),
+            plant: f.plant ? {
+                stealNum: toNum(f.plant.steal_plant_num),
+                dryNum: toNum(f.plant.dry_num),
+                weedNum: toNum(f.plant.weed_num),
+                insectNum: toNum(f.plant.insect_num),
+            } : null,
+            weather: f.weather ? {
+                type: toNum(f.weather.weather_type),
+                status: toNum(f.weather.status),
+                beginTime: toNum(f.weather.begin_time),
+                endTime: toNum(f.weather.end_time),
+                source: toNum(f.weather.source),
+                field8: toNum(f.weather.field_8),
+                friendMarker: toNum(f.weather.field_9),
+            } : null,
+        }))
+        .sort((a: any, b: any) => {
+            // 固定顺序：先按名称，再按 GID，避免刷新时顺序抖动
+            const an: string = String(a.name || '');
+            const bn: string = String(b.name || '');
+            const byName: number = an.localeCompare(bn, 'zh-CN');
+            if (byName !== 0) return byName;
+            return Number(a.gid || 0) - Number(b.gid || 0);
+        });
+
+    friendsListCache = result;
+    friendsListCacheTime = Date.now();
+    return result;
+}
+
+export async function getFriendsList(forceSync: boolean = false, priority: 'low' | 'normal' = 'normal'): Promise<any[]> {
     try {
         // 检查缓存
         const now: number = Date.now();
         if (!forceSync && friendsListCache && (now - friendsListCacheTime) < getFriendsListCacheTtlMs()) {
-
-            return friendsListCache;
+            return withFriendPetView(friendsListCache);
         }
 
         log('好友', '开始获取好友列表', {
             module: 'friend',
             event: '获取好友列表',
         });
-        const reply: any = await getAllFriends(forceSync);
-        const friends: any[] = reply.game_friends || [];
-        const state: any = getUserState();
-        const result: any[] = friends
-            .filter((f: any) => toNum(f.gid) !== state.gid && f.name !== '小小农夫' && f.remark !== '小小农夫')
-            .map((f: any) => ({
-                gid: toNum(f.gid),
-                name: f.remark || f.name || `GID:${toNum(f.gid)}`,
-                avatarUrl: String(f.avatar_url || '').trim(),
-                level: toNum(f.level),
-                gold: toNum(f.gold),
-                plant: f.plant ? {
-                    stealNum: toNum(f.plant.steal_plant_num),
-                    dryNum: toNum(f.plant.dry_num),
-                    weedNum: toNum(f.plant.weed_num),
-                    insectNum: toNum(f.plant.insect_num),
-                } : null,
-            }))
-            .sort((a: any, b: any) => {
-                // 固定顺序：先按名称，再按 GID，避免刷新时顺序抖动
-                const an: string = String(a.name || '');
-                const bn: string = String(b.name || '');
-                const byName: number = an.localeCompare(bn, 'zh-CN');
-                if (byName !== 0) return byName;
-                return Number(a.gid || 0) - Number(b.gid || 0);
-            });
-
-        // 更新缓存
-        friendsListCache = result;
-        friendsListCacheTime = now;
+        const reply: any = await getAllFriends(forceSync, priority);
+        const result: any[] = cacheFriendsListFromReply(reply);
 
         log('好友', `获取好友列表成功，共 ${result.length} 位好友`, {
             module: 'friend',
@@ -409,7 +461,7 @@ export async function getFriendsList(forceSync: boolean = false): Promise<any[]>
             result: 'ok',
             count: result.length,
         });
-        return result;
+        return withFriendPetView(result);
     } catch (e: any) {
         log('好友', `获取好友列表失败: ${e.message}`, {
             module: 'friend',
@@ -419,6 +471,11 @@ export async function getFriendsList(forceSync: boolean = false): Promise<any[]>
         });
         return [];
     }
+}
+
+export function getFriendsListCacheOnly(): any[] {
+    if (!Array.isArray(friendsListCache)) return [];
+    return withFriendPetView(friendsListCache);
 }
 
 /**
@@ -445,6 +502,7 @@ export async function getFriendLandsDetail(friendGid: number): Promise<any> {
         return {
             lands: landsList,
             summary: analyzed,
+            career: await getCareerInfoOrNull(friendGid),
         };
     } finally {
         if (entered) await leaveFriendFarm(friendGid);
@@ -666,10 +724,57 @@ export async function doFriendOperation(friendGid: any, opType: string): Promise
 interface VisitResult {
     acted: boolean;
     entered: boolean;
+    status?: 'helped' | 'skipped_exp_limit' | 'protect_dog_bypass' | 'no_action' | 'enter_failed';
+    protectDogBypass?: boolean;
 }
 
-export async function visitFriend(friend: any, totalActions: any, myGid: number, accountId: string): Promise<VisitResult> {
+/** 单次访问要做哪几件事；默认全做，保持老调用方的行为不变。 */
+export interface VisitFriendOptions {
+    allowSteal?: boolean;
+    allowHelp?: boolean;
+    allowBad?: boolean;
+    ignoreExpLimit?: boolean;
+}
+
+/**
+ * 进一次好友农场，把 帮助（除草/除虫/浇水）+ 偷菜 + 捣乱（放草/放虫）一次做完。
+ * 三件事都不需要做时连 Enter 都不发——省下的就是以前那一屏 Enter/Leave 超时日志。
+ */
+export async function visitFriend(
+    friend: any,
+    totalActions: any,
+    myGid: number,
+    accountId: string,
+    options: VisitFriendOptions = {},
+): Promise<VisitResult> {
     const { gid, name } = friend;
+    const allowSteal: boolean = options.allowSteal !== false;
+    const allowBad: boolean = options.allowBad !== false;
+    const ignoreExpLimit: boolean = !!options.ignoreExpLimit;
+
+    const stealEnabled: boolean = allowSteal && !!isAutomationOn('friend_steal');
+    const badEnabled: boolean = allowBad && !!isAutomationOn('friend_bad');
+    const stopWhenExpLimit: boolean = !!isAutomationOn('friend_help_exp_limit') && !ignoreExpLimit;
+    if (!stopWhenExpLimit) schedulerRef().setCanGetHelpExp(true);
+    const protectDogBypassEnabled: boolean = !!isAutomationOn('friend_help_protect_dog_ignore_exp_limit');
+    const expLimitReachedBeforeVisit: boolean = stopWhenExpLimit && !schedulerRef().getCanGetHelpExp();
+    // 经验满之后唯一还值得帮忙的对象是挂着护主犬的好友（同气连枝礼包）。
+    // 护主犬只能从 Enter 回包读到，所以这里只查当天缓存，不再逐个进农场试探；
+    // 缓存还没结论的好友交给 pet-sync 的每日同步补齐。
+    const helpBlockedByExpLimit: boolean = expLimitReachedBeforeVisit
+        && (!protectDogBypassEnabled || getFriendDogState(gid) !== 'protect');
+    const helpEnabled: boolean = options.allowHelp !== false
+        && !!isAutomationOn('friend_help')
+        && !helpBlockedByExpLimit;
+
+    if (!stealEnabled && !badEnabled && !helpEnabled) {
+        // 这一轮对这位好友无事可做：一个请求都不发
+        return {
+            acted: false,
+            entered: false,
+            status: helpBlockedByExpLimit ? 'skipped_exp_limit' : 'no_action',
+        };
+    }
 
     let enterReply: any;
     try {
@@ -701,17 +806,16 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
     const actions: string[] = [];
 
     // 1. 帮助操作 (除草/除虫/浇水)
-    const helpEnabled: boolean = !!isAutomationOn('friend_help');
-    const stopWhenExpLimit: boolean = !!isAutomationOn('friend_help_exp_limit');
-    if (!stopWhenExpLimit) schedulerRef().setCanGetHelpExp(true);
+    const protectDogBypass: boolean = protectDogBypassEnabled && canBypassHelpExpLimitForProtectDog(enterReply);
+    const effectiveStopWhenExpLimit: boolean = stopWhenExpLimit && !protectDogBypass;
     if (!helpEnabled) {
         // 自动帮忙关闭，直接跳过帮助操作
-    } else if (stopWhenExpLimit && !schedulerRef().getCanGetHelpExp()) {
+    } else if (effectiveStopWhenExpLimit && !schedulerRef().getCanGetHelpExp()) {
         // 今日已达到经验上限后停止帮忙
     } else {
         const allHelpLandIds: number[] = [...new Set([...status.needWeed, ...status.needBug, ...status.needWater])];
         const allExpIds: number[] = [10005, 10006, 10007];
-        const allowByExp: boolean = (!stopWhenExpLimit) || (schedulerRef().canGetExpByCandidates(allExpIds) && schedulerRef().getCanGetHelpExp());
+        const allowByExp: boolean = (!effectiveStopWhenExpLimit) || (schedulerRef().canGetExpByCandidates(allExpIds) && schedulerRef().getCanGetHelpExp());
         if (allHelpLandIds.length > 0 && allowByExp) {
             const outcome: FarmingOutcome = await runFarmingWithFallback(gid, allHelpLandIds, stopWhenExpLimit, getHelpSnapshotKey(lands));
             if (outcome.landCount > 0) {
@@ -728,7 +832,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
     }
 
     // 2. 偷菜操作
-    if (isAutomationOn('friend_steal') && status.stealable.length > 0) {
+    if (stealEnabled && status.stealable.length > 0) {
         const targetLands: number[] = status.stealable;
 
         let ok: number = 0;
@@ -765,8 +869,7 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
     }
 
     // 3. 捣乱操作 (放虫/放草)
-    const autoBad: boolean = isAutomationOn('friend_bad');
-    if (autoBad && !schedulerRef().isBadOperationLimitReached()) {
+    if (badEnabled && !schedulerRef().isBadOperationLimitReached()) {
         if (status.canPutWeed.length > 0) {
             const remaining: number = schedulerRef().getRemainingBadOperationTimes();
             const toProcess: number[] = status.canPutWeed.slice(0, remaining);
@@ -794,190 +897,45 @@ export async function visitFriend(friend: any, totalActions: any, myGid: number,
     return { acted: actions.length > 0, entered: true };
 }
 
-// ============ 仅偷菜 ============
-
-export async function visitFriendForSteal(friend: any, totalActions: any, myGid: number, accountId: string): Promise<VisitResult | undefined> {
-    const { gid, name } = friend;
-
-    let enterReply: any;
-    try {
-        enterReply = await enterFriendFarm(gid);
-    } catch (e: any) {
-        const handled: { handled: boolean; kind: string } = handleFriendEnterError(gid, name, e);
-        if (handled.handled) {
-            return { acted: false, entered: false };
-        }
-        logWarn('好友', `进入 ${name} 农场失败: ${e.message}`, {
-            module: 'friend', event: '进入农场', result: 'error', friendName: name, friendGid: gid
-        });
-        return { acted: false, entered: false };
-    }
-
-    const lands: any[] = enterReply.lands || [];
-    if (lands.length === 0) {
-        await leaveFriendFarm(gid);
-        return { acted: false, entered: true };
-    }
-
-    const plantBlacklist: number[] = getPlantBlacklist(accountId);
-    const status: AnalyzeResult = analyzeFriendLands(lands, myGid, name, { plantBlacklist });
-
-    const actions: string[] = [];
-
-    // 检查是否所有可偷蔬菜都被黑名单过滤了（只统计成熟的、可偷的植物）
-    const hasStealableBeforeFilter: boolean = lands.some((land: any) => {
-        const plant: any = land.plant;
-        if (!plant || !plant.phases || plant.phases.length === 0) return false;
-        const currentPhase: any = getCurrentPhase(land.plant.phases, false);
-        if (!currentPhase || currentPhase.phase !== PlantPhase.MATURE) return false;
-        if (!plant.stealable) return false;
-        // stealers 字段为 bytes 类型，需手动解析为 StealPlayer 数组
-        let stealInfo: any[] = [];
-        if (plant.stealers && plant.stealers.length > 0 && plant.stealers[0] === 0x08) {
-            try {
-                const decoded = types.StealPlayer.decode(plant.stealers);
-                stealInfo = [decoded];
-            } catch {}
-        }
-        if (stealInfo.length === 0) return true; // 无人偷过，可偷
-        const mySteal: any = stealInfo.find((s: any) => toNum(s.gid) === myGid);
-        const stealCount: number = mySteal ? toNum(mySteal.num) : 0;
-        // steal_num 为 bytes 类型，手动解析 varint
-        let maxSteal = 2;
-        if (plant.steal_num && plant.steal_num.length > 0) {
-            let v = 0; let s = 0;
-            for (let i = 0; i < plant.steal_num.length && i < 10; i++) {
-                v |= (plant.steal_num[i] & 0x7F) << s;
-                if ((plant.steal_num[i] & 0x80) === 0) break;
-                s += 7;
-            }
-            if (v > 0) maxSteal = v;
-        }
-        return stealCount < maxSteal;
-    });
-
-    if (hasStealableBeforeFilter && status.stealable.length === 0) {
-        // log('好友', `${name}: 跳过，所有可偷蔬菜都被黑名单过滤`, {
-        //     module: 'friend', event: '偷菜全部过滤', friendName: name, friendGid: gid
-        // });
-        await leaveFriendFarm(gid);
-        return;
-    }
-
-    // 只执行偷菜
-    if (status.stealable.length > 0) {
-        const targetLands: number[] = status.stealable;
-
-        let ok: number = 0;
-        const stolenPlants: string[] = [];
-
-        // 尝试批量偷取
-        try {
-            await stealHarvest(gid, targetLands);
-            ok = targetLands.length;
-            targetLands.forEach((id: number) => {
-                const info: any = status.stealableInfo.find((x: any) => x.landId === id);
-                if (info) stolenPlants.push(info.name);
-            });
-        } catch {
-            // 批量失败，降级为单个
-            for (const landId of targetLands) {
-                try {
-                    await stealHarvest(gid, [landId]);
-                    ok++;
-                    const info: any = status.stealableInfo.find((x: any) => x.landId === landId);
-                    if (info) stolenPlants.push(info.name);
-                } catch { /* ignore */ }
-                await randomDelay(500, 800);
-            }
-        }
-
-        if (ok > 0) {
-            const plantNames: string = [...new Set(stolenPlants)].join('/');
-            actions.push(`偷${ok}${plantNames ? `(${plantNames})` : ''}`);
-            totalActions.steal += ok;
-            recordOperation('steal', ok);
-            await randomDelay(500, 800);
-        }
-    }
-
-    if (actions.length > 0) {
-        log('好友', `${name}: ${actions.join('/')}`, {
-            module: 'friend', event: '偷好友菜', result: 'ok', friendName: name, friendGid: gid, actions
-        });
-    }
-
-    await leaveFriendFarm(gid);
-    return { acted: actions.length > 0, entered: true };
-}
-
-// ============ 仅帮助 ============
-
-export async function visitFriendForHelp(friend: any, totalActions: any, myGid: number, accountId: string, ignoreExpLimit: boolean = false): Promise<VisitResult | undefined> {
-    const { gid, name } = friend;
-
-    const stopWhenExpLimit: boolean = !!isAutomationOn('friend_help_exp_limit') && !ignoreExpLimit;
-    if (!stopWhenExpLimit) schedulerRef().setCanGetHelpExp(true);
-    if (stopWhenExpLimit && !schedulerRef().getCanGetHelpExp()) {
-        return { acted: false, entered: false };
-    }
-
-    let enterReply: any;
-    try {
-        enterReply = await enterFriendFarm(gid);
-    } catch (e: any) {
-        const handled: { handled: boolean; kind: string } = handleFriendEnterError(gid, name, e);
-        if (handled.handled) {
-            return { acted: false, entered: false };
-        }
-        logWarn('好友', `进入 ${name} 农场失败: ${e.message}`, {
-            module: 'friend', event: '进入农场', result: 'error', friendName: name, friendGid: gid
-        });
-        return { acted: false, entered: false };
-    }
-
-    const lands: any[] = enterReply.lands || [];
-    if (lands.length === 0) {
-        await leaveFriendFarm(gid);
-        return;
-    }
-
-    const status: AnalyzeResult = analyzeFriendLands(lands, myGid, name, {});
-
-    const actions: string[] = [];
-
-    const allHelpLandIds: number[] = [...new Set([...status.needWeed, ...status.needBug, ...status.needWater])];
-    const allExpIds: number[] = [10005, 10006, 10007];
-    const allowByExp: boolean = (!stopWhenExpLimit) || (schedulerRef().canGetExpByCandidates(allExpIds) && schedulerRef().getCanGetHelpExp());
-    if (allHelpLandIds.length > 0 && allowByExp) {
-        const outcome: FarmingOutcome = await runFarmingWithFallback(gid, allHelpLandIds, stopWhenExpLimit, getHelpSnapshotKey(lands));
-        if (outcome.landCount > 0) {
-            const parts: string[] = [];
-            if (status.needWeed.length) parts.push(`草${status.needWeed.length}`);
-            if (status.needBug.length) parts.push(`虫${status.needBug.length}`);
-            if (status.needWater.length) parts.push(`水${status.needWater.length}`);
-            actions.push(`一键务农${outcome.landCount}块/${outcome.operationCount}项(${parts.join('/')})`);
-            if (outcome.dogSkillGiftCount > 0) actions.push(`同气连枝礼包x${outcome.dogSkillGiftCount}(自动获得)`);
-            totalActions.farming += outcome.landCount;
-            recordOperation('helpFarming', outcome.operationCount);
-        }
-    }
-
-    if (actions.length > 0) {
-        log('好友', `${name}: ${actions.join('/')}`, {
-            module: 'friend', event: '帮助好友', result: 'ok', friendName: name, friendGid: gid, actions
-        });
-    }
-
-    await leaveFriendFarm(gid);
-    return { acted: actions.length > 0, entered: true };
-}
-
 // ============ 缓存管理 ============
 
 export function clearFriendsListCache(): void {
     friendsListCache = null;
     friendsListCacheTime = 0;
     recentHelp.clear();
+}
+
+export function removeFriendFromFriendsListCache(friendGid: any): void {
+    const gid: number = toNum(friendGid);
+    if (!gid) return;
+    if (!Array.isArray(friendsListCache)) return;
+    const next: any[] = friendsListCache.filter((friend: any) => toNum(friend.gid) !== gid);
+    if (next.length !== friendsListCache.length) {
+        friendsListCache = next;
+    }
+}
+
+export async function deleteFriend(friendGid: any): Promise<{ ok: true; gid: number }> {
+    const gid: number = toNum(friendGid);
+    if (!gid) throw new Error('无效的好友 GID');
+
+    const cached: any = Array.isArray(friendsListCache)
+        ? friendsListCache.find((friend: any) => toNum(friend.gid) === gid)
+        : null;
+    const name: string = String((cached && cached.name) || '').trim() || `GID:${gid}`;
+
+    await delFriend(gid);
+    removeFriendFromFriendsListCache(gid);
+    removeKnownFriendGid(gid, name, '手动删除好友');
+    addFriendToBlacklist(gid, name, '手动删除好友');
+
+    log('好友', `已删除好友: ${name}`, {
+        module: 'friend',
+        event: '删除好友',
+        result: 'ok',
+        friendName: name,
+        friendGid: gid,
+    });
+    return { ok: true, gid };
 }
 

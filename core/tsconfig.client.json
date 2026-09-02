@@ -5,7 +5,8 @@
     "outDir": ".",
     "declaration": false,
     "declarationMap": false,
-    "sourceMap": false
+    "sourceMap": false,
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.client.tsbuildinfo"
   },
   "include": ["client.ts"],
   "exclude": ["node_modules", "dist", "src"]

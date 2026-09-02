@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { useDateFormat, useIntervalFn, useNow } from '@vueuse/core'
-import { NButton } from 'naive-ui'
+import { useDateFormat, useIntervalFn, useMediaQuery, useNow } from '@vueuse/core'
+import { NButton } from 'naive-ui/es/button'
+import { NTooltip } from 'naive-ui/es/tooltip'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -19,14 +20,27 @@ const appStore = useAppStore()
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
+const isDesktop = useMediaQuery('(min-width: 1024px)')
 const { accounts, currentAccount } = storeToRefs(accountStore)
 const { status, realtimeConnected } = storeToRefs(statusStore)
-const { sidebarOpen } = storeToRefs(appStore)
+const { sidebarOpen, sidebarCollapsed } = storeToRefs(appStore)
+const isSidebarCollapsed = computed(() => isDesktop.value && sidebarCollapsed.value)
 const editIconClass = 'i-carbon-edit'
+const sidebarTooltipTheme = {
+  color: 'rgba(31, 43, 35, 0.94)',
+  textColor: '#ffffff',
+  borderRadius: '9px',
+  boxShadow: '0 8px 24px rgba(30, 45, 35, 0.18)',
+  padding: '8px 10px',
+}
 
 const showAccountDropdown = ref(false)
+const showUserDropdown = ref(false)
+const showTokenDropdown = ref(false)
 const showAccountModal = ref(false)
 const showRemarkModal = ref(false)
+const tokenVisible = ref(false)
+const tokenCopied = ref(false)
 const accountToEdit = ref<any>(null)
 const wsErrorNotifiedAt = ref<Record<string, number>>({})
 const accountAvatarErrors = ref<Set<string>>(new Set())
@@ -106,6 +120,36 @@ function getAccountAvatar(account: any) {
     ? String(status.value?.status?.avatarUrl || '').trim()
     : ''
   return liveAvatar || String(account.avatar || '').trim()
+}
+
+function toggleUserDropdown() {
+  showUserDropdown.value = !showUserDropdown.value
+  if (showUserDropdown.value) {
+    showAccountDropdown.value = false
+    showTokenDropdown.value = false
+  }
+}
+
+function toggleAccountDropdown() {
+  showAccountDropdown.value = !showAccountDropdown.value
+  if (showAccountDropdown.value) {
+    showUserDropdown.value = false
+    showTokenDropdown.value = false
+  }
+}
+
+function toggleTokenDropdown() {
+  showTokenDropdown.value = !showTokenDropdown.value
+  if (showTokenDropdown.value) {
+    showUserDropdown.value = false
+    showAccountDropdown.value = false
+  }
+}
+
+function closeFlyouts() {
+  showUserDropdown.value = false
+  showAccountDropdown.value = false
+  showTokenDropdown.value = false
 }
 
 function canShowAccountAvatar(account: any) {
@@ -253,11 +297,7 @@ watch(
   },
 )
 
-// 用户相关
-const showUserDropdown = ref(false)
-const showTokenDropdown = ref(false)
-const tokenVisible = ref(false)
-const tokenCopied = ref(false)
+watch(isSidebarCollapsed, closeFlyouts)
 
 async function handleLogout() {
   await userStore.logout()
@@ -284,17 +324,27 @@ async function copyToken() {
 
 <template>
   <aside
-    class="app-sidebar fixed inset-y-0 left-0 z-50 h-full w-[248px] flex flex-col transition-transform duration-200 lg:static lg:translate-x-0"
-    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+    id="app-sidebar"
+    class="app-sidebar fixed inset-y-0 left-0 z-50 h-full w-[248px] flex shrink-0 flex-col lg:static lg:translate-x-0"
+    :class="[
+      sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+      { 'is-collapsed': isSidebarCollapsed },
+    ]"
+    aria-label="主导航"
   >
     <!-- Brand -->
     <div class="sidebar-brand h-15 flex items-center justify-between px-4">
-      <div class="min-w-0 flex items-center gap-2.5">
-        <span class="brand-mark i-carbon-sprout" />
-        <span class="min-w-0 truncate text-sm font-semibold font-display">
-          QQ农场智能助手
-        </span>
-      </div>
+      <NTooltip :disabled="!isSidebarCollapsed" placement="right" :show-arrow="false" :theme-overrides="sidebarTooltipTheme">
+        <template #trigger>
+          <div class="sidebar-brand__identity min-w-0 flex items-center gap-2.5">
+            <span class="brand-mark i-carbon-sprout" />
+            <span v-show="!isSidebarCollapsed" class="min-w-0 truncate text-sm font-semibold font-display">
+              QQ农场智能助手
+            </span>
+          </div>
+        </template>
+        QQ农场智能助手
+      </NTooltip>
       <!-- Mobile Close Button -->
       <NButton
         class="lg:hidden"
@@ -308,44 +358,62 @@ async function copyToken() {
     </div>
 
     <!-- User Info -->
-    <div class="border-b border-gray-200/40 p-4 dark:border-gray-700/40">
+    <div class="sidebar-section border-b border-gray-200/40 p-4 dark:border-gray-700/40">
       <div class="group relative">
-        <button
-          class="sidebar-control w-full flex items-center justify-between px-3 py-2.5 outline-none transition-colors duration-150"
-          style="--focus-ring: var(--theme-primary)"
-          @click="showUserDropdown = !showUserDropdown"
+        <NTooltip
+          :disabled="!isSidebarCollapsed || showUserDropdown"
+          placement="right"
+          :show-arrow="false"
+          :theme-overrides="sidebarTooltipTheme"
         >
-          <div class="flex items-center gap-3 overflow-hidden">
-            <div class="farm-avatar-ring relative h-9 w-9 shrink-0 overflow-hidden rounded-full shadow-md" style="background: var(--ui-primary); padding: 2px;">
-              <div class="h-full w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
-                <img
-                  :src="userStore.avatar || 'https://thirdqq.qlogo.cn/qqapp/1112386029/BF9C8FC0E5563BEBD93B22F14A9C0566/100'"
-                  class="h-full w-full object-cover"
-                  @error="(e) => (e.target as HTMLImageElement).src = 'https://thirdqq.qlogo.cn/qqapp/1112386029/BF9C8FC0E5563BEBD93B22F14A9C0566/100'"
-                >
+          <template #trigger>
+            <button
+              type="button"
+              class="sidebar-control w-full flex items-center justify-between px-3 py-2.5 outline-none transition-colors duration-150"
+              style="--focus-ring: var(--theme-primary)"
+              aria-haspopup="menu"
+              :aria-expanded="showUserDropdown"
+              :aria-label="isSidebarCollapsed ? `管理员：${userStore.username || '未登录'}` : undefined"
+              @click="toggleUserDropdown"
+            >
+              <div class="flex items-center gap-3 overflow-hidden">
+                <div class="farm-avatar-ring relative h-9 w-9 shrink-0 overflow-hidden rounded-full shadow-md" style="background: var(--ui-primary); padding: 2px;">
+                  <div class="h-full w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
+                    <img
+                      :src="userStore.avatar || 'https://thirdqq.qlogo.cn/qqapp/1112386029/BF9C8FC0E5563BEBD93B22F14A9C0566/100'"
+                      class="h-full w-full object-cover"
+                      @error="(e) => (e.target as HTMLImageElement).src = 'https://thirdqq.qlogo.cn/qqapp/1112386029/BF9C8FC0E5563BEBD93B22F14A9C0566/100'"
+                    >
+                  </div>
+                  <div class="admin-star absolute z-10 h-4 w-4 flex items-center justify-center rounded-full text-[8px] shadow-sm -right-1 -top-1">
+                    <span>&#9733;</span>
+                  </div>
+                </div>
+                <div v-show="!isSidebarCollapsed" class="min-w-0 flex flex-col items-start">
+                  <span class="font-body w-full truncate text-left text-sm font-medium">
+                    {{ userStore.username || '未登录' }}
+                  </span>
+                  <div class="mt-0.5 flex items-center gap-1.5">
+                    <span
+                      class="admin-badge rounded-lg px-1.5 py-0.2 text-[10px] font-medium leading-tight"
+                    >
+                      超级管理员
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div class="admin-star absolute z-10 h-4 w-4 flex items-center justify-center rounded-full text-[8px] shadow-sm -right-1 -top-1">
-                <span>&#9733;</span>
-              </div>
-            </div>
-            <div class="min-w-0 flex flex-col items-start">
-              <span class="font-body w-full truncate text-left text-sm font-medium">
-                {{ userStore.username || '未登录' }}
-              </span>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span
-                  class="admin-badge rounded-lg px-1.5 py-0.2 text-[10px] font-medium leading-tight"
-                >
-                  超级管理员
-                </span>
-              </div>
-            </div>
+              <div
+                v-show="!isSidebarCollapsed"
+                class="i-carbon-chevron-down text-gray-400 transition-transform duration-200"
+                :class="{ 'rotate-180': showUserDropdown }"
+              />
+            </button>
+          </template>
+          <div class="sidebar-tooltip-content">
+            <strong>{{ userStore.username || '未登录' }}</strong>
+            <span>超级管理员 · 点击查看账户菜单</span>
           </div>
-          <div
-            class="i-carbon-chevron-down text-gray-400 transition-transform duration-200"
-            :class="{ 'rotate-180': showUserDropdown }"
-          />
-        </button>
+        </NTooltip>
 
         <!-- User Dropdown Menu -->
         <div
@@ -377,45 +445,63 @@ async function copyToken() {
     </div>
 
     <!-- Account Selector -->
-    <div class="border-b border-gray-200/40 p-4 dark:border-gray-700/40">
+    <div class="sidebar-section border-b border-gray-200/40 p-4 dark:border-gray-700/40">
       <div class="group relative">
-        <button
-          class="sidebar-control w-full flex items-center justify-between px-3 py-2.5 outline-none transition-colors duration-150"
-          @click="showAccountDropdown = !showAccountDropdown"
+        <NTooltip
+          :disabled="!isSidebarCollapsed || showAccountDropdown"
+          placement="right"
+          :show-arrow="false"
+          :theme-overrides="sidebarTooltipTheme"
         >
-          <div class="flex items-center gap-3 overflow-hidden">
-            <div class="h-8 w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-200 shadow-sm ring-2 ring-green-300/50 dark:bg-gray-600 dark:ring-green-700/50">
-              <img
-                v-if="canShowAccountAvatar(currentAccount)"
-                :src="getAccountAvatar(currentAccount)"
-                class="h-full w-full object-cover"
-                @error="handleAccountAvatarError(currentAccount)"
-              >
-              <div v-else class="i-carbon-user text-gray-400" />
-            </div>
-            <div class="min-w-0 flex flex-col items-start">
-              <span class="font-body w-full truncate text-left text-sm font-medium">
-                {{ displayName }}
-              </span>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span
-                  v-if="platform"
-                  class="rounded-lg px-1.5 py-0.2 text-[10px] font-medium leading-tight"
-                  :class="getPlatformClass(currentAccount?.platform)"
-                >
-                  {{ platform }}
-                </span>
-                <span class="truncate text-xs text-gray-400">
-                  {{ currentAccount?.uin || currentAccount?.id || '未选择' }}
-                </span>
+          <template #trigger>
+            <button
+              type="button"
+              class="sidebar-control w-full flex items-center justify-between px-3 py-2.5 outline-none transition-colors duration-150"
+              aria-haspopup="menu"
+              :aria-expanded="showAccountDropdown"
+              :aria-label="isSidebarCollapsed ? `农场账号：${displayName}` : undefined"
+              @click="toggleAccountDropdown"
+            >
+              <div class="flex items-center gap-3 overflow-hidden">
+                <div class="h-8 w-8 flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-200 shadow-sm ring-2 ring-green-300/50 dark:bg-gray-600 dark:ring-green-700/50">
+                  <img
+                    v-if="canShowAccountAvatar(currentAccount)"
+                    :src="getAccountAvatar(currentAccount)"
+                    class="h-full w-full object-cover"
+                    @error="handleAccountAvatarError(currentAccount)"
+                  >
+                  <div v-else class="i-carbon-user text-gray-400" />
+                </div>
+                <div v-show="!isSidebarCollapsed" class="min-w-0 flex flex-col items-start">
+                  <span class="font-body w-full truncate text-left text-sm font-medium">
+                    {{ displayName }}
+                  </span>
+                  <div class="mt-0.5 flex items-center gap-1.5">
+                    <span
+                      v-if="platform"
+                      class="rounded-lg px-1.5 py-0.2 text-[10px] font-medium leading-tight"
+                      :class="getPlatformClass(currentAccount?.platform)"
+                    >
+                      {{ platform }}
+                    </span>
+                    <span class="truncate text-xs text-gray-400">
+                      {{ currentAccount?.uin || currentAccount?.id || '未选择' }}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div
+                v-show="!isSidebarCollapsed"
+                class="i-carbon-chevron-down text-gray-400 transition-transform duration-200"
+                :class="{ 'rotate-180': showAccountDropdown }"
+              />
+            </button>
+          </template>
+          <div class="sidebar-tooltip-content">
+            <strong>{{ displayName }}</strong>
+            <span>{{ platform || '未选择平台' }} · {{ currentAccount?.uin || currentAccount?.id || '未选择账号' }}</span>
           </div>
-          <div
-            class="i-carbon-chevron-down text-gray-400 transition-transform duration-200"
-            :class="{ 'rotate-180': showAccountDropdown }"
-          />
-        </button>
+        </NTooltip>
 
         <!-- Dropdown Menu -->
         <div
@@ -493,41 +579,67 @@ async function copyToken() {
 
     <!-- Navigation -->
     <nav class="sidebar-nav flex-1 overflow-y-auto px-3 py-4 space-y-1">
-      <router-link
+      <NTooltip
         v-for="item in navItems"
         :key="item.path"
-        :to="item.path"
-        class="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150"
-        :active-class="item.path === '/' ? '' : 'font-medium'"
-        :style="{
-          color: 'var(--theme-text)',
-          opacity: '0.85',
-        }"
-        :data-nav="item.path"
+        :disabled="!isSidebarCollapsed"
+        placement="right"
+        :show-arrow="false"
+        :theme-overrides="sidebarTooltipTheme"
       >
-        <span class="nav-icon" :class="item.icon" />
-        <span class="font-body">{{ item.label }}</span>
-      </router-link>
+        <template #trigger>
+          <router-link
+            :to="item.path"
+            class="sidebar-nav__link group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150"
+            :active-class="item.path === '/' ? '' : 'font-medium'"
+            :style="{
+              color: 'var(--theme-text)',
+              opacity: '0.85',
+            }"
+            :data-nav="item.path"
+            :aria-label="isSidebarCollapsed ? item.label : undefined"
+          >
+            <span class="nav-icon" :class="item.icon" />
+            <span v-show="!isSidebarCollapsed" class="font-body">{{ item.label }}</span>
+          </router-link>
+        </template>
+        {{ item.label }}
+      </NTooltip>
     </nav>
 
     <!-- Token Display (All Users) -->
-    <div v-if="userStore.token" class="border-t border-gray-200/40 px-3 py-2 dark:border-gray-700/40">
-      <button
-        class="w-full flex items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
-        @click="showTokenDropdown = !showTokenDropdown"
+    <div v-if="userStore.token" class="sidebar-token relative border-t border-gray-200/40 px-3 py-2 dark:border-gray-700/40">
+      <NTooltip
+        :disabled="!isSidebarCollapsed || showTokenDropdown"
+        placement="right"
+        :show-arrow="false"
+        :theme-overrides="sidebarTooltipTheme"
       >
-        <div class="flex items-center gap-2">
-          <div class="i-carbon-key text-sm" :style="{ color: 'var(--theme-primary)' }" />
-          <span class="text-xs text-gray-500 font-medium dark:text-gray-400">我的 Token</span>
-        </div>
-        <div
-          class="i-carbon-chevron-down text-gray-400 transition-transform duration-200"
-          :class="{ 'rotate-180': showTokenDropdown }"
-        />
-      </button>
+        <template #trigger>
+          <button
+            type="button"
+            class="sidebar-token__trigger w-full flex items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+            aria-haspopup="true"
+            :aria-expanded="showTokenDropdown"
+            :aria-label="isSidebarCollapsed ? '我的 Token' : undefined"
+            @click="toggleTokenDropdown"
+          >
+            <div class="flex items-center gap-2">
+              <div class="i-carbon-password text-base" :style="{ color: 'var(--theme-primary)' }" />
+              <span v-show="!isSidebarCollapsed" class="text-xs text-gray-500 font-medium dark:text-gray-400">我的 Token</span>
+            </div>
+            <div
+              v-show="!isSidebarCollapsed"
+              class="i-carbon-chevron-down text-gray-400 transition-transform duration-200"
+              :class="{ 'rotate-180': showTokenDropdown }"
+            />
+          </button>
+        </template>
+        我的 Token · 点击查看
+      </NTooltip>
       <div
         v-show="showTokenDropdown"
-        class="px-1 pt-2 transition-all"
+        class="sidebar-token__details px-1 pt-2 transition-all"
       >
         <div class="mb-1 flex items-center justify-between">
           <button
@@ -556,44 +668,93 @@ async function copyToken() {
 
     <!-- Footer Status -->
     <div class="sidebar-footer relative mt-auto p-4">
-      <div class="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-        <div class="flex items-center gap-1.5">
-          <div
-            class="h-2 w-2 rounded-full"
-            :class="[connectionStatus.color, { 'animate-pulse': connectionStatus.pulse }]"
-          />
-          <span>{{ connectionStatus.text }}</span>
+      <template v-if="!isSidebarCollapsed">
+        <div class="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+          <div class="flex items-center gap-1.5">
+            <div
+              class="h-2 w-2 rounded-full"
+              :class="[connectionStatus.color, { 'animate-pulse': connectionStatus.pulse }]"
+            />
+            <span>{{ connectionStatus.text }}</span>
+          </div>
+          <span>{{ uptime }}</span>
         </div>
-        <span>{{ uptime }}</span>
-      </div>
-      <div class="mt-1 flex flex-col gap-0.5 text-xs text-gray-400 font-mono">
-        <div class="flex items-center justify-between">
-          <span>{{ formattedTime }}</span>
+        <div class="mt-1 flex flex-col gap-0.5 text-xs text-gray-400 font-mono">
+          <div class="flex items-center justify-between">
+            <span>{{ formattedTime }}</span>
+          </div>
+          <div class="flex items-center justify-between opacity-50">
+            <div class="flex items-center gap-2">
+              <span>Web v{{ version }}</span>
+              <a
+                href="https://github.com/liyangpengs/qq-farm-bot"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="开源地址"
+                class="inline-flex items-center text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <div class="i-carbon-logo-github text-base" />
+              </a>
+            </div>
+            <span v-if="serverVersion">Core v{{ serverVersion }}</span>
+          </div>
         </div>
-        <div class="flex items-center justify-between opacity-50">
-          <div class="flex items-center gap-2">
-            <span>Web v{{ version }}</span>
+      </template>
+      <div v-else class="sidebar-footer__compact">
+        <NTooltip placement="right" :show-arrow="false" :theme-overrides="sidebarTooltipTheme">
+          <template #trigger>
+            <span class="sidebar-footer__icon" tabindex="0" :aria-label="`连接状态：${connectionStatus.text}`">
+              <span class="i-carbon-connection-signal text-lg" />
+              <span
+                class="sidebar-status-dot"
+                :class="[connectionStatus.color, { 'animate-pulse': connectionStatus.pulse }]"
+              />
+            </span>
+          </template>
+          <div class="sidebar-tooltip-content">
+            <strong>{{ connectionStatus.text }}</strong>
+            <span>服务运行时长 {{ uptime }}</span>
+          </div>
+        </NTooltip>
+        <NTooltip placement="right" :show-arrow="false" :theme-overrides="sidebarTooltipTheme">
+          <template #trigger>
+            <span class="sidebar-footer__icon" tabindex="0" :aria-label="`当前时间：${formattedTime}`">
+              <span class="i-carbon-time text-lg" />
+            </span>
+          </template>
+          <div class="sidebar-tooltip-content">
+            <strong>当前时间</strong>
+            <span>{{ formattedTime }}</span>
+          </div>
+        </NTooltip>
+        <NTooltip placement="right" :show-arrow="false" :theme-overrides="sidebarTooltipTheme">
+          <template #trigger>
             <a
+              class="sidebar-footer__icon"
               href="https://github.com/liyangpengs/qq-farm-bot"
               target="_blank"
               rel="noopener noreferrer"
-              title="开源地址"
-              class="inline-flex items-center text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
+              aria-label="查看项目版本与开源地址"
             >
-              <div class="i-carbon-logo-github text-base" />
+              <span class="i-carbon-information text-lg" />
             </a>
+          </template>
+          <div class="sidebar-tooltip-content">
+            <strong>版本信息</strong>
+            <span>Web v{{ version }}</span>
+            <span v-if="serverVersion">Core v{{ serverVersion }}</span>
+            <span>点击访问开源地址</span>
           </div>
-          <span v-if="serverVersion">Core v{{ serverVersion }}</span>
-        </div>
+        </NTooltip>
       </div>
     </div>
   </aside>
 
   <!-- Overlay for mobile when sidebar is open -->
   <div
-    v-if="showAccountDropdown || showUserDropdown"
+    v-if="showAccountDropdown || showUserDropdown || showTokenDropdown"
     class="fixed inset-0 z-40 bg-transparent"
-    @click="showAccountDropdown = false; showUserDropdown = false"
+    @click="closeFlyouts"
   />
 
   <AccountModal
@@ -619,6 +780,9 @@ async function copyToken() {
   box-shadow:
     10px 0 32px rgba(55, 75, 61, 0.06),
     inset -1px 0 0 rgba(255, 255, 255, 0.84);
+  transition:
+    transform 0.2s ease,
+    width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-backdrop-filter: blur(22px) saturate(135%);
   backdrop-filter: blur(22px) saturate(135%);
 }
@@ -648,6 +812,14 @@ async function copyToken() {
   background: rgba(255, 255, 255, 0.82);
 }
 
+.sidebar-control:focus-visible,
+.sidebar-token__trigger:focus-visible,
+.sidebar-nav__link:focus-visible,
+.sidebar-footer__icon:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ui-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
 .sidebar-dropdown {
   border: 1px solid var(--ui-border);
   border-radius: 12px;
@@ -663,6 +835,61 @@ async function copyToken() {
 .sidebar-footer {
   border-top: 1px solid var(--ui-border);
   background: rgba(242, 246, 240, 0.58);
+}
+
+.sidebar-footer__compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-footer__icon {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--ui-muted);
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.sidebar-footer__icon:hover {
+  color: var(--ui-primary);
+  background: rgba(230, 241, 232, 0.82);
+}
+
+.sidebar-status-dot {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid rgba(250, 251, 247, 0.96);
+  border-radius: 999px;
+}
+
+.sidebar-tooltip-content {
+  min-width: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 1px;
+  line-height: 1.35;
+}
+
+.sidebar-tooltip-content strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sidebar-tooltip-content span {
+  font-size: 11px;
+  opacity: 0.78;
 }
 
 nav a:hover {
@@ -773,5 +1000,91 @@ nav a:hover {
 
 .account-dropdown-action:hover {
   background: rgba(107, 114, 128, 0.08);
+}
+
+@media (min-width: 1024px) {
+  .app-sidebar.is-collapsed {
+    width: 72px;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-brand {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-brand__identity {
+    justify-content: center;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-section {
+    padding: 10px 11px;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-control {
+    min-height: 48px;
+    justify-content: center;
+    padding: 5px;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-dropdown {
+    width: 280px;
+    right: auto;
+    left: calc(100% + 12px);
+    top: 0;
+    margin-top: 0;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-nav {
+    padding: 12px 10px;
+    scrollbar-width: none;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-nav::-webkit-scrollbar {
+    width: 0;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-nav__link {
+    min-height: 42px;
+    justify-content: center;
+    gap: 0;
+    padding: 10px;
+  }
+
+  .app-sidebar.is-collapsed .nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-token {
+    padding: 8px 11px;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-token__trigger {
+    min-height: 42px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .app-sidebar.is-collapsed .sidebar-token__details {
+    position: absolute;
+    z-index: 50;
+    width: 280px;
+    left: calc(100% + 12px);
+    bottom: 0;
+    padding: 12px;
+    border: 1px solid var(--ui-border);
+    border-radius: 12px;
+    color: var(--ui-ink);
+    background: var(--ui-surface-strong);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.92),
+      var(--ui-shadow-lg);
+    -webkit-backdrop-filter: blur(18px) saturate(145%);
+    backdrop-filter: blur(18px) saturate(145%);
+  }
+
+  .app-sidebar.is-collapsed .sidebar-footer {
+    padding: 8px 11px 10px;
+  }
 }
 </style>

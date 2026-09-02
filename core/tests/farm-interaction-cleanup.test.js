@@ -5,6 +5,7 @@ const { loadProto, types } = require('../dist/utils/proto');
 const {
     analyzeLands,
     buildLandDetail,
+    getCleanableFarmSocialEventItemIds,
 } = require('../dist/services/farm/land-analysis');
 const { getMutantEffectById } = require('../dist/config/gameConfig');
 const {
@@ -29,14 +30,15 @@ function growingLand(id, itemId = 0, status = {}) {
     };
 }
 
-test('own farm cleanup selects golden beetles and footballs only', () => {
+test('own farm cleanup selects golden beetles, footballs and active clouds only', () => {
     const status = analyzeLands([
         growingLand(1, 301101),
         growingLand(2, 301102),
         growingLand(3, 301103),
+        growingLand(4, 5006),
     ], false, 9001);
 
-    assert.deepEqual(status.needInteractionCleanup, [1, 2]);
+    assert.deepEqual(status.needInteractionCleanup, [1, 2, 4]);
     assert.deepEqual(status.needWeed, []);
     assert.deepEqual(status.needBug, []);
     assert.deepEqual(status.needWater, []);
@@ -46,6 +48,7 @@ test('friend help does not treat golden beetles or footballs as help targets', (
     const status = analyzeFriendLands([
         growingLand(1, 301101),
         growingLand(2, 301102),
+        growingLand(3, 5006),
     ], 9002);
 
     assert.deepEqual(status.needWeed, []);
@@ -93,6 +96,64 @@ test('qixi mutation uses official effect_name while keeping drought independent'
     assert.equal(detail.interactionEffects[0].activityId, effect.activityId);
 });
 
+test('crystal mutation uses the latest official effect_name mapping', () => {
+    const effect = getMutantEffectById(14);
+    assert.equal(effect.name, '晶辉');
+    assert.equal(effect.icon, 'crystal');
+    assert.equal(effect.description, '紫晶土地上随机出现');
+
+    const detail = buildLandDetail(growingLand(14, 0, {
+        mutant_config_ids: [14],
+        extended_mutations: [
+            { timestamp: 1787730000, mutant_config_id: 14 },
+        ],
+    }));
+
+    assert.deepEqual(detail.mutantConfigIds, ['14']);
+    assert.deepEqual(detail.mutantEffects.map(item => item.name), ['晶辉']);
+});
+
+test('purple crystal resonance follows the server land exp buff', () => {
+    const purpleCrystalLand = {
+        ...growingLand(14, 0, { mutant_config_ids: [12] }),
+        level: 5,
+        buff: {
+            plant_yield_bonus: 3000,
+            planting_time_reduction: 1500,
+            plant_exp_bonus: 2500,
+        },
+    };
+    const detail = buildLandDetail(purpleCrystalLand);
+
+    assert.deepEqual(detail.landBuff, {
+        plantYieldBonus: 3000,
+        plantingTimeReduction: 1500,
+        plantExpBonus: 2500,
+    });
+    assert.equal(detail.purpleCrystalResonanceExpBonus, 2500);
+
+    const adjustedByServer = buildLandDetail({
+        ...purpleCrystalLand,
+        buff: { ...purpleCrystalLand.buff, plant_exp_bonus: 1800 },
+    });
+    assert.equal(adjustedByServer.purpleCrystalResonanceExpBonus, 1800);
+
+    const disabledByServer = buildLandDetail({
+        ...purpleCrystalLand,
+        buff: { ...purpleCrystalLand.buff, plant_exp_bonus: 0 },
+    });
+    assert.equal(disabledByServer.purpleCrystalResonanceExpBonus, 0);
+
+    const noMutation = buildLandDetail({
+        ...purpleCrystalLand,
+        plant: { ...purpleCrystalLand.plant, mutant_config_ids: [] },
+    });
+    assert.equal(noMutation.purpleCrystalResonanceExpBonus, 0);
+
+    const goldenLand = buildLandDetail({ ...purpleCrystalLand, level: 4 });
+    assert.equal(goldenLand.purpleCrystalResonanceExpBonus, 0);
+});
+
 test('field 40 history does not restore cleared golden beetles or footballs', () => {
     const clearedGoldenHistoryLand = growingLand(15, 0, {
         field_40: [
@@ -119,6 +180,9 @@ test('field 40 history does not restore cleared golden beetles or footballs', ()
             { value_1: 2, value_2: 1 },
         ],
     });
+    const clearedCloudHistoryLand = growingLand(25, 0, {
+        field_40: [{ value_1: 8, value_2: 1 }],
+    });
 
     assert.deepEqual(buildLandDetail(clearedGoldenHistoryLand).interactionEffects, []);
     assert.deepEqual(buildLandDetail(clearedFootballHistoryLand).interactionEffects, []);
@@ -130,12 +194,14 @@ test('field 40 history does not restore cleared golden beetles or footballs', ()
         buildLandDetail(activeGoldenTargetOnlyLand).interactionEffects.map(item => item.itemId),
         ['301101'],
     );
+    assert.deepEqual(buildLandDetail(clearedCloudHistoryLand).interactionEffects, []);
     assert.deepEqual(
         analyzeLands([
             clearedGoldenHistoryLand,
             clearedFootballHistoryLand,
             activeFootballLand,
             activeGoldenTargetOnlyLand,
+            clearedCloudHistoryLand,
         ], false, 9001)
             .needInteractionCleanup,
         [23, 24],
@@ -185,4 +251,59 @@ test('own Farming request keeps the two explicit zero-valued scene fields', asyn
         ]),
         [[1, 3], [2, 1]],
     );
+});
+
+test('frog cleanup matches captured single-land and one-click Farming bytes', async () => {
+    await loadProto();
+    const { encodeOwnFarmingRequest } = require('../dist/services/farm/api');
+
+    const singleBody = encodeOwnFarmingRequest([9], 1009631504, [5005]);
+    assert.equal(Buffer.from(singleBody).toString('hex'), '0a0109109082b7e103180020002a028d27');
+    const single = types.FarmingRequest.decode(singleBody);
+    assert.deepEqual(Array.from(single.social_event_item_ids, value => Number(value)), [5005]);
+
+    const oneClickBody = encodeOwnFarmingRequest([3, 6, 12, 14, 17, 22], 1009631504, [5005]);
+    assert.equal(Buffer.from(oneClickBody).toString('hex'), '0a0603060c0e1116109082b7e103180020002a028d27');
+
+    const landsReply = types.AllLandsReply.decode(Buffer.from(
+        '1a0f088d27109fd487ea0318cd86bcd406',
+        'hex',
+    ));
+    assert.deepEqual(getCleanableFarmSocialEventItemIds(landsReply), [5005]);
+
+    const farmingReply = types.FarmingReply.decode(Buffer.from(
+        '220a088d27120508cd08101e',
+        'hex',
+    ));
+    assert.equal(Number(farmingReply.social_event_rewards[0].item_id), 5005);
+    assert.equal(Number(farmingReply.social_event_rewards[0].reward.id), 1101);
+    assert.equal(Number(farmingReply.social_event_rewards[0].reward.count), 30);
+
+    const clearedNotify = types.FarmSocialEventsNotify.decode(Buffer.from('109082b7e103', 'hex'));
+    assert.equal(Number(clearedNotify.host_gid), 1009631504);
+    assert.deepEqual(clearedNotify.social_events, []);
+});
+
+test('cloud notify uses live interaction target while Farming keeps no extra event field', async () => {
+    await loadProto();
+    const { encodeOwnFarmingRequest } = require('../dist/services/farm/api');
+    const notify = types.LandsNotify.decode(Buffer.from(
+        '0a1808015214b20211088e27109fd487ea0318978cbcd4062001109082b7e103',
+        'hex',
+    ));
+    const target = notify.lands[0].plant.interaction_targets[0];
+    assert.equal(Number(target.item_id), 5006);
+    assert.equal(Number(target.host_gid), 1027729951);
+    assert.equal(Number(target.land_id), 1);
+
+    const activeCloudLand = growingLand(1, 0, {
+        interaction_targets: [target],
+        field_40: [{ value_1: 8, value_2: 1 }],
+    });
+    assert.deepEqual(analyzeLands([activeCloudLand], false, 9001).needInteractionCleanup, [1]);
+    assert.deepEqual(buildLandDetail(activeCloudLand).interactionEffects.map(item => item.itemId), ['5006']);
+
+    const body = encodeOwnFarmingRequest([2], 1009631504);
+    assert.equal(Buffer.from(body).toString('hex'), '0a0102109082b7e10318002000');
+    assert.deepEqual(types.FarmingRequest.decode(body).social_event_item_ids, []);
 });

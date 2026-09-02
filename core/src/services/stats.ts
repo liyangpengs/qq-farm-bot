@@ -250,10 +250,10 @@ function getStats(statusData: any, userState: any, connected: boolean, limits: a
     const statusObj: any = (statusData && typeof statusData === 'object') ? statusData : {};
     const userObj: any = (userState && typeof userState === 'object') ? userState : {};
 
-    const rawGold: any = (userObj.gold !== null && userObj.gold !== undefined) ? userObj.gold : statusObj.gold;
-    const rawExp: any = (userObj.exp !== null && userObj.exp !== undefined) ? userObj.exp : statusObj.exp;
-    const rawCoupon: any = (userObj.coupon !== null && userObj.coupon !== undefined) ? userObj.coupon : statusObj.coupon;
-    const rawGoldBean: any = (userObj.goldBean !== null && userObj.goldBean !== undefined) ? userObj.goldBean : statusObj.goldBean;
+    const rawGold: any = userObj.gold ?? statusObj.gold;
+    const rawExp: any = userObj.exp ?? statusObj.exp;
+    const rawCoupon: any = userObj.coupon ?? statusObj.coupon;
+    const rawGoldBean: any = userObj.goldBean ?? statusObj.goldBean;
     const currentGold: number = Number.isFinite(Number(rawGold)) ? Number(rawGold) : 0;
     const currentExp: number = Number.isFinite(Number(rawExp)) ? Number(rawExp) : 0;
     const currentCoupon: number = Number.isFinite(Number(rawCoupon)) ? Number(rawCoupon) : 0;

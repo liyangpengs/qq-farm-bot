@@ -181,22 +181,18 @@ function formatBucketTime(item: any) {
 
 // Next Check Countdown
 const nextFarmCheck = ref('--:--:--')
-const nextHelpCheck = ref('--:--:--')
-const nextStealCheck = ref('--:--:--')
+const nextFriendCheck = ref('--:--:--')
 const localUptime = ref(0)
 let localNextFarmRemainSec = 0
-let localNextHelpRemainSec = 0
-let localNextStealRemainSec = 0
+let localNextFriendRemainSec = 0
 let farmQuiet = false
-let helpQuiet = false
-let stealQuiet = false
+let friendQuiet = false
 
 function updateCountdowns() {
   // Update uptime
   if (!status.value?.connection?.connected) {
     nextFarmCheck.value = '账号未登录'
-    nextHelpCheck.value = '账号未登录'
-    nextStealCheck.value = '账号未登录'
+    nextFriendCheck.value = '账号未登录'
   }
   else {
     localUptime.value++
@@ -211,26 +207,15 @@ function updateCountdowns() {
       nextFarmCheck.value = '巡查中...'
     }
 
-    if (helpQuiet) {
-      nextHelpCheck.value = '静默中'
+    if (friendQuiet) {
+      nextFriendCheck.value = '静默中'
     }
-    else if (localNextHelpRemainSec > 0) {
-      localNextHelpRemainSec--
-      nextHelpCheck.value = formatDuration(localNextHelpRemainSec)
-    }
-    else {
-      nextHelpCheck.value = '巡查中...'
-    }
-
-    if (stealQuiet) {
-      nextStealCheck.value = '静默中'
-    }
-    else if (localNextStealRemainSec > 0) {
-      localNextStealRemainSec--
-      nextStealCheck.value = formatDuration(localNextStealRemainSec)
+    else if (localNextFriendRemainSec > 0) {
+      localNextFriendRemainSec--
+      nextFriendCheck.value = formatDuration(localNextFriendRemainSec)
     }
     else {
-      nextStealCheck.value = '巡查中...'
+      nextFriendCheck.value = '巡查中...'
     }
   }
 }
@@ -241,11 +226,16 @@ watch(() => status.value?.nextChecks, (nextChecks) => {
     // Actually, we should sync from server periodically.
     // Here we just take server value when it comes.
     localNextFarmRemainSec = nextChecks.farmRemainSec || 0
-    localNextHelpRemainSec = nextChecks.helpRemainSec || 0
-    localNextStealRemainSec = nextChecks.stealRemainSec || 0
+    // 统一好友任务倒计时；兼容旧 Worker 返回的帮助/偷菜字段。
+    localNextFriendRemainSec = nextChecks.friendRemainSec
+      ?? nextChecks.helpRemainSec
+      ?? nextChecks.stealRemainSec
+      ?? 0
     farmQuiet = !!nextChecks.farmQuiet
-    helpQuiet = !!nextChecks.helpQuiet
-    stealQuiet = !!nextChecks.stealQuiet
+    friendQuiet = nextChecks.friendQuiet
+      ?? nextChecks.helpQuiet
+      ?? nextChecks.stealQuiet
+      ?? false
     updateCountdowns() // Update immediately
   }
 }, { immediate: true })
@@ -753,19 +743,10 @@ useIntervalFn(updateCountdowns, 1000)
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                 <span class="i-carbon-collaborate text-lg text-blue-500" />
-                <span>帮助</span>
+                <span>好友任务</span>
               </div>
               <div class="text-lg font-bold font-mono">
-                {{ nextHelpCheck }}
-              </div>
-            </div>
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                <span class="i-carbon-run text-lg text-orange-500" />
-                <span>偷菜</span>
-              </div>
-              <div class="text-lg font-bold font-mono">
-                {{ nextStealCheck }}
+                {{ nextFriendCheck }}
               </div>
             </div>
           </div>

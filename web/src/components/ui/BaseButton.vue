@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ButtonProps } from 'naive-ui'
-import { NButton } from 'naive-ui'
+import { NButton } from 'naive-ui/es/button'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 

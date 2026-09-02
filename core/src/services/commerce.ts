@@ -80,7 +80,7 @@ function mallGoodsDto(goods: any, balances: Record<string, number>): any {
     const limit = limitDto(goods?.purchase_limit);
     const isFree = !!goods?.is_free || price.id === 0 || price.count === 0;
     const available = goods?.is_available !== false;
-    const balance = price.id > 0 && Object.prototype.hasOwnProperty.call(balances, String(price.id))
+    const balance = price.id > 0 && Object.hasOwn(balances, String(price.id))
         ? balances[String(price.id)]
         : null;
     return {
@@ -112,7 +112,7 @@ async function getMallCatalog(slotTypeInput: unknown = 1, subSlotTypeInput: unkn
         subSlotType,
         serverTime: getServerTimeSec() * 1000,
         refreshCountdown: Math.max(0, toNum(reply?.refresh_countdown)),
-        currencies: [...new Set(currencyIds)].map(id => ({ ...itemDto({ id, count: balances[String(id)] || 0 }), balanceKnown: Object.prototype.hasOwnProperty.call(balances, String(id)) })),
+        currencies: Array.from(new Set(currencyIds), id => ({ ...itemDto({ id, count: balances[String(id)] || 0 }), balanceKnown: Object.hasOwn(balances, String(id)) })),
         goods: goods.map((entry: any) => mallGoodsDto(entry, balances)),
     };
 }

@@ -5,16 +5,19 @@ export {};
 
 const protobuf = require('protobufjs');
 const { getPlantNameBySeedId, formatGrowTime, getPlantGrowTime, getAllSeeds, getPlantBySeedId } = require('../../config/gameConfig');
-const { getPreferredSeed, getAutomation, getPlantingStrategy, getBagSeedPriority, getBagSeedFallbackStrategy } = require('../../models/store');
+const { getPreferredSeed, getAutomation, getPlantingStrategy, getBagSeedPriority, getBagSeedLandTypes, getBagSeedFallbackStrategy } = require('../../models/store');
 const { getUserState, getWsErrorState, sendMsgAsync } = require('../../utils/network');
 const { toNum, getServerTimeSec, log, logWarn, sleep } = require('../../utils/utils');
 const { types } = require('../../utils/proto');
 const { getPlantRankings } = require('../analytics');
 const { recordOperation } = require('../stats');
 const { getBagSeeds } = require('../warehouse');
-const { getAllLands, buyGoods, removePlant } = require('./api');
+const { getCareerInfoOrNull } = require('../career');
+const { getAllLands, buyGoods, removePlant, fertilizeOne } = require('./api');
 const {
+    ALL_FERTILIZER_LAND_TYPES,
     buildLandDetail,
+    buildFarmSocialEventDetails,
     analyzeLands,
     buildLandMap,
     summarizeLandDetails,
@@ -43,7 +46,7 @@ interface PlantSeedsResult {
 }
 
 const NORMAL_FERTILIZER_ID: number = 1011;
-const ALL_FERTILIZER_LAND_TYPES: string[] = ['gold', 'black', 'red', 'normal'];
+const ORGANIC_FERTILIZER_ID: number = 1012;
 
 function confirmsPlantedFootprint(
     expectedLandIds: Set<number>,
@@ -208,7 +211,19 @@ function sortBagSeedsForPlanting(bagSeeds: any[], priorityList: any[] | undefine
     });
 }
 
-async function plantFromBagSeeds(landsToPlant: any[]): Promise<{
+/**
+ * 该种子允许种植的土地类型；null 表示不限制。
+ * 缺配置、空数组、勾满全部类型三者等价于不限制。
+ */
+function resolveSeedLandTypes(bagSeedLandTypes: any, seedId: any): string[] | null {
+    const raw = bagSeedLandTypes && bagSeedLandTypes[String(toNum(seedId))];
+    if (!Array.isArray(raw)) return null;
+    const types: string[] = normalizeFertilizerLandTypes(raw);
+    if (types.length === 0 || types.length === ALL_FERTILIZER_LAND_TYPES.length) return null;
+    return types;
+}
+
+async function plantFromBagSeeds(landsToPlant: any[], landTypeById?: Map<number, string>): Promise<{
     remainingLandIds: number[];
     fallbackAllowed: boolean;
     plantedLandIds: number[];
@@ -224,6 +239,8 @@ async function plantFromBagSeeds(landsToPlant: any[]): Promise<{
     const bagSeeds = await getBagSeeds();
     const state = getUserState();
     const priorityList = getBagSeedPriority();
+    const bagSeedLandTypes = getBagSeedLandTypes() || {};
+    const landTypeAvailable = !!(landTypeById && landTypeById.size > 0);
     const allBagSeeds = (Array.isArray(bagSeeds) ? bagSeeds : []);
     
     const stateLevel = toNum(state && state.level);
@@ -233,6 +250,8 @@ async function plantFromBagSeeds(landsToPlant: any[]): Promise<{
         count: toNum(seed && seed.count),
         requiredLevel: toNum(seed && seed.requiredLevel),
         plantSize: Math.max(1, toNum(seed && seed.plantSize) || getPlantSizeBySeedId(seed && seed.seedId)),
+        // 拿不到土地类型时按不限制处理，避免整轮种不下去。
+        landTypes: landTypeAvailable ? resolveSeedLandTypes(bagSeedLandTypes, seed && seed.seedId) : null,
         stateLevel,
     }));
     log('种植', `背包种子原始: ${filteredForLevelAndCount.map((s: any) => `${s.name}(${s.seedId})x${s.count},lv${s.requiredLevel},size${s.plantSize}`).join('; ')}`, {
@@ -272,11 +291,20 @@ async function plantFromBagSeeds(landsToPlant: any[]): Promise<{
             module: 'farm', event: '种植种子', result: 'bag_seed_skip', strategy: 'bag_priority', skipped: skippedSeeds,
         });
     }
-if (usableSeeds.length > 0) {
-        const orderedSeeds = usableSeeds.map((seed: any, index: number) => `${index + 1}.${seed.name}(${seed.seedId})x${toNum(seed && seed.count)}`).join(' -> ');
+    // 有土地限制的种子先种，否则不限制的种子会把受限种子唯一能用的地块占光。
+    const plantingOrder: any[] = [
+        ...usableSeeds.filter((seed: any) => !!seed.landTypes),
+        ...usableSeeds.filter((seed: any) => !seed.landTypes),
+    ];
+
+    if (plantingOrder.length > 0) {
+        const orderedSeeds = plantingOrder.map((seed: any, index: number) => {
+            const scope = seed.landTypes ? `[仅${formatFertilizerLandTypes(seed.landTypes).join('/')}]` : '';
+            return `${index + 1}.${seed.name}(${seed.seedId})x${toNum(seed && seed.count)}${scope}`;
+        }).join(' -> ');
         log('种植', `背包种子执行顺序: ${orderedSeeds}`, {
             module: 'farm', event: '种植种子', result: 'bag_priority_order', strategy: 'bag_priority',
-            priority: priorityList, seedIds: usableSeeds.map((seed: any) => seed.seedId),
+            priority: priorityList, seedIds: plantingOrder.map((seed: any) => seed.seedId),
         });
     }
 
@@ -294,21 +322,31 @@ if (usableSeeds.length > 0) {
     const plantedLandIds: number[] = [];
     const usedSeedLogs: string[] = [];
 
-    for (const seed of usableSeeds) {
+    for (const seed of plantingOrder) {
         if (remainingLandIds.length === 0 || !fallbackAllowed) break;
 
         const plantSize = Math.max(1, toNum(seed && seed.plantSize) || getPlantSizeBySeedId(seed.seedId));
-        const allLayouts: PlantingLayout[] = buildPlantingLayouts(remainingLandIds, plantSize);
+        // 受限种子只在命中类型的空地上装箱；未命中的空地留给后续种子或第二优先策略。
+        const allowedLandIds: number[] = seed.landTypes
+            ? filterLandIdsByTypes(remainingLandIds, landTypeById, seed.landTypes)
+            : remainingLandIds;
+        const allLayouts: PlantingLayout[] = buildPlantingLayouts(allowedLandIds, plantSize);
         const layouts: PlantingLayout[] = selectNonOverlappingLayouts(allLayouts, toNum(seed.count));
-        log('种植', `背包种子 ${seed.name}(${seed.seedId}) size=${plantSize} count=${seed.count} 剩余=${remainingLandIds.length} allLayouts=${allLayouts.length} selected=${layouts.length}`, {
+        const scopeLog = seed.landTypes ? ` 限${formatFertilizerLandTypes(seed.landTypes).join('/')}=${allowedLandIds.length}` : '';
+        log('种植', `背包种子 ${seed.name}(${seed.seedId}) size=${plantSize} count=${seed.count} 剩余=${remainingLandIds.length}${scopeLog} allLayouts=${allLayouts.length} selected=${layouts.length}`, {
             module: 'farm', event: '种植种子', result: 'layout_check', strategy: 'bag_priority',
             seedId: seed.seedId, plantSize, count: seed.count, emptyCount: remainingLandIds.length,
+            landTypes: seed.landTypes || null, allowedCount: allowedLandIds.length,
             allLayouts: allLayouts.length, selectedLayouts: layouts.length, remainingLandIds,
         });
         if (layouts.length === 0) {
-            log('种植', `背包种子 ${seed.name} 无合法${plantSize}x${plantSize} 布局，已跳过`, {
+            const reason = seed.landTypes && allowedLandIds.length === 0
+                ? `无${formatFertilizerLandTypes(seed.landTypes).join('/')}空地`
+                : `无合法${plantSize}x${plantSize} 布局`;
+            log('种植', `背包种子 ${seed.name} ${reason}，已跳过`, {
                 module: 'farm', event: '种植种子', result: 'skip_no_layout', strategy: 'bag_priority',
-                seedId: seed.seedId, plantSize, emptyCount: remainingLandIds.length
+                seedId: seed.seedId, plantSize, emptyCount: remainingLandIds.length,
+                landTypes: seed.landTypes || null, allowedCount: allowedLandIds.length,
             });
             continue;
         }
@@ -509,37 +547,81 @@ async function getAvailableSeeds(): Promise<any[]> {
         }));
     }
     return list.sort((a: any, b: any) => {
-        const av = (a.requiredLevel === null || a.requiredLevel === undefined) ? 9999 : a.requiredLevel;
-        const bv = (b.requiredLevel === null || b.requiredLevel === undefined) ? 9999 : b.requiredLevel;
+        const av = a.requiredLevel ?? 9999;
+        const bv = b.requiredLevel ?? 9999;
         return av - bv;
     });
 }
 
-async function getLandsDetail(): Promise<{ lands: any[]; summary: any }> {
+async function getLandsDetail(): Promise<{ lands: any[]; summary: any; socialEvents: any[]; career: any }> {
+    let lands: any[] = [];
+    let summary: any = {};
+    let socialEvents: any[] = [];
     try {
         const landsReply = await getAllLands();
-        if (!landsReply.lands) return { lands: [], summary: {} };
-        const nowSec: number = getServerTimeSec();
-        const landsMap = buildLandMap(landsReply.lands);
-        const lands: any[] = landsReply.lands.map((land: any) => buildLandDetail(land, {
-            friendMode: false,
-            landsMap,
-            nowSec,
-        }));
-
-        return {
-            lands,
-
-            summary: summarizeLandDetails(lands),
-        };
+        socialEvents = buildFarmSocialEventDetails(landsReply);
+        if (landsReply.lands) {
+            const nowSec: number = getServerTimeSec();
+            const landsMap = buildLandMap(landsReply.lands);
+            lands = landsReply.lands.map((land: any) => buildLandDetail(land, {
+                friendMode: false,
+                landsMap,
+                nowSec,
+            }));
+            summary = summarizeLandDetails(lands);
+        }
     } catch {
-        return { lands: [], summary: {} };
+        lands = [];
+        summary = {};
+        socialEvents = [];
     }
+
+    return {
+        lands,
+        summary,
+        socialEvents,
+        career: await getCareerInfoOrNull(getUserState().gid),
+    };
+}
+
+/**
+ * 解析 landId -> 土地类型。仅在配置了土地限制时才解析，未配置的账号不额外请求土地。
+ * 解析不出来时返回 undefined，调用方按不限制处理。
+ */
+async function resolveLandTypeMapForBagSeeds(knownLands: any[]): Promise<Map<number, string> | undefined> {
+    if (Object.keys(getBagSeedLandTypes() || {}).length === 0) return undefined;
+
+    let lands: any[] = Array.isArray(knownLands) ? knownLands : [];
+    if (lands.length === 0) {
+        try {
+            const latest = await getAllLands();
+            lands = Array.isArray(latest && latest.lands) ? latest.lands : [];
+        } catch (e: any) {
+            logWarn('种植', `获取土地类型失败，本轮忽略背包种子的土地限制: ${e.message}`, {
+                module: 'farm', event: '种植种子', result: 'land_type_error', strategy: 'bag_priority',
+            });
+            return undefined;
+        }
+    }
+
+    const landTypeById = new Map<number, string>();
+    for (const land of lands) {
+        const landId = toNum(land && land.id);
+        if (!landId) continue;
+        landTypeById.set(landId, getLandTypeByLevel(land.level));
+    }
+    if (landTypeById.size === 0) {
+        logWarn('种植', '无法确认土地类型，本轮忽略背包种子的土地限制', {
+            module: 'farm', event: '种植种子', result: 'land_type_empty', strategy: 'bag_priority',
+        });
+    }
+    return landTypeById;
 }
 
 async function autoPlantEmptyLands(deadLandIds: number[], emptyLandIds: number[]): Promise<any> {
     let landsToPlant: number[] = [...new Set<number>((Array.isArray(emptyLandIds) ? emptyLandIds : [])
         .map((id: any) => toNum(id)).filter((id: number) => id > 0))];
+    let latestLands: any[] = [];
     const state = getUserState();
 
     // 1. 铲除枯死/收获残留植物（一键操作），随后以服务端最新状态确认可用土地。
@@ -551,7 +633,8 @@ async function autoPlantEmptyLands(deadLandIds: number[], emptyLandIds: number[]
             });
             try {
                 const latest = await getAllLands();
-                landsToPlant = analyzeLands(Array.isArray(latest && latest.lands) ? latest.lands : []).empty;
+                latestLands = Array.isArray(latest && latest.lands) ? latest.lands : [];
+                landsToPlant = analyzeLands(latestLands).empty;
             } catch (e: any) {
                 logWarn('铲除', `铲除后确认土地失败，保留原有空地且不使用枯死地块: ${e.message}`, {
                     module: 'farm', event: '铲除植物', result: 'confirm_error'
@@ -572,7 +655,8 @@ async function autoPlantEmptyLands(deadLandIds: number[], emptyLandIds: number[]
     if (accountStrategy === 'bag_priority') {
         let bagResult: any;
         try {
-            bagResult = await plantFromBagSeeds(landsToPlant);
+            const landTypeById = await resolveLandTypeMapForBagSeeds(latestLands);
+            bagResult = await plantFromBagSeeds(landsToPlant, landTypeById);
         } catch (e: any) {
             logWarn('种植', `读取背包种子失败，本轮跳过第二优先策略以避免误购: ${e.message}`, {
                 module: 'farm',
@@ -865,11 +949,62 @@ async function runFertilizerByConfig(plantedLands: any[] = [], options: { skipNo
     return { normal: fertilizedNormal, organic: fertilizedOrganic };
 }
 
+async function fertilizeOwnLand(landIdInput: unknown, fertilizerTypeInput: unknown): Promise<any> {
+    const landId = toNum(landIdInput);
+    if (!landId || landId <= 0) {
+        throw new Error('地块编号无效');
+    }
+
+    const fertilizerType = String(fertilizerTypeInput || '').trim().toLowerCase();
+    if (fertilizerType !== 'normal' && fertilizerType !== 'organic') {
+        throw new Error('化肥类型必须是 normal 或 organic');
+    }
+
+    const fertilizerId = fertilizerType === 'organic' ? ORGANIC_FERTILIZER_ID : NORMAL_FERTILIZER_ID;
+    const typeName = fertilizerType === 'organic' ? '有机化肥' : '普通化肥';
+    let reply: any;
+    try {
+        reply = await fertilizeOne(landId, fertilizerId);
+    }
+    catch (error: any) {
+        const message = String(error?.errorMessage || '').trim()
+            || String(error?.message || '').replace(/^[\s\S]*错误:\s*code=\d+\s+/, '').trim()
+            || `${typeName}使用失败`;
+        throw new Error(message);
+    }
+    const replyLands = Array.isArray(reply && reply.land) ? reply.land : [];
+    const updatedRaw = replyLands.find((land: any) => toNum(land?.id) === landId) || replyLands[0] || null;
+    const nowSec = getServerTimeSec();
+    const landsMap = updatedRaw ? buildLandMap([updatedRaw]) : new Map();
+    const updatedLand = updatedRaw
+        ? buildLandDetail(updatedRaw, { friendMode: false, landsMap, nowSec })
+        : null;
+    const fertilizerRemainingSec = toNum(reply?.fertilizer?.count);
+
+    recordOperation('fertilize', 1);
+    log('施肥', `手动施肥：第 ${landId} 块地已施${typeName}`, {
+        module: 'farm',
+        event: '手动施肥',
+        result: 'ok',
+        type: fertilizerType,
+        landId,
+        remainingSec: fertilizerRemainingSec,
+    });
+
+    return {
+        landId,
+        fertilizerType,
+        fertilizerRemainingSec,
+        updatedLand,
+    };
+}
+
 module.exports = {
     getPlantSizeBySeedId,
     plantSeeds,
     getPlantingStrategyLabel,
     sortBagSeedsForPlanting,
+    resolveSeedLandTypes,
     plantFromBagSeeds,
     findBestSeed,
     getAvailableSeeds,
@@ -877,4 +1012,5 @@ module.exports = {
     autoPlantEmptyLands,
     plantFromShop,
     runFertilizerByConfig,
+    fertilizeOwnLand,
 };

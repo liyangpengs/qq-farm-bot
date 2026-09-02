@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { NCard, NModal } from 'naive-ui'
+import { NCard } from 'naive-ui/es/card'
+import { NModal } from 'naive-ui/es/modal'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
 const props = defineProps<{

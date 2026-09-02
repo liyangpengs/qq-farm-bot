@@ -43,10 +43,17 @@ message UseReply {
     repeated corepb.Item items = 2;
     gamepb.plantpb.LandInfo land = 4;
     UseLandReward land_reward = 5;
+    UseSocialReward social_reward = 6;
 }
 
 message UseLandReward {
     int64 land_id = 1;
+    repeated corepb.Item items = 2;
+}
+
+// 青蛙使坏瓶等整座好友农场道具的奖励回包。
+message UseSocialReward {
+    int64 item_id = 1;
     repeated corepb.Item items = 2;
 }
 

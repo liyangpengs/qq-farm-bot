@@ -24,6 +24,7 @@ const { getBag, getBagItems } = require('./warehouse');
 const SPECIAL_INTERACTION_TYPE = 'additemuseitem';
 const MAX_BATCH_LANDS = 48;
 const MAX_SIGNED_INT64 = 9223372036854775807n;
+const FRIEND_FARM_ITEM_IDS: Set<number> = new Set([5005]);
 
 /**
  * 可以对自己农场使用的互动道具白名单。
@@ -31,6 +32,7 @@ const MAX_SIGNED_INT64 = 9223372036854775807n;
  * 因此这里逐个登记，而不是按 interaction_type 放行。
  */
 const SELF_USABLE_INTERACTION_ITEM_IDS: Set<number> = new Set([
+    5003, // 闪电变异瓶：自己的未成熟 1*1 作物。
     301103, // 七夕活动土地道具，展示名称由 ItemInfo 提供。
 ]);
 
@@ -104,8 +106,20 @@ function isFriendLandInteractionMetadata(info: any): boolean {
     return /好友|他人/.test(targetDescription);
 }
 
+function isLandInteractionMetadata(info: any): boolean {
+    if (!info || typeof info !== 'object') return false;
+    return Number(info.type) === 23
+        && Number(info.can_use) > 0
+        && String(info.interaction_type || '').trim().toLowerCase() === SPECIAL_INTERACTION_TYPE;
+}
+
+function isFriendFarmInteractionMetadata(info: any): boolean {
+    const itemId = Number(info?.id) || 0;
+    return !!info && Number(info.type) === 23 && Number(info.can_use) > 0 && FRIEND_FARM_ITEM_IDS.has(itemId);
+}
+
 function isSelfLandInteractionMetadata(info: any): boolean {
-    if (!isFriendLandInteractionMetadata(info)) return false;
+    if (!isLandInteractionMetadata(info)) return false;
     return SELF_USABLE_INTERACTION_ITEM_IDS.has(Number(info.id) || 0);
 }
 
@@ -128,6 +142,7 @@ function eligibleStacksForItem(bagItems: any[], itemId: number, info: any, baseC
             toNum(stack?.id ?? stack?.item_id) === itemId
             && toNum(stack?.uid) > 0
             && toNum(stack?.count) > 0
+            && !stack?.locked
         ))
         .map((stack: any) => ({
             raw: stack,
@@ -142,7 +157,7 @@ function eligibleStacksForItem(bagItems: any[], itemId: number, info: any, baseC
         });
 }
 
-function buildInteractionItemDto(info: any, stacks: any[]): any {
+function buildInteractionItemDto(info: any, stacks: any[], targetKind: 'land' | 'farm' = 'land'): any {
     const count = stacks.reduce((sum: number, stack: any) => sum + Math.max(0, Number(stack.remaining) || 0), 0);
     const saleConditionSatisfiedCount = stacks
         .filter((stack: any) => stack.saleConditionSatisfied)
@@ -162,6 +177,7 @@ function buildInteractionItemDto(info: any, stacks: any[]): any {
         interactionType: String(info.interaction_type || ''),
         protocol: 'item-use',
         selfUsable: SELF_USABLE_INTERACTION_ITEM_IDS.has(itemId),
+        targetKind,
         description: String(info.desc || info.effectDesc || ''),
         activityId: info.activity_id == null ? '' : String(info.activity_id),
         sellCondition: String(info.sell_cond || ''),
@@ -170,7 +186,10 @@ function buildInteractionItemDto(info: any, stacks: any[]): any {
     };
 }
 
-async function collectFriendInteractionInventory(): Promise<{ items: any[]; stacksByItemId: Map<number, any[]> }> {
+async function collectInteractionInventory(
+    predicate: (info: any) => boolean,
+    targetKind: 'land' | 'farm' = 'land',
+): Promise<{ items: any[]; stacksByItemId: Map<number, any[]> }> {
     const [bagReply, baseContext] = await Promise.all([getBag(), getSellConditionContext()]);
     const bagItems = getBagItems(bagReply);
     const itemIds = new Set<number>();
@@ -183,10 +202,10 @@ async function collectFriendInteractionInventory(): Promise<{ items: any[]; stac
     const stacksByItemId = new Map<number, any[]>();
     for (const itemId of itemIds) {
         const info = getItemById(itemId);
-        if (!isFriendLandInteractionMetadata(info)) continue;
+        if (!predicate(info)) continue;
         const allItemStacks = bagItems.filter((stack: any) => toNum(stack?.id ?? stack?.item_id) === itemId);
         const stacks = eligibleStacksForItem(allItemStacks, itemId, info, baseContext);
-        const dto = buildInteractionItemDto(info, stacks);
+        const dto = buildInteractionItemDto(info, stacks, targetKind);
         if (dto.count <= 0) continue;
         stacksByItemId.set(itemId, stacks);
         items.push(dto);
@@ -200,20 +219,24 @@ async function collectFriendInteractionInventory(): Promise<{ items: any[]; stac
 }
 
 async function getFriendInteractionItems(): Promise<any> {
-    const inventory = await collectFriendInteractionInventory();
+    const [landInventory, farmInventory] = await Promise.all([
+        collectInteractionInventory(isFriendLandInteractionMetadata, 'land'),
+        collectInteractionInventory(isFriendFarmInteractionMetadata, 'farm'),
+    ]);
+    const items = [...landInventory.items, ...farmInventory.items];
     return {
-        items: inventory.items,
-        count: inventory.items.length,
+        items,
+        count: items.length,
         serverValidationRequired: true,
         confirmationRequired: true,
-        message: inventory.items.length > 0
-            ? '请选择好友农场中符合条件的土地使用'
-            : '背包中暂无可用于好友土地的特殊互动道具',
+        message: items.length > 0
+            ? '请选择好友农场或土地使用'
+            : '背包中暂无可用于好友农场的特殊互动道具',
     };
 }
 
 async function getSelfInteractionItems(): Promise<any> {
-    const inventory = await collectFriendInteractionInventory();
+    const inventory = await collectInteractionInventory(isSelfLandInteractionMetadata, 'land');
     const items = inventory.items.filter((item: any) => item.selfUsable);
     return {
         items,
@@ -226,7 +249,37 @@ async function getSelfInteractionItems(): Promise<any> {
     };
 }
 
-function buildTargetLandMap(landsInput: any[]): Map<string, any> {
+function hasInteractionItem(detail: any, itemId: number): boolean {
+    return (Array.isArray(detail?.interactionEffects) ? detail.interactionEffects : [])
+        .some((effect: any) => String(effect?.itemId || '') === String(itemId));
+}
+
+function isEligibleInteractionTarget(itemId: number, detail: any, currentPhase: any): boolean {
+    const phase = toNum(currentPhase?.phase);
+    const rarity = toNum(detail?.rarity);
+    const mutantIds = new Set((Array.isArray(detail?.mutantConfigIds) ? detail.mutantConfigIds : []).map(String));
+    if (itemId === 5003) {
+        return phase >= PlantPhase.GERMINATION
+            && phase <= PlantPhase.BLOOMING
+            && toNum(detail?.plantSize) === 1
+            && rarity !== 4
+            && rarity !== 5
+            && !mutantIds.has('12');
+    }
+    if (itemId === 5004) {
+        return phase >= PlantPhase.GERMINATION
+            && phase <= PlantPhase.BLOOMING
+            && rarity !== 4
+            && rarity !== 5
+            && !hasInteractionItem(detail, itemId);
+    }
+    if (itemId === 5006 || itemId === 301101 || itemId === 301102 || itemId === 301103) {
+        return phase >= PlantPhase.SEED && phase <= PlantPhase.BLOOMING && !hasInteractionItem(detail, itemId);
+    }
+    return phase !== PlantPhase.DEAD;
+}
+
+function buildTargetLandMap(landsInput: any[], itemId: number, friendMode: boolean): Map<string, any> {
     const lands = Array.isArray(landsInput) ? landsInput : [];
     const landsMap = buildLandMap(lands);
     const targets = new Map<string, any>();
@@ -240,13 +293,15 @@ function buildTargetLandMap(landsInput: any[]): Map<string, any> {
         const plant = sourceLand?.plant;
         if (!plant || !Array.isArray(plant.phases) || plant.phases.length === 0) continue;
         const currentPhase = getCurrentPhase(plant.phases, false, '');
-        if (toNum(currentPhase?.phase) === PlantPhase.DEAD) continue;
+        const detail = buildLandDetail(sourceLand, { friendMode, landsMap });
+        if (!isEligibleInteractionTarget(itemId, detail, currentPhase)) continue;
         targets.set(String(landId), {
             landId: String(landId),
             plantId: int64String(plant.id),
             occupiedLandIds: (Array.isArray(context.occupiedLandIds) ? context.occupiedLandIds : [landId])
                 .map((id: any) => String(toNum(id)))
                 .filter((id: string) => id !== '0'),
+            detail,
         });
     }
     return targets;
@@ -268,6 +323,16 @@ async function sendTargetedItemUse(itemId: number, stack: any, friendGid: string
             land_ids: [landId],
             use_config_id: 0,
         },
+    });
+    const body = Buffer.from(types.UseRequest.encode(request).finish());
+    const { body: replyBody } = await sendMsgAsync('gamepb.itempb.ItemService', 'Use', body);
+    return types.UseReply.decode(replyBody);
+}
+
+async function sendFriendFarmItemUse(itemId: number, stack: any, friendGid: string): Promise<any> {
+    const request = types.UseRequest.create({
+        item: { id: itemId, count: 1, uid: stack.raw.uid },
+        target: { host_gid: friendGid, use_config_id: 0 },
     });
     const body = Buffer.from(types.UseRequest.encode(request).finish());
     const { body: replyBody } = await sendMsgAsync('gamepb.itempb.ItemService', 'Use', body);
@@ -372,7 +437,10 @@ function buildConfirmedInteractionEffects(
 
 /** 读取并校验本次批量使用要消耗的库存，返回按过期时间排序的可用堆叠。 */
 async function resolveUsableStacks(itemId: number, info: any, landCount: number): Promise<any[]> {
-    const inventory = await collectFriendInteractionInventory();
+    const inventory = await collectInteractionInventory(
+        (candidate: any) => isLandInteractionMetadata(candidate) || isFriendFarmInteractionMetadata(candidate),
+        'land',
+    );
     const stacks = inventory.stacksByItemId.get(itemId) || [];
     const available = stacks.reduce((sum: number, stack: any) => sum + Math.max(0, Number(stack.remaining) || 0), 0);
     if (available <= 0) {
@@ -398,7 +466,7 @@ async function runInteractionBatch(
     friendMode: boolean = true,
 ): Promise<any[]> {
     const itemName = String(info.name || `物品${itemId}`);
-    const targetMap = buildTargetLandMap(landsInput);
+    const targetMap = buildTargetLandMap(landsInput, itemId, friendMode);
     const attempts: any[] = [];
 
     for (let index = 0; index < landIds.length; index += 1) {
@@ -526,6 +594,47 @@ async function performFriendInteractionItemBatch(friendGidInput: unknown, itemId
     };
 }
 
+async function performFriendFarmInteractionItem(friendGidInput: unknown, itemIdInput: unknown): Promise<any> {
+    const friendGid = positiveDecimal(friendGidInput, 'INVALID_FRIEND_INTERACTION_GID', 'friendGid');
+    const friendGidNumber = safePositiveNumber(friendGid, 'INVALID_FRIEND_INTERACTION_GID', 'friendGid');
+    const itemId = safePositiveNumber(itemIdInput, 'INVALID_FRIEND_INTERACTION_ITEM_ID', 'itemId');
+    const info = getItemById(itemId);
+    if (!isFriendFarmInteractionMetadata(info)) {
+        throw businessError('FRIEND_INTERACTION_ITEM_UNSUPPORTED', '该物品不是可用于好友农场的特殊互动道具');
+    }
+    const stacks = await resolveUsableStacks(itemId, info, 1);
+    const stack = currentStack(stacks);
+    if (!stack) throw businessError('FRIEND_INTERACTION_ITEM_UNAVAILABLE', `${info.name || `物品${itemId}`}当前没有可用库存`);
+
+    const enterReply = await enterFriendFarm(friendGidNumber);
+    try {
+        const actualGid = int64String(enterReply?.basic?.gid);
+        if (actualGid !== '0' && actualGid !== friendGid) {
+            throw businessError('FRIEND_INTERACTION_HOST_MISMATCH', '进入的好友农场与所选 GID 不一致');
+        }
+        await sendFriendFarmItemUse(itemId, stack, friendGid);
+        const itemName = String(info.name || `物品${itemId}`);
+        return {
+            hostGid: friendGid,
+            ownerName: String(enterReply?.basic?.remark || enterReply?.basic?.name || `GID:${friendGid}`),
+            itemId: String(itemId),
+            itemName,
+            targetKind: 'farm',
+            protocol: 'item-use',
+            requestedLandIds: [],
+            usedLandIds: [],
+            failedLandIds: [],
+            successCount: 1,
+            failureCount: 0,
+            results: [{ landId: '', ok: true, code: '', message: `已在好友农场使用${itemName}` }],
+            items: (await getFriendInteractionItems()).items,
+            message: `已在好友农场使用 1 个${itemName}`,
+        };
+    } finally {
+        await leaveFriendFarm(friendGidNumber);
+    }
+}
+
 function currentAccountGid(): string {
     const state = getUserState() || {};
     return positiveDecimal(state.gid, 'SELF_INTERACTION_ACCOUNT_UNAVAILABLE', '当前账号 GID');
@@ -588,6 +697,10 @@ function useFriendInteractionItemBatch(friendGidInput: unknown, itemIdInput: unk
     return serializeMutation(() => performFriendInteractionItemBatch(friendGidInput, itemIdInput, landIdsInput));
 }
 
+function useFriendFarmInteractionItem(friendGidInput: unknown, itemIdInput: unknown): Promise<any> {
+    return serializeMutation(() => performFriendFarmInteractionItem(friendGidInput, itemIdInput));
+}
+
 function useSelfInteractionItemBatch(itemIdInput: unknown, landIdsInput: unknown): Promise<any> {
     return serializeMutation(() => performSelfInteractionItemBatch(itemIdInput, landIdsInput));
 }
@@ -600,5 +713,6 @@ module.exports = {
     getFriendInteractionItems,
     getSelfInteractionItems,
     useFriendInteractionItemBatch,
+    useFriendFarmInteractionItem,
     useSelfInteractionItemBatch,
 };

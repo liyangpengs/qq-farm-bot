@@ -1846,5 +1846,13 @@
     "param": 204007,
     "show_guarantee": true,
     "sort": 4002
+  },
+  {
+    "id": 40883001,
+    "type": "普通果实",
+    "illustrated_type": "普通图鉴",
+    "param": 40883,
+    "show_guarantee": null,
+    "sort": 20030
   }
 ]
