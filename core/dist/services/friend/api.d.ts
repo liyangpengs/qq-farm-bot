@@ -1,11 +1,13 @@
 /**
  * 好友 API 底层操作 (protobuf 发送/接收)
  */
-export declare function getAllFriends(forceSync?: boolean): Promise<any>;
+export declare function getAllFriends(forceSync?: boolean, priority?: 'low' | 'normal'): Promise<any>;
 export declare function acceptFriends(gids: number[]): Promise<any>;
+export declare function rejectFriends(gids: number[]): Promise<any>;
 export declare function getApplications(): Promise<any>;
-export declare function enterFriendFarm(friendGid: number): Promise<any>;
-export declare function leaveFriendFarm(friendGid: number): Promise<void>;
+export declare function delFriend(gid: number): Promise<any>;
+export declare function enterFriendFarm(friendGid: number, priority?: 'low' | 'normal'): Promise<any>;
+export declare function leaveFriendFarm(friendGid: number, priority?: 'low' | 'normal'): Promise<void>;
 export declare function helpWater(friendGid: number, landIds: number[], stopWhenExpLimit?: boolean): Promise<any>;
 export interface HelpFarmingOutcome {
     effect: 'confirmed' | 'noop' | 'uncertain';

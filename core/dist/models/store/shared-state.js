@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const { DEFAULT_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone } = require('../../config/config');
+const { DEFAULT_TIME_ZONE, normalizeTimeZone, resolveClientVersion } = require('../../config/config');
 const { getDataFile, ensureDataDir } = require('../../config/runtime-paths');
 const { readJsonFile } = require('../../services/json-db');
 const STORE_FILE = getDataFile('store.json');
@@ -12,21 +12,13 @@ const PUSHOO_CHANNELS = new Set([
     'webhook', 'qmsg', 'serverchan', 'pushplus', 'pushplushxtrip',
     'dingtalk', 'wecom', 'bark', 'gocqhttp', 'onebot', 'atri',
     'pushdeer', 'igot', 'telegram', 'feishu', 'ifttt', 'wecombot',
-    'discord', 'wxpusher',
+    'discord', 'wxpusher', 'meow',
 ]);
 const DEFAULT_FERTILIZER_LAND_TYPES = ['purple-gold', 'gold', 'black', 'red', 'normal'];
 const FERTILIZER_LAND_TYPE_SET = new Set(DEFAULT_FERTILIZER_LAND_TYPES);
 const INTERVAL_MAX_SEC = 86400;
 const DEFAULT_KNOWN_FRIEND_GID_SYNC_COOLDOWN_SEC = 300;
 const DEFAULT_FRIENDS_LIST_CACHE_TTL_SEC = 60;
-const LEGACY_DEFAULT_CLIENT_VERSIONS = new Set([
-    '1.13.2.8_20260723',
-    '1.13.2.9_20260723',
-]);
-function isManagedDefaultClientVersion(value) {
-    const version = String(value || '').trim();
-    return version === DEFAULT_CLIENT_VERSION || LEGACY_DEFAULT_CLIENT_VERSIONS.has(version);
-}
 let systemConfigMigrated = false;
 let accountFallbackConfig;
 const DEFAULT_OFFLINE_REMINDER = {
@@ -44,10 +36,12 @@ const DEFAULT_ACCOUNT_CONFIG = {
         farm_push: true,
         land_upgrade: true,
         friend: true,
+        friend_auto_accept: true,
         friend_help_exp_limit: true,
         friend_steal: true,
         friend_help: true,
         friend_bad: true,
+        friend_help_protect_dog_ignore_exp_limit: true,
         task: true,
         fertilizer_gift: false,
         fertilizer_buy_organic: false,
@@ -65,6 +59,7 @@ const DEFAULT_ACCOUNT_CONFIG = {
         fertilizer_land_types: [...DEFAULT_FERTILIZER_LAND_TYPES],
         fertilizer_smart_seconds: 300,
         skip_own_weed_bug: true,
+        show_manual_fertilizer: true,
     },
     plantingStrategy: 'max_exp',
     preferredSeedId: 0,
@@ -72,6 +67,8 @@ const DEFAULT_ACCOUNT_CONFIG = {
         farm: 2,
         farmMin: 20,
         farmMax: 25,
+        friendMin: 20,
+        friendMax: 25,
         helpMin: 20,
         helpMax: 25,
         stealMin: 20,
@@ -105,7 +102,13 @@ const DEFAULT_ACCOUNT_CONFIG = {
     fertilizerBuyNormalThresholdHours: 10,
     fertilizerBuyCheckIntervalMinutes: 60,
     bagSeedPriority: [],
+    bagSeedLandTypes: {},
     bagSeedFallbackStrategy: 'level',
+    autoAcceptFriendMinLevel: 0,
+    autoAcceptRequireOwnLevel: false,
+    autoAcceptHarvestStealEnabled: true,
+    autoAcceptHarvestStealHarvest: 8,
+    autoAcceptHarvestStealSteal: 1,
 };
 const ALLOWED_AUTOMATION_KEYS = new Set(Object.keys(DEFAULT_ACCOUNT_CONFIG.automation));
 // ============ Normalization Helpers ============
@@ -132,6 +135,21 @@ function normalizeFriendsListCacheTtlSec(input, fallback = DEFAULT_FRIENDS_LIST_
     const base = Number.isFinite(value) ? value : fallback;
     return Math.max(10, Math.min(INTERVAL_MAX_SEC, base));
 }
+function normalizeAutoAcceptFriendMinLevel(input, fallback = 0) {
+    const value = Number.parseInt(input, 10);
+    const base = Number.isFinite(value) ? value : fallback;
+    return Math.max(0, Math.min(200, base));
+}
+function normalizeAutoAcceptHarvestStealHarvest(input, fallback = 8) {
+    const value = Number.parseInt(input, 10);
+    const base = Number.isFinite(value) ? value : fallback;
+    return Math.max(0, Math.min(9999, base));
+}
+function normalizeAutoAcceptHarvestStealSteal(input, fallback = 1) {
+    const value = Number.parseInt(input, 10);
+    const base = Number.isFinite(value) ? value : fallback;
+    return Math.max(1, Math.min(9999, base));
+}
 function normalizeBagSeedPriority(input) {
     if (!Array.isArray(input))
         return [];
@@ -143,6 +161,34 @@ function normalizeBagSeedPriority(input) {
         if (normalized.includes(value))
             continue;
         normalized.push(value);
+    }
+    return normalized;
+}
+/**
+ * seedId -> 允许的土地类型。缺 key、空数组、全类型三者等价于不限制，统一省略该 key。
+ */
+function normalizeBagSeedLandTypes(input) {
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+        return {};
+    const normalized = {};
+    for (const [key, value] of Object.entries(input)) {
+        const seedId = Number.parseInt(key, 10);
+        if (!Number.isFinite(seedId) || seedId <= 0)
+            continue;
+        if (!Array.isArray(value))
+            continue;
+        const types = [];
+        for (const item of value) {
+            const type = String(item || '').trim().toLowerCase();
+            if (!FERTILIZER_LAND_TYPE_SET.has(type))
+                continue;
+            if (types.includes(type))
+                continue;
+            types.push(type);
+        }
+        if (types.length === 0 || types.length === DEFAULT_FERTILIZER_LAND_TYPES.length)
+            continue;
+        normalized[String(seedId)] = types;
     }
     return normalized;
 }
@@ -190,11 +236,18 @@ function normalizeIntervals(intervals) {
     let stealMax = toSec(src.stealMax, 10);
     if (stealMin > stealMax)
         [stealMin, stealMax] = [stealMax, stealMin];
+    // 新配置使用统一好友任务间隔；旧账号自动取帮助/偷菜两组间隔中较快的一组。
+    let friendMin = toSec(src.friendMin, Math.min(helpMin, stealMin));
+    let friendMax = toSec(src.friendMax, Math.min(helpMax, stealMax));
+    if (friendMin > friendMax)
+        [friendMin, friendMax] = [friendMax, friendMin];
     return {
         ...src,
         farm,
         farmMin,
         farmMax,
+        friendMin,
+        friendMax,
         helpMin,
         helpMax,
         stealMin,
@@ -243,7 +296,15 @@ function cloneAccountConfig(base = DEFAULT_ACCOUNT_CONFIG) {
         fertilizerBuyNormalThresholdHours: Math.max(0, Math.min(990, Number(base.fertilizerBuyNormalThresholdHours) || 0)),
         fertilizerBuyCheckIntervalMinutes: Math.max(1, Math.min(1440, Number(base.fertilizerBuyCheckIntervalMinutes) || 30)),
         bagSeedPriority: normalizeBagSeedPriority(base.bagSeedPriority),
+        bagSeedLandTypes: normalizeBagSeedLandTypes(base.bagSeedLandTypes),
         bagSeedFallbackStrategy: normalizeBagSeedFallbackStrategy(base.bagSeedFallbackStrategy),
+        autoAcceptFriendMinLevel: normalizeAutoAcceptFriendMinLevel(base.autoAcceptFriendMinLevel, DEFAULT_ACCOUNT_CONFIG.autoAcceptFriendMinLevel),
+        autoAcceptRequireOwnLevel: !!base.autoAcceptRequireOwnLevel,
+        autoAcceptHarvestStealEnabled: base.autoAcceptHarvestStealEnabled !== undefined
+            ? !!base.autoAcceptHarvestStealEnabled
+            : DEFAULT_ACCOUNT_CONFIG.autoAcceptHarvestStealEnabled,
+        autoAcceptHarvestStealHarvest: normalizeAutoAcceptHarvestStealHarvest(base.autoAcceptHarvestStealHarvest, DEFAULT_ACCOUNT_CONFIG.autoAcceptHarvestStealHarvest),
+        autoAcceptHarvestStealSteal: normalizeAutoAcceptHarvestStealSteal(base.autoAcceptHarvestStealSteal, DEFAULT_ACCOUNT_CONFIG.autoAcceptHarvestStealSteal),
     };
 }
 function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
@@ -338,8 +399,26 @@ function normalizeAccountConfig(input, fallback = accountFallbackConfig) {
     if (src.bagSeedPriority !== undefined && src.bagSeedPriority !== null) {
         cfg.bagSeedPriority = normalizeBagSeedPriority(src.bagSeedPriority);
     }
+    if (src.bagSeedLandTypes !== undefined && src.bagSeedLandTypes !== null) {
+        cfg.bagSeedLandTypes = normalizeBagSeedLandTypes(src.bagSeedLandTypes);
+    }
     if (src.bagSeedFallbackStrategy !== undefined && src.bagSeedFallbackStrategy !== null) {
         cfg.bagSeedFallbackStrategy = normalizeBagSeedFallbackStrategy(src.bagSeedFallbackStrategy, cfg.bagSeedFallbackStrategy);
+    }
+    if (src.autoAcceptFriendMinLevel !== undefined && src.autoAcceptFriendMinLevel !== null) {
+        cfg.autoAcceptFriendMinLevel = normalizeAutoAcceptFriendMinLevel(src.autoAcceptFriendMinLevel, cfg.autoAcceptFriendMinLevel);
+    }
+    if (src.autoAcceptRequireOwnLevel !== undefined && src.autoAcceptRequireOwnLevel !== null) {
+        cfg.autoAcceptRequireOwnLevel = !!src.autoAcceptRequireOwnLevel;
+    }
+    if (src.autoAcceptHarvestStealEnabled !== undefined && src.autoAcceptHarvestStealEnabled !== null) {
+        cfg.autoAcceptHarvestStealEnabled = !!src.autoAcceptHarvestStealEnabled;
+    }
+    if (src.autoAcceptHarvestStealHarvest !== undefined && src.autoAcceptHarvestStealHarvest !== null) {
+        cfg.autoAcceptHarvestStealHarvest = normalizeAutoAcceptHarvestStealHarvest(src.autoAcceptHarvestStealHarvest, cfg.autoAcceptHarvestStealHarvest);
+    }
+    if (src.autoAcceptHarvestStealSteal !== undefined && src.autoAcceptHarvestStealSteal !== null) {
+        cfg.autoAcceptHarvestStealSteal = normalizeAutoAcceptHarvestStealSteal(src.autoAcceptHarvestStealSteal, cfg.autoAcceptHarvestStealSteal);
     }
     return cfg;
 }
@@ -402,14 +481,13 @@ function loadGlobalConfig() {
                 const deviceOs = String(srcDevice.os || data.systemConfig.os || 'Windows').trim();
                 const savedTopVersion = String(data.systemConfig.clientVersion || '').trim();
                 const savedDeviceVersion = String(srcDevice.clientVersion || '').trim();
-                const customDeviceVersion = savedDeviceVersion && !isManagedDefaultClientVersion(savedDeviceVersion)
-                    ? savedDeviceVersion : '';
-                const customTopVersion = savedTopVersion && !isManagedDefaultClientVersion(savedTopVersion)
-                    ? savedTopVersion : '';
-                const deviceClientVersion = customDeviceVersion || customTopVersion || DEFAULT_CLIENT_VERSION;
+                const savedVersion = savedDeviceVersion || savedTopVersion;
+                const savedVersionUpdatedAt = Number(data.systemConfig.clientVersionUpdatedAt);
+                const { clientVersion: deviceClientVersion, clientVersionUpdatedAt: deviceClientVersionUpdatedAt, } = resolveClientVersion(savedVersion, savedVersionUpdatedAt);
                 const normalizedSystemConfig = {
                     serverUrl: String(data.systemConfig.serverUrl || '').trim(),
                     clientVersion: deviceClientVersion,
+                    clientVersionUpdatedAt: deviceClientVersionUpdatedAt,
                     platform: String(data.systemConfig.platform || 'qq').trim(),
                     os: deviceOs,
                     timeZone: normalizeTimeZone(data.systemConfig.timeZone || DEFAULT_TIME_ZONE),
@@ -425,6 +503,7 @@ function loadGlobalConfig() {
                 };
                 systemConfigMigrated = savedTopVersion !== deviceClientVersion
                     || savedDeviceVersion !== deviceClientVersion
+                    || Number(data.systemConfig.clientVersionUpdatedAt) !== deviceClientVersionUpdatedAt
                     || data.systemConfig.timeZone !== normalizedSystemConfig.timeZone;
                 globalConfig.systemConfig = normalizedSystemConfig;
             }
@@ -450,7 +529,6 @@ module.exports = {
     DEFAULT_FRIENDS_LIST_CACHE_TTL_SEC,
     DEFAULT_OFFLINE_REMINDER,
     DEFAULT_ACCOUNT_CONFIG,
-    LEGACY_DEFAULT_CLIENT_VERSIONS,
     ALLOWED_AUTOMATION_KEYS,
     // Mutable shared state (by reference)
     globalConfig,
@@ -463,13 +541,16 @@ module.exports = {
     normalizeKnownFriendGidSyncCooldownSec,
     normalizeFriendsListCacheTtlSec,
     normalizeBagSeedPriority,
+    normalizeBagSeedLandTypes,
     normalizeBagSeedFallbackStrategy,
     normalizeFertilizerLandTypes,
     normalizeTimeString,
     normalizeIntervals,
+    normalizeAutoAcceptFriendMinLevel,
+    normalizeAutoAcceptHarvestStealHarvest,
+    normalizeAutoAcceptHarvestStealSteal,
     normalizeAccountConfig,
     cloneAccountConfig,
-    isManagedDefaultClientVersion,
     resolveAccountId,
     loadGlobalConfig,
 };

@@ -204,10 +204,10 @@ function getStats(statusData, userState, connected, limits) {
     checkAndResetDailyStats();
     const statusObj = (statusData && typeof statusData === 'object') ? statusData : {};
     const userObj = (userState && typeof userState === 'object') ? userState : {};
-    const rawGold = (userObj.gold !== null && userObj.gold !== undefined) ? userObj.gold : statusObj.gold;
-    const rawExp = (userObj.exp !== null && userObj.exp !== undefined) ? userObj.exp : statusObj.exp;
-    const rawCoupon = (userObj.coupon !== null && userObj.coupon !== undefined) ? userObj.coupon : statusObj.coupon;
-    const rawGoldBean = (userObj.goldBean !== null && userObj.goldBean !== undefined) ? userObj.goldBean : statusObj.goldBean;
+    const rawGold = userObj.gold ?? statusObj.gold;
+    const rawExp = userObj.exp ?? statusObj.exp;
+    const rawCoupon = userObj.coupon ?? statusObj.coupon;
+    const rawGoldBean = userObj.goldBean ?? statusObj.goldBean;
     const currentGold = Number.isFinite(Number(rawGold)) ? Number(rawGold) : 0;
     const currentExp = Number.isFinite(Number(rawExp)) ? Number(rawExp) : 0;
     const currentCoupon = Number.isFinite(Number(rawCoupon)) ? Number(rawCoupon) : 0;

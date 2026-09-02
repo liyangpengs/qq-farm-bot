@@ -10,6 +10,8 @@ const RPC_CANDIDATES = [
     ['gamepb.interactpb.VisitorService', 'InteractRecords'],
     ['gamepb.interactpb.VisitorService', 'GetInteractRecords'],
 ];
+let preferredRpcCandidate = null;
+const interactRecordRequests = {};
 const ACTION_LABELS = {
     1: '偷取作物',
     2: '帮忙',
@@ -46,20 +48,28 @@ function buildActionDetail(record) {
         parts.push(`地块 ${landId}`);
     return parts.join(' · ');
 }
-async function fetchInteractReply() {
+async function fetchInteractReply(priority = 'normal') {
     if (!types.InteractRecordsRequest || !types.InteractRecordsReply) {
         throw new Error('访客记录 proto 未加载');
     }
     const body = types.InteractRecordsRequest.encode(types.InteractRecordsRequest.create({})).finish();
     const errors = [];
-    for (const [serviceName, methodName] of RPC_CANDIDATES) {
+    const candidates = preferredRpcCandidate
+        ? [preferredRpcCandidate, ...RPC_CANDIDATES.filter(candidate => candidate !== preferredRpcCandidate)]
+        : RPC_CANDIDATES;
+    for (const candidate of candidates) {
+        const [serviceName, methodName] = candidate;
         try {
-            const { body: replyBody } = await sendMsgAsync(serviceName, methodName, body, 2500);
+            const { body: replyBody } = await sendMsgAsync(serviceName, methodName, body, { timeoutMs: 2500, priority });
+            preferredRpcCandidate = candidate;
             return types.InteractRecordsReply.decode(replyBody);
         }
         catch (error) {
             const message = error && error.message ? error.message : String(error || 'unknown');
             errors.push(`${serviceName}.${methodName}: ${message}`);
+            // 只有服务端明确拒绝当前 RPC 名称时才探测下一个候选；超时/断线不再连续制造请求。
+            if (!error || error.name !== 'GatewayError')
+                throw error;
         }
     }
     logWarn('好友', `访客记录接口调用失败: ${errors.join(' | ')}`, {
@@ -117,12 +127,28 @@ function normalizeInteractRecord(record, index) {
     normalized.actionDetail = buildActionDetail(normalized);
     return normalized;
 }
-async function getInteractRecords() {
-    const reply = await fetchInteractReply();
+async function fetchInteractRecords(priority) {
+    const reply = await fetchInteractReply(priority);
     const records = Array.isArray(reply && reply.records) ? reply.records : [];
     return records
         .map((record, index) => normalizeInteractRecord(record, index))
         .sort((a, b) => (b.serverTimeSec - a.serverTimeSec) || (b.visitorGid - a.visitorGid) || (b.actionType - a.actionType));
+}
+async function getInteractRecords(priority = 'normal') {
+    if (priority === 'low' && interactRecordRequests.normal)
+        return interactRecordRequests.normal;
+    const current = interactRecordRequests[priority];
+    if (current)
+        return current;
+    const request = fetchInteractRecords(priority);
+    interactRecordRequests[priority] = request;
+    try {
+        return await request;
+    }
+    finally {
+        if (interactRecordRequests[priority] === request)
+            delete interactRecordRequests[priority];
+    }
 }
 async function getInteractInfo() {
     const body = types.GetInteractInfoRequest.encode(types.GetInteractInfoRequest.create({})).finish();

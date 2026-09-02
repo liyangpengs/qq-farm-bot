@@ -13,8 +13,8 @@ export declare function dedupeFriendsByGid(friends: any[]): any[];
 export declare function buildFriendReply(friends: any[]): any;
 export declare function syncKnownFriendGidsFromFriends(friends: any[]): number[];
 export declare function getEffectiveKnownQqFriendGids(): number[];
-export declare function syncKnownFriendGidsFromRecentVisitors(force?: boolean): Promise<number[]>;
+export declare function syncKnownFriendGidsFromRecentVisitors(force?: boolean, priority?: 'low' | 'normal'): Promise<number[]>;
 export declare function removeKnownFriendGid(friendGid: any, friendName?: string, reason?: string): boolean;
-export declare function fetchQqFriendsByKnownGids(): Promise<any[]>;
-export declare function fetchQqFriendsByLegacyMethod(): Promise<any[]>;
+export declare function fetchQqFriendsByKnownGids(priority?: 'low' | 'normal'): Promise<any[]>;
+export declare function fetchQqFriendsByLegacyMethod(priority?: 'low' | 'normal'): Promise<any[]>;
 //# sourceMappingURL=gid-manager.d.ts.map

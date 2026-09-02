@@ -149,7 +149,7 @@ function getEffectiveKnownQqFriendGids() {
     const blacklistSet = new Set(getFriendBlacklist(accountId));
     return normalizeFriendGids(currentKnownGids).filter((gid) => !invalidGidSet.has(gid) && !blacklistSet.has(gid));
 }
-async function syncKnownFriendGidsFromRecentVisitors(force = false) {
+async function syncKnownFriendGidsFromRecentVisitors(force = false, priority = 'normal') {
     const now = Date.now();
     const interval = lastVisitorGidSyncAt > 0 ? getKnownFriendGidSyncIntervalMs() : 0;
     if (!force && interval > 0 && now - lastVisitorGidSyncAt < interval) {
@@ -157,7 +157,7 @@ async function syncKnownFriendGidsFromRecentVisitors(force = false) {
     }
     const accountId = process.env.FARM_ACCOUNT_ID || '';
     try {
-        const records = await getInteractRecords();
+        const records = await getInteractRecords(priority);
         const invalidGidSet = getInvalidKnownFriendGidSet(now);
         const visitorGids = normalizeFriendGids((Array.isArray(records) ? records : []).map(record => record && record.visitorGid)).filter((gid) => !invalidGidSet.has(gid));
         lastVisitorGidSyncAt = now;
@@ -235,7 +235,7 @@ function removeKnownFriendGid(friendGid, friendName, reason = '') {
     });
     return true;
 }
-async function fetchQqFriendsByKnownGids() {
+async function fetchQqFriendsByKnownGids(priority = 'normal') {
     if (!types.GetGameFriendsRequest || !types.GetAllFriendsReply) {
         throw new Error('GetGameFriends 接口类型未加载');
     }
@@ -250,7 +250,7 @@ async function fetchQqFriendsByKnownGids() {
             gids: batch.map((gid) => toLong(gid)),
         })).finish();
         try {
-            const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetGameFriends', body);
+            const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetGameFriends', body, { priority });
             const reply = types.GetAllFriendsReply.decode(replyBody);
             allFriends.push(...extractReplyFriends(reply));
         }
@@ -269,7 +269,7 @@ async function fetchQqFriendsByKnownGids() {
     }
     return dedupeFriendsByGid(allFriends);
 }
-async function fetchQqFriendsByLegacyMethod() {
+async function fetchQqFriendsByLegacyMethod(priority = 'normal') {
     const errors = [];
     try {
         const syncReq = types.SyncAllRequest || types.SyncAllFriendsRequest;
@@ -277,7 +277,7 @@ async function fetchQqFriendsByLegacyMethod() {
         if (!syncReq || !syncRep)
             throw new Error('SyncAll 接口类型未加载');
         const body = syncReq.encode(syncReq.create({ open_ids: [] })).finish();
-        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'SyncAll', body);
+        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'SyncAll', body, { priority });
         return extractReplyFriends(syncRep.decode(replyBody));
     }
     catch (e) {
@@ -287,7 +287,7 @@ async function fetchQqFriendsByLegacyMethod() {
         if (!types.GetAllFriendsRequest || !types.GetAllFriendsReply)
             throw new Error('GetAll 接口类型未加载');
         const body = types.GetAllFriendsRequest.encode(types.GetAllFriendsRequest.create({})).finish();
-        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body);
+        const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body, { priority });
         return extractReplyFriends(types.GetAllFriendsReply.decode(replyBody));
     }
     catch (e) {

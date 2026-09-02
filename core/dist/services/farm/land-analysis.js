@@ -12,6 +12,12 @@ function int64String(value) {
     const text = String(value?.toString?.() ?? value).trim();
     return /^-?\d+$/.test(text) ? text : '0';
 }
+function getLeftInorcFertTimes(plant) {
+    if (!plant || !Object.hasOwn(plant, 'left_inorc_fert_times')) {
+        return null;
+    }
+    return toNum(plant.left_inorc_fert_times);
+}
 function normalizePositiveId(value) {
     const text = int64String(value);
     return /^\d+$/.test(text) && text !== '0' ? text : '';
@@ -58,8 +64,11 @@ function getPlantMutantConfigIds(plant, currentPhase = null) {
     }
     return [...new Set(values.map(normalizePositiveId).filter(Boolean))];
 }
-// 抓包确认：黄金虫和足球由农场主通过自家 Farming 清理，好友帮助务农不能代为清理。
-const OWNER_CLEANABLE_INTERACTION_ITEM_IDS = new Set(['301101', '301102']);
+// 抓包确认：黄金虫、足球和乌云由农场主通过自家 Farming 清理，好友帮助务农不能代为清理。
+// 乌云必须以 interaction_uses / interaction_targets 的实时记录为准；field_40={8,1} 只是清理后仍保留的历史。
+const OWNER_CLEANABLE_INTERACTION_ITEM_IDS = new Set(['301101', '301102', '5006']);
+// 5005 青蛙是农场级事件，不绑定某一块土地；清理时通过 FarmingRequest.field 5 发送。
+const OWNER_CLEANABLE_FARM_SOCIAL_EVENT_ITEM_IDS = new Set(['5005']);
 const QIXI_DEW_ITEM_ID = '301103';
 const QIXI_MUTANT_CONFIG_ID = '13';
 const QIXI_DEW_HISTORY_CODES = new Set([9, 10]);
@@ -84,6 +93,34 @@ function getInteractionItemMetadata(itemId) {
         name: String(item?.name || `道具${itemId}`),
         activityId: toNum(item?.activity_id),
     };
+}
+function getCleanableFarmSocialEventItemIds(eventsOrReply) {
+    const events = Array.isArray(eventsOrReply)
+        ? eventsOrReply
+        : (Array.isArray(eventsOrReply?.social_events) ? eventsOrReply.social_events : []);
+    return [...new Set(events
+            .map((event) => normalizePositiveId(event?.item_id))
+            .filter((itemId) => OWNER_CLEANABLE_FARM_SOCIAL_EVENT_ITEM_IDS.has(itemId))
+            .map((itemId) => Number(itemId)))];
+}
+function buildFarmSocialEventDetails(eventsOrReply) {
+    const events = Array.isArray(eventsOrReply)
+        ? eventsOrReply
+        : (Array.isArray(eventsOrReply?.social_events) ? eventsOrReply.social_events : []);
+    return events.map((event) => {
+        const itemId = normalizePositiveId(event?.item_id);
+        if (!itemId)
+            return null;
+        const metadata = getInteractionItemMetadata(itemId);
+        return {
+            itemId,
+            itemName: metadata.name,
+            activityId: metadata.activityId,
+            visitorGid: normalizePositiveId(event?.visitor_gid),
+            occurredAt: int64String(event?.timestamp),
+            cleanable: OWNER_CLEANABLE_FARM_SOCIAL_EVENT_ITEM_IDS.has(itemId),
+        };
+    }).filter(Boolean);
 }
 function hasOwnerCleanableInteraction(plant) {
     const uses = Array.isArray(plant?.interaction_uses) ? plant.interaction_uses : [];
@@ -189,6 +226,11 @@ function buildLandDetail(land, options = {}) {
     const maxLevel = toNum(land?.max_level);
     const landsLevel = toNum(land?.lands_level);
     const landSize = toNum(land?.land_size);
+    const landBuff = {
+        plantYieldBonus: toNum(land?.buff?.plant_yield_bonus),
+        plantingTimeReduction: toNum(land?.buff?.planting_time_reduction),
+        plantExpBonus: toNum(land?.buff?.plant_exp_bonus),
+    };
     const context = getDisplayLandContext(land, landsMap);
     const base = {
         id,
@@ -197,17 +239,22 @@ function buildLandDetail(land, options = {}) {
         maxLevel,
         landsLevel,
         landSize,
+        landBuff,
         couldUnlock: !!land?.could_unlock,
         couldUpgrade: !!land?.could_upgrade,
         occupiedByMaster: !!context.occupiedByMaster,
         masterLandId: toNum(context.masterLandId),
         occupiedLandIds: Array.isArray(context.occupiedLandIds) ? context.occupiedLandIds : [],
         plantSize: 1,
+        rarity: 0,
         mutantConfigIds: [],
         mutantEffects: [],
         isMutated: false,
+        purpleCrystalResonanceExpBonus: 0,
         interactionEffects: [],
+        needInteractionCleanup: false,
         protocolField40: null,
+        leftInorcFertTimes: null,
     };
     if (!base.unlocked) {
         return {
@@ -242,6 +289,11 @@ function buildLandDetail(land, options = {}) {
     const plantId = toNum(plant.id);
     const mutantConfigIds = getPlantMutantConfigIds(plant, currentPhase);
     const mutantEffects = getMutantEffectsByIds(mutantConfigIds);
+    // 协议没有独立的“紫晶共鸣”布尔值：紫金土地由 level 标识，
+    // 是否存在加成及具体比例必须以服务端 LandInfo.buff.plant_exp_bonus 为准。
+    const purpleCrystalResonanceExpBonus = level === 5 && mutantConfigIds.length > 0
+        ? Math.max(0, landBuff.plantExpBonus)
+        : 0;
     const displayPlantId = getMutantDisplayPlantId(plantId, mutantConfigIds);
     const plantName = getPlantName(displayPlantId) || getPlantName(plantId) || plant.name || '未知';
     const plantCfg = getPlantById(plantId);
@@ -283,11 +335,15 @@ function buildLandDetail(land, options = {}) {
         needBug: statusFlags.needBug,
         stealable: !!plant.stealable,
         plantSize,
+        rarity: toNum(plant?.rarity ?? plant?.rare_level ?? plant?.rarity_level),
         mutantConfigIds,
         mutantEffects,
         isMutated: mutantConfigIds.length > 0,
+        purpleCrystalResonanceExpBonus,
         interactionEffects: getPlantInteractionEffects(plant),
+        needInteractionCleanup: hasOwnerCleanableInteraction(plant),
         protocolField40: protocolField40.length > 0 ? protocolField40 : null,
+        leftInorcFertTimes: getLeftInorcFertTimes(plant),
     };
 }
 function getCurrentPhase(phases, debug, landLabel) {
@@ -337,7 +393,7 @@ function getOrganicFertilizerTargetsFromLands(lands) {
         if (currentPhase.phase === PlantPhase.DEAD)
             continue;
         // 服务端有该字段时，<=0 说明该地当前不能再施有机肥
-        if (Object.prototype.hasOwnProperty.call(plant, 'left_inorc_fert_times')) {
+        if (Object.hasOwn(plant, 'left_inorc_fert_times')) {
             const leftTimes = toNum(plant.left_inorc_fert_times);
             if (leftTimes <= 0)
                 continue;
@@ -375,7 +431,7 @@ function getFastMatureLands(lands, thresholdSec = 300) {
             continue;
         const timeToMature = matureBeginTime - nowSec;
         if (timeToMature <= threshold && timeToMature >= 0) {
-            if (Object.prototype.hasOwnProperty.call(plant, 'left_inorc_fert_times')) {
+            if (Object.hasOwn(plant, 'left_inorc_fert_times')) {
                 const leftTimes = toNum(plant.left_inorc_fert_times);
                 if (leftTimes <= 0)
                     continue;
@@ -827,6 +883,8 @@ module.exports = {
     getExtendedStatusInteractionItemId,
     getPlantInteractionEffects,
     hasOwnerCleanableInteraction,
+    getCleanableFarmSocialEventItemIds,
+    buildFarmSocialEventDetails,
     buildLandDetail,
     getOrganicFertilizerTargetsFromLands,
     getFastMatureLands,
@@ -838,6 +896,7 @@ module.exports = {
     buildSlaveToMasterMap,
     isOccupiedSlaveLandWithMap,
     summarizeLandDetails,
+    ALL_FERTILIZER_LAND_TYPES,
     getLandTypeByLevel,
     normalizeFertilizerLandTypes,
     filterLandIdsByTypes,

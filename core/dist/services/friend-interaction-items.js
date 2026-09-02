@@ -16,12 +16,14 @@ const { getBag, getBagItems } = require('./warehouse');
 const SPECIAL_INTERACTION_TYPE = 'additemuseitem';
 const MAX_BATCH_LANDS = 48;
 const MAX_SIGNED_INT64 = 9223372036854775807n;
+const FRIEND_FARM_ITEM_IDS = new Set([5005]);
 /**
  * 可以对自己农场使用的互动道具白名单。
  * 种草、黄金虫、足球一类只能作用于他人农场，官方客户端也不提供自用入口，
  * 因此这里逐个登记，而不是按 interaction_type 放行。
  */
 const SELF_USABLE_INTERACTION_ITEM_IDS = new Set([
+    5003, // 闪电变异瓶：自己的未成熟 1*1 作物。
     301103, // 七夕活动土地道具，展示名称由 ItemInfo 提供。
 ]);
 class FriendInteractionBusinessError extends Error {
@@ -90,8 +92,19 @@ function isFriendLandInteractionMetadata(info) {
     const targetDescription = `${String(info.desc || '')} ${String(info.effectDesc || '')}`;
     return /好友|他人/.test(targetDescription);
 }
+function isLandInteractionMetadata(info) {
+    if (!info || typeof info !== 'object')
+        return false;
+    return Number(info.type) === 23
+        && Number(info.can_use) > 0
+        && String(info.interaction_type || '').trim().toLowerCase() === SPECIAL_INTERACTION_TYPE;
+}
+function isFriendFarmInteractionMetadata(info) {
+    const itemId = Number(info?.id) || 0;
+    return !!info && Number(info.type) === 23 && Number(info.can_use) > 0 && FRIEND_FARM_ITEM_IDS.has(itemId);
+}
 function isSelfLandInteractionMetadata(info) {
-    if (!isFriendLandInteractionMetadata(info))
+    if (!isLandInteractionMetadata(info))
         return false;
     return SELF_USABLE_INTERACTION_ITEM_IDS.has(Number(info.id) || 0);
 }
@@ -111,7 +124,8 @@ function eligibleStacksForItem(bagItems, itemId, info, baseContext) {
     return (Array.isArray(bagItems) ? bagItems : [])
         .filter((stack) => (toNum(stack?.id ?? stack?.item_id) === itemId
         && toNum(stack?.uid) > 0
-        && toNum(stack?.count) > 0))
+        && toNum(stack?.count) > 0
+        && !stack?.locked))
         .map((stack) => ({
         raw: stack,
         remaining: Math.max(0, toNum(stack?.count)),
@@ -124,7 +138,7 @@ function eligibleStacksForItem(bagItems, itemId, info, baseContext) {
         return leftExpire - rightExpire;
     });
 }
-function buildInteractionItemDto(info, stacks) {
+function buildInteractionItemDto(info, stacks, targetKind = 'land') {
     const count = stacks.reduce((sum, stack) => sum + Math.max(0, Number(stack.remaining) || 0), 0);
     const saleConditionSatisfiedCount = stacks
         .filter((stack) => stack.saleConditionSatisfied)
@@ -144,6 +158,7 @@ function buildInteractionItemDto(info, stacks) {
         interactionType: String(info.interaction_type || ''),
         protocol: 'item-use',
         selfUsable: SELF_USABLE_INTERACTION_ITEM_IDS.has(itemId),
+        targetKind,
         description: String(info.desc || info.effectDesc || ''),
         activityId: info.activity_id == null ? '' : String(info.activity_id),
         sellCondition: String(info.sell_cond || ''),
@@ -151,7 +166,7 @@ function buildInteractionItemDto(info, stacks) {
         serverValidationRequired: true,
     };
 }
-async function collectFriendInteractionInventory() {
+async function collectInteractionInventory(predicate, targetKind = 'land') {
     const [bagReply, baseContext] = await Promise.all([getBag(), getSellConditionContext()]);
     const bagItems = getBagItems(bagReply);
     const itemIds = new Set();
@@ -164,11 +179,11 @@ async function collectFriendInteractionInventory() {
     const stacksByItemId = new Map();
     for (const itemId of itemIds) {
         const info = getItemById(itemId);
-        if (!isFriendLandInteractionMetadata(info))
+        if (!predicate(info))
             continue;
         const allItemStacks = bagItems.filter((stack) => toNum(stack?.id ?? stack?.item_id) === itemId);
         const stacks = eligibleStacksForItem(allItemStacks, itemId, info, baseContext);
-        const dto = buildInteractionItemDto(info, stacks);
+        const dto = buildInteractionItemDto(info, stacks, targetKind);
         if (dto.count <= 0)
             continue;
         stacksByItemId.set(itemId, stacks);
@@ -182,19 +197,23 @@ async function collectFriendInteractionInventory() {
     return { items, stacksByItemId };
 }
 async function getFriendInteractionItems() {
-    const inventory = await collectFriendInteractionInventory();
+    const [landInventory, farmInventory] = await Promise.all([
+        collectInteractionInventory(isFriendLandInteractionMetadata, 'land'),
+        collectInteractionInventory(isFriendFarmInteractionMetadata, 'farm'),
+    ]);
+    const items = [...landInventory.items, ...farmInventory.items];
     return {
-        items: inventory.items,
-        count: inventory.items.length,
+        items,
+        count: items.length,
         serverValidationRequired: true,
         confirmationRequired: true,
-        message: inventory.items.length > 0
-            ? '请选择好友农场中符合条件的土地使用'
-            : '背包中暂无可用于好友土地的特殊互动道具',
+        message: items.length > 0
+            ? '请选择好友农场或土地使用'
+            : '背包中暂无可用于好友农场的特殊互动道具',
     };
 }
 async function getSelfInteractionItems() {
-    const inventory = await collectFriendInteractionInventory();
+    const inventory = await collectInteractionInventory(isSelfLandInteractionMetadata, 'land');
     const items = inventory.items.filter((item) => item.selfUsable);
     return {
         items,
@@ -206,7 +225,35 @@ async function getSelfInteractionItems() {
             : '背包中暂无可对自己农场使用的特殊互动道具',
     };
 }
-function buildTargetLandMap(landsInput) {
+function hasInteractionItem(detail, itemId) {
+    return (Array.isArray(detail?.interactionEffects) ? detail.interactionEffects : [])
+        .some((effect) => String(effect?.itemId || '') === String(itemId));
+}
+function isEligibleInteractionTarget(itemId, detail, currentPhase) {
+    const phase = toNum(currentPhase?.phase);
+    const rarity = toNum(detail?.rarity);
+    const mutantIds = new Set((Array.isArray(detail?.mutantConfigIds) ? detail.mutantConfigIds : []).map(String));
+    if (itemId === 5003) {
+        return phase >= PlantPhase.GERMINATION
+            && phase <= PlantPhase.BLOOMING
+            && toNum(detail?.plantSize) === 1
+            && rarity !== 4
+            && rarity !== 5
+            && !mutantIds.has('12');
+    }
+    if (itemId === 5004) {
+        return phase >= PlantPhase.GERMINATION
+            && phase <= PlantPhase.BLOOMING
+            && rarity !== 4
+            && rarity !== 5
+            && !hasInteractionItem(detail, itemId);
+    }
+    if (itemId === 5006 || itemId === 301101 || itemId === 301102 || itemId === 301103) {
+        return phase >= PlantPhase.SEED && phase <= PlantPhase.BLOOMING && !hasInteractionItem(detail, itemId);
+    }
+    return phase !== PlantPhase.DEAD;
+}
+function buildTargetLandMap(landsInput, itemId, friendMode) {
     const lands = Array.isArray(landsInput) ? landsInput : [];
     const landsMap = buildLandMap(lands);
     const targets = new Map();
@@ -224,7 +271,8 @@ function buildTargetLandMap(landsInput) {
         if (!plant || !Array.isArray(plant.phases) || plant.phases.length === 0)
             continue;
         const currentPhase = getCurrentPhase(plant.phases, false, '');
-        if (toNum(currentPhase?.phase) === PlantPhase.DEAD)
+        const detail = buildLandDetail(sourceLand, { friendMode, landsMap });
+        if (!isEligibleInteractionTarget(itemId, detail, currentPhase))
             continue;
         targets.set(String(landId), {
             landId: String(landId),
@@ -232,6 +280,7 @@ function buildTargetLandMap(landsInput) {
             occupiedLandIds: (Array.isArray(context.occupiedLandIds) ? context.occupiedLandIds : [landId])
                 .map((id) => String(toNum(id)))
                 .filter((id) => id !== '0'),
+            detail,
         });
     }
     return targets;
@@ -251,6 +300,15 @@ async function sendTargetedItemUse(itemId, stack, friendGid, landId) {
             land_ids: [landId],
             use_config_id: 0,
         },
+    });
+    const body = Buffer.from(types.UseRequest.encode(request).finish());
+    const { body: replyBody } = await sendMsgAsync('gamepb.itempb.ItemService', 'Use', body);
+    return types.UseReply.decode(replyBody);
+}
+async function sendFriendFarmItemUse(itemId, stack, friendGid) {
+    const request = types.UseRequest.create({
+        item: { id: itemId, count: 1, uid: stack.raw.uid },
+        target: { host_gid: friendGid, use_config_id: 0 },
     });
     const body = Buffer.from(types.UseRequest.encode(request).finish());
     const { body: replyBody } = await sendMsgAsync('gamepb.itempb.ItemService', 'Use', body);
@@ -343,7 +401,7 @@ function buildConfirmedInteractionEffects(rawLand, itemId, landId, itemName) {
 }
 /** 读取并校验本次批量使用要消耗的库存，返回按过期时间排序的可用堆叠。 */
 async function resolveUsableStacks(itemId, info, landCount) {
-    const inventory = await collectFriendInteractionInventory();
+    const inventory = await collectInteractionInventory((candidate) => isLandInteractionMetadata(candidate) || isFriendFarmInteractionMetadata(candidate), 'land');
     const stacks = inventory.stacksByItemId.get(itemId) || [];
     const available = stacks.reduce((sum, stack) => sum + Math.max(0, Number(stack.remaining) || 0), 0);
     if (available <= 0) {
@@ -360,7 +418,7 @@ async function resolveUsableStacks(itemId, info, landCount) {
  */
 async function runInteractionBatch(itemId, info, stacks, hostGid, landsInput, landIds, friendMode = true) {
     const itemName = String(info.name || `物品${itemId}`);
-    const targetMap = buildTargetLandMap(landsInput);
+    const targetMap = buildTargetLandMap(landsInput, itemId, friendMode);
     const attempts = [];
     for (let index = 0; index < landIds.length; index += 1) {
         const landId = landIds[index];
@@ -465,6 +523,47 @@ async function performFriendInteractionItemBatch(friendGidInput, itemIdInput, la
             : `已在${ownerName}的农场按顺序使用 ${succeeded.length} 个${itemName}`,
     };
 }
+async function performFriendFarmInteractionItem(friendGidInput, itemIdInput) {
+    const friendGid = positiveDecimal(friendGidInput, 'INVALID_FRIEND_INTERACTION_GID', 'friendGid');
+    const friendGidNumber = safePositiveNumber(friendGid, 'INVALID_FRIEND_INTERACTION_GID', 'friendGid');
+    const itemId = safePositiveNumber(itemIdInput, 'INVALID_FRIEND_INTERACTION_ITEM_ID', 'itemId');
+    const info = getItemById(itemId);
+    if (!isFriendFarmInteractionMetadata(info)) {
+        throw businessError('FRIEND_INTERACTION_ITEM_UNSUPPORTED', '该物品不是可用于好友农场的特殊互动道具');
+    }
+    const stacks = await resolveUsableStacks(itemId, info, 1);
+    const stack = currentStack(stacks);
+    if (!stack)
+        throw businessError('FRIEND_INTERACTION_ITEM_UNAVAILABLE', `${info.name || `物品${itemId}`}当前没有可用库存`);
+    const enterReply = await enterFriendFarm(friendGidNumber);
+    try {
+        const actualGid = int64String(enterReply?.basic?.gid);
+        if (actualGid !== '0' && actualGid !== friendGid) {
+            throw businessError('FRIEND_INTERACTION_HOST_MISMATCH', '进入的好友农场与所选 GID 不一致');
+        }
+        await sendFriendFarmItemUse(itemId, stack, friendGid);
+        const itemName = String(info.name || `物品${itemId}`);
+        return {
+            hostGid: friendGid,
+            ownerName: String(enterReply?.basic?.remark || enterReply?.basic?.name || `GID:${friendGid}`),
+            itemId: String(itemId),
+            itemName,
+            targetKind: 'farm',
+            protocol: 'item-use',
+            requestedLandIds: [],
+            usedLandIds: [],
+            failedLandIds: [],
+            successCount: 1,
+            failureCount: 0,
+            results: [{ landId: '', ok: true, code: '', message: `已在好友农场使用${itemName}` }],
+            items: (await getFriendInteractionItems()).items,
+            message: `已在好友农场使用 1 个${itemName}`,
+        };
+    }
+    finally {
+        await leaveFriendFarm(friendGidNumber);
+    }
+}
 function currentAccountGid() {
     const state = getUserState() || {};
     return positiveDecimal(state.gid, 'SELF_INTERACTION_ACCOUNT_UNAVAILABLE', '当前账号 GID');
@@ -518,6 +617,9 @@ function serializeMutation(operation) {
 function useFriendInteractionItemBatch(friendGidInput, itemIdInput, landIdsInput) {
     return serializeMutation(() => performFriendInteractionItemBatch(friendGidInput, itemIdInput, landIdsInput));
 }
+function useFriendFarmInteractionItem(friendGidInput, itemIdInput) {
+    return serializeMutation(() => performFriendFarmInteractionItem(friendGidInput, itemIdInput));
+}
 function useSelfInteractionItemBatch(itemIdInput, landIdsInput) {
     return serializeMutation(() => performSelfInteractionItemBatch(itemIdInput, landIdsInput));
 }
@@ -529,6 +631,7 @@ module.exports = {
     getFriendInteractionItems,
     getSelfInteractionItems,
     useFriendInteractionItemBatch,
+    useFriendFarmInteractionItem,
     useSelfInteractionItemBatch,
 };
 //# sourceMappingURL=friend-interaction-items.js.map

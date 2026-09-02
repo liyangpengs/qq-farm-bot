@@ -70,14 +70,17 @@ function createDataProvider(options) {
         getLands: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getLands'),
         getIllustratedSnapshot: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getIllustratedSnapshot'),
         getFriends: (accountRef, forceSync = false) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriends', forceSync),
+        getFriendsCache: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriendsCache'),
         clearFriendsCache: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'clearFriendsCache'),
         getInteractRecords: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getInteractRecords'),
         getFriendLands: (accountRef, gid) => callWorkerApi(resolveAccountRefId(accountRef), 'getFriendLands', gid),
         getFriendInteractionItems: (accountRef) => (callWorkerApi(resolveAccountRefId(accountRef), 'getFriendInteractionItems')),
         useFriendInteractionItemBatch: (accountRef, gid, itemId, landIds) => (callWorkerApi(resolveAccountRefId(accountRef), 'useFriendInteractionItemBatch', gid, itemId, landIds)),
+        useFriendFarmInteractionItem: (accountRef, gid, itemId) => (callWorkerApi(resolveAccountRefId(accountRef), 'useFriendFarmInteractionItem', gid, itemId)),
         getSelfInteractionItems: (accountRef) => (callWorkerApi(resolveAccountRefId(accountRef), 'getSelfInteractionItems')),
         useSelfInteractionItemBatch: (accountRef, itemId, landIds) => (callWorkerApi(resolveAccountRefId(accountRef), 'useSelfInteractionItemBatch', itemId, landIds)),
         doFriendOp: (accountRef, gid, opType) => callWorkerApi(resolveAccountRefId(accountRef), 'doFriendOp', gid, opType),
+        delFriend: (accountRef, gid) => callWorkerApi(resolveAccountRefId(accountRef), 'delFriend', gid),
         getBag: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getBag'),
         getBagSeeds: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getBagSeeds'),
         getDiamondBalance: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getDiamondBalance'),
@@ -92,11 +95,22 @@ function createDataProvider(options) {
         useDogFood: (accountRef, itemId, count = 1, uid = 0) => (callWorkerApi(resolveAccountRefId(accountRef), 'useDogFood', itemId, count, uid)),
         getPetProtectLogs: (accountRef) => (callWorkerApi(resolveAccountRefId(accountRef), 'getPetProtectLogs')),
         getDailyGifts: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getDailyGiftOverview'),
+        getActivityDirectorySnapshot: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getActivityDirectorySnapshot'),
         getActivityCenterSnapshot: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getActivityCenterSnapshot'),
         getCurrentSeasonEvent: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getCurrentSeasonEvent'),
+        getCurrentStellarActivity: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getCurrentStellarActivity'),
         getCurrentStarSandShop: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getCurrentStarSandShop'),
         getCurrentSolarTerms: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getCurrentSolarTerms'),
         getCurrentQixiActivity: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getCurrentQixiActivity'),
+        getCurrentCharityRedFlowerActivity: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getCurrentCharityRedFlowerActivity'),
+        claimCharityRedFlowerSeeds: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'claimCharityRedFlowerSeeds'),
+        donateCharityRedFlowerLove: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'donateCharityRedFlowerLove'),
+        claimCharityRedFlowerDailyGift: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'claimCharityRedFlowerDailyGift'),
+        getCurrentWeatherActivity: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getCurrentWeatherActivity'),
+        buyWeatherBottle: (accountRef, count) => callWorkerApi(resolveAccountRefId(accountRef), 'buyWeatherBottle', count),
+        collectWeatherBottle: (accountRef, targetGid) => callWorkerApi(resolveAccountRefId(accountRef), 'collectWeatherBottle', targetGid),
+        lightWeatherResearch: (accountRef, nodeId) => callWorkerApi(resolveAccountRefId(accountRef), 'lightWeatherResearch', nodeId),
+        summonWeatherRain: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'summonWeatherRain'),
         claimBattlePassRewards: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'claimBattlePassRewards'),
         exchangeStarSandGoods: (accountRef, goodsId, count) => (callWorkerApi(resolveAccountRefId(accountRef), 'exchangeStarSandGoods', goodsId, count)),
         lightConstellation: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'lightConstellation'),
@@ -108,6 +122,14 @@ function createDataProvider(options) {
         settleQingMeiBrew: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'settleQingMeiBrew'),
         claimQixiBridgeRewards: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'claimQixiBridgeRewards'),
         giftQixiSachet: (accountRef, friendGid, messageTextId = 15) => (callWorkerApi(resolveAccountRefId(accountRef), 'giftQixiSachet', friendGid, messageTextId)),
+        exchangeWeatherCollectorBottle: (accountRef) => (callWorkerApi(resolveAccountRefId(accountRef), 'exchangeWeatherCollectorBottle')),
+        getWeatherFriends: (accountRef) => (callWorkerApi(resolveAccountRefId(accountRef), 'getWeatherFriends')),
+        scanWeatherFriends: (accountRef, friendGids) => (callWorkerApi(resolveAccountRefId(accountRef), 'scanWeatherFriends', friendGids)),
+        useWeatherCollectorBottle: (accountRef, friendGid) => (callWorkerApi(resolveAccountRefId(accountRef), 'useWeatherCollectorBottle', friendGid)),
+        useWeatherSummonBottle: (accountRef) => (callWorkerApi(resolveAccountRefId(accountRef), 'useWeatherSummonBottle')),
+        useWeatherFrogBottle: (accountRef, friendGid) => (callWorkerApi(resolveAccountRefId(accountRef), 'useWeatherFrogBottle', friendGid)),
+        useWeatherCloudBottle: (accountRef, friendGid, landId) => (callWorkerApi(resolveAccountRefId(accountRef), 'useWeatherCloudBottle', friendGid, landId)),
+        advanceWeatherResearch: (accountRef, nodeId) => (callWorkerApi(resolveAccountRefId(accountRef), 'advanceWeatherResearch', nodeId)),
         getMallCatalog: (accountRef, slotType, subSlotType) => (callWorkerApi(resolveAccountRefId(accountRef), 'getMallCatalog', slotType, subSlotType)),
         purchaseMallProduct: (accountRef, goodsId, count) => (callWorkerApi(resolveAccountRefId(accountRef), 'purchaseMallProduct', goodsId, count)),
         getMysteryShop: (accountRef) => callWorkerApi(resolveAccountRefId(accountRef), 'getMysteryShop'),
@@ -123,7 +145,8 @@ function createDataProvider(options) {
             broadcastConfigToWorkers(accountId);
             return { automation: store.getAutomation(accountId), configRevision: rev };
         },
-        doFarmOp: (accountRef, opType) => callWorkerApi(resolveAccountRefId(accountRef), 'doFarmOp', opType),
+        doFarmOp: (accountRef, opType, targetLandId = null) => (callWorkerApi(resolveAccountRefId(accountRef), 'doFarmOp', opType, targetLandId)),
+        fertilizeOwnLand: (accountRef, landId, fertilizerType) => (callWorkerApi(resolveAccountRefId(accountRef), 'fertilizeOwnLand', landId, fertilizerType)),
         doAnalytics: (accountRef, sortBy) => callWorkerApi(resolveAccountRefId(accountRef), 'getAnalytics', sortBy),
         buyFertilizer: (accountRef, type, count) => callWorkerApi(resolveAccountRefId(accountRef), 'buyFertilizer', type, count),
         checkAndBuyFertilizer: (accountRef, options) => callWorkerApi(resolveAccountRefId(accountRef), 'checkAndBuyFertilizer', options),
@@ -135,15 +158,15 @@ function createDataProvider(options) {
             const body = (payload && typeof payload === 'object') ? payload : {};
             const snapshot = {};
             const copyIfPresent = (sourceKey, targetKey = sourceKey) => {
-                if (Object.prototype.hasOwnProperty.call(body, sourceKey)) {
+                if (Object.hasOwn(body, sourceKey)) {
                     snapshot[targetKey] = body[sourceKey];
                 }
             };
             copyIfPresent('plantingStrategy');
-            if (!Object.prototype.hasOwnProperty.call(snapshot, 'plantingStrategy'))
+            if (!Object.hasOwn(snapshot, 'plantingStrategy'))
                 copyIfPresent('strategy', 'plantingStrategy');
             copyIfPresent('preferredSeedId');
-            if (!Object.prototype.hasOwnProperty.call(snapshot, 'preferredSeedId'))
+            if (!Object.hasOwn(snapshot, 'preferredSeedId'))
                 copyIfPresent('seedId', 'preferredSeedId');
             for (const key of [
                 'automation',
@@ -158,7 +181,13 @@ function createDataProvider(options) {
                 'fertilizerBuyNormalThresholdHours',
                 'fertilizerBuyCheckIntervalMinutes',
                 'bagSeedPriority',
+                'bagSeedLandTypes',
                 'bagSeedFallbackStrategy',
+                'autoAcceptFriendMinLevel',
+                'autoAcceptRequireOwnLevel',
+                'autoAcceptHarvestStealEnabled',
+                'autoAcceptHarvestStealHarvest',
+                'autoAcceptHarvestStealSteal',
             ]) {
                 copyIfPresent(key);
             }

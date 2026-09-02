@@ -52,6 +52,7 @@ function mountAccountRoutes(app, ctx) {
             const rawBody = (req.body && typeof req.body === 'object') ? req.body : {};
             const requestedName = typeof rawBody.name === 'string' ? rawBody.name.trim() : '';
             const body = typeof rawBody.name === 'string' ? { ...rawBody, name: requestedName } : rawBody;
+            // 备注允许留空（扫码登录场景），新增账号由存储层默认命名为 账号{id}
             const username = String(req.adminUser || '');
             const visibleAccounts = getAccountList(ctx, username);
             const remarkMatchedAccount = !body.id && requestedName
@@ -103,7 +104,7 @@ function mountAccountRoutes(app, ctx) {
             }
             const data = addOrUpdateAccount(payload);
             if (ctx.provider.addAccountLog) {
-                const accountId = isUpdate ? String(payload.id) : String((data.accounts[data.accounts.length - 1] || {}).id || '');
+                const accountId = isUpdate ? String(payload.id) : String((data.accounts.at(-1) || {}).id || '');
                 const accountName = payload.name || '';
                 ctx.provider.addAccountLog(isUpdate ? 'update' : 'add', isRemarkRelogin
                     ? `通过备注重新登录账号: ${accountName || accountId}`
@@ -111,7 +112,7 @@ function mountAccountRoutes(app, ctx) {
             }
             // 如果是新增，自动启动
             if (!isUpdate) {
-                const newAcc = data.accounts[data.accounts.length - 1];
+                const newAcc = data.accounts.at(-1);
                 if (newAcc)
                     ctx.provider.startAccount(newAcc.id);
             }
@@ -418,12 +419,18 @@ function mountAccountRoutes(app, ctx) {
             const fertilizerBuyNormalThresholdHours = id && (typeof store.getFertilizerBuyNormalThresholdHours === 'function') ? store.getFertilizerBuyNormalThresholdHours(id) : 10;
             const fertilizerBuyCheckIntervalMinutes = id && (typeof store.getFertilizerBuyCheckIntervalMinutes === 'function') ? store.getFertilizerBuyCheckIntervalMinutes(id) : 30;
             const bagSeedPriority = id && (typeof store.getBagSeedPriority === 'function') ? store.getBagSeedPriority(id) : [];
+            const bagSeedLandTypes = id && (typeof store.getBagSeedLandTypes === 'function') ? store.getBagSeedLandTypes(id) : {};
             const bagSeedFallbackStrategy = id && (typeof store.getBagSeedFallbackStrategy === 'function') ? store.getBagSeedFallbackStrategy(id) : 'level';
+            const autoAcceptFriendMinLevel = id && (typeof store.getAutoAcceptFriendMinLevel === 'function') ? store.getAutoAcceptFriendMinLevel(id) : 0;
+            const autoAcceptRequireOwnLevel = id && (typeof store.getAutoAcceptRequireOwnLevel === 'function') ? store.getAutoAcceptRequireOwnLevel(id) : false;
+            const autoAcceptHarvestStealEnabled = id && (typeof store.getAutoAcceptHarvestStealEnabled === 'function') ? store.getAutoAcceptHarvestStealEnabled(id) : true;
+            const autoAcceptHarvestStealHarvest = id && (typeof store.getAutoAcceptHarvestStealHarvest === 'function') ? store.getAutoAcceptHarvestStealHarvest(id) : 8;
+            const autoAcceptHarvestStealSteal = id && (typeof store.getAutoAcceptHarvestStealSteal === 'function') ? store.getAutoAcceptHarvestStealSteal(id) : 1;
             const ui = store.getUI();
             const offlineReminder = store.getOfflineReminder
                 ? store.getOfflineReminder()
                 : { channel: 'webhook', endpoint: '', token: '', secret: '', title: '账号下线提醒', msg: '账号下线', offlineDeleteSec: 0 };
-            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, stealDelaySeconds, plantOrderRandom, plantDelaySeconds, fertilizerBuyOrganicCount, fertilizerBuyOrganicThresholdHours, fertilizerBuyNormalCount, fertilizerBuyNormalThresholdHours, fertilizerBuyCheckIntervalMinutes, bagSeedPriority, bagSeedFallbackStrategy, ui, offlineReminder } });
+            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, stealDelaySeconds, plantOrderRandom, plantDelaySeconds, fertilizerBuyOrganicCount, fertilizerBuyOrganicThresholdHours, fertilizerBuyNormalCount, fertilizerBuyNormalThresholdHours, fertilizerBuyCheckIntervalMinutes, bagSeedPriority, bagSeedLandTypes, bagSeedFallbackStrategy, autoAcceptFriendMinLevel, autoAcceptRequireOwnLevel, autoAcceptHarvestStealEnabled, autoAcceptHarvestStealHarvest, autoAcceptHarvestStealSteal, ui, offlineReminder } });
         }
         catch (e) {
             res.status(500).json({ ok: false, error: e.message });
@@ -469,10 +476,25 @@ function mountAccountRoutes(app, ctx) {
     app.post('/api/settings/system-config', (req, res) => {
         try {
             const { serverUrl, clientVersion, platform, os, timeZone, deviceInfo } = req.body || {};
+            const previous = getRuntimeConfig();
             const saved = store.setSystemConfig({ serverUrl, clientVersion, platform, os, timeZone, deviceInfo });
             updateRuntimeConfig(saved);
             if (ctx.provider && typeof ctx.provider.broadcastConfig === 'function') {
                 ctx.provider.broadcastConfig('');
+            }
+            const transportChanged = previous.serverUrl !== saved.serverUrl
+                || previous.clientVersion !== saved.clientVersion
+                || previous.platform !== saved.platform
+                || previous.os !== saved.os;
+            if (transportChanged && ctx.provider && typeof ctx.provider.getAccounts === 'function'
+                && typeof ctx.provider.isAccountRunning === 'function'
+                && typeof ctx.provider.restartAccount === 'function') {
+                const accounts = ctx.provider.getAccounts()?.accounts || [];
+                for (const account of accounts) {
+                    if (account?.id && ctx.provider.isAccountRunning(account.id)) {
+                        ctx.provider.restartAccount(account.id);
+                    }
+                }
             }
             res.json({ ok: true, data: { saved, current: getRuntimeConfig() } });
         }
@@ -482,11 +504,26 @@ function mountAccountRoutes(app, ctx) {
     });
     app.post('/api/settings/system-config/reset', (_req, res) => {
         try {
+            const previous = getRuntimeConfig();
             const saved = getDefaultSystemConfig();
             store.setSystemConfig(saved);
             updateRuntimeConfig(saved);
             if (ctx.provider && typeof ctx.provider.broadcastConfig === 'function') {
                 ctx.provider.broadcastConfig('');
+            }
+            const transportChanged = previous.serverUrl !== saved.serverUrl
+                || previous.clientVersion !== saved.clientVersion
+                || previous.platform !== saved.platform
+                || previous.os !== saved.os;
+            if (transportChanged && ctx.provider && typeof ctx.provider.getAccounts === 'function'
+                && typeof ctx.provider.isAccountRunning === 'function'
+                && typeof ctx.provider.restartAccount === 'function') {
+                const accounts = ctx.provider.getAccounts()?.accounts || [];
+                for (const account of accounts) {
+                    if (account?.id && ctx.provider.isAccountRunning(account.id)) {
+                        ctx.provider.restartAccount(account.id);
+                    }
+                }
             }
             res.json({ ok: true, data: { saved, current: getRuntimeConfig() } });
         }

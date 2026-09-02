@@ -38,6 +38,7 @@ interface CheckFriendsOptions {
     onlyBad?: boolean;
     ignoreExpLimit?: boolean;
 }
+export declare function isFriendCheckRunning(): boolean;
 export declare function checkFriends(options?: CheckFriendsOptions): Promise<boolean>;
 interface StartOptions {
     externalScheduler?: boolean;
@@ -49,7 +50,6 @@ export declare function refreshFriendCheckLoop(delayMs?: number): void;
  * 处理服务器推送的好友申请
  */
 export declare function onFriendApplicationReceived(applications: any[]): void;
-export declare function runBadOnceOnStartup(): Promise<void>;
 export declare function isHelpExpLimitReached(): boolean;
 export {};
 //# sourceMappingURL=scheduler.d.ts.map

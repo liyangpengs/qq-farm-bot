@@ -19,6 +19,7 @@ async function loadProto() {
         getResourcePath('proto', 'corepb.proto'),
         getResourcePath('proto', 'shoppb.proto'),
         getResourcePath('proto', 'friendpb.proto'),
+        getResourcePath('proto', 'weatherpb.proto'),
         getResourcePath('proto', 'visitpb.proto'),
         getResourcePath('proto', 'notifypb.proto'),
         getResourcePath('proto', 'taskpb.proto'),
@@ -167,6 +168,10 @@ async function loadProto() {
     types.GetApplicationsReply = root.lookupType('gamepb.friendpb.GetApplicationsReply');
     types.AcceptFriendsRequest = root.lookupType('gamepb.friendpb.AcceptFriendsRequest');
     types.AcceptFriendsReply = root.lookupType('gamepb.friendpb.AcceptFriendsReply');
+    types.RejectFriendsRequest = root.lookupType('gamepb.friendpb.RejectFriendsRequest');
+    types.RejectFriendsReply = root.lookupType('gamepb.friendpb.RejectFriendsReply');
+    types.DelFriendRequest = root.lookupType('gamepb.friendpb.DelFriendRequest');
+    types.DelFriendReply = root.lookupType('gamepb.friendpb.DelFriendReply');
     types.SyncAllFriendsRequest = root.lookupType('gamepb.friendpb.SyncAllRequest');
     types.SyncAllFriendsReply = root.lookupType('gamepb.friendpb.SyncAllReply');
     types.GetGameFriendsRequest = root.lookupType('gamepb.friendpb.GetGameFriendsRequest');
@@ -198,6 +203,7 @@ async function loadProto() {
     types.BatchDeleteEmailReply = root.lookupType('gamepb.emailpb.BatchDeleteEmailReply');
     // 服务器推送通知
     types.LandsNotify = root.lookupType('gamepb.plantpb.LandsNotify');
+    types.FarmSocialEventsNotify = root.lookupType('gamepb.plantpb.FarmSocialEventsNotify');
     types.BasicNotify = root.lookupType('gamepb.userpb.BasicNotify');
     types.KickoutNotify = root.lookupType('gatepb.KickoutNotify');
     types.FriendApplicationReceivedNotify = root.lookupType('gamepb.friendpb.FriendApplicationReceivedNotify');
@@ -221,6 +227,12 @@ async function loadProto() {
     types.QueryActivityRequest = root.lookupType('gamepb.activitypb.QueryActivityRequest');
     types.ExchangeShopOperateParams = root.lookupType('gamepb.activitypb.ExchangeShopOperateParams');
     types.ExchangeShopRequest = root.lookupType('gamepb.activitypb.ExchangeShopRequest');
+    types.WeatherResearchOperateParams = root.lookupType('gamepb.activitypb.WeatherResearchOperateParams');
+    types.AdvanceWeatherResearchRequest = root.lookupType('gamepb.activitypb.AdvanceWeatherResearchRequest');
+    types.WeatherCollectOperateParams = root.lookupType('gamepb.activitypb.WeatherCollectOperateParams');
+    types.CollectWeatherRequest = root.lookupType('gamepb.activitypb.CollectWeatherRequest');
+    types.WeatherResearchOperateRequest = root.lookupType('gamepb.activitypb.WeatherResearchOperateRequest');
+    types.WeatherTaskOperateRequest = root.lookupType('gamepb.activitypb.WeatherTaskOperateRequest');
     types.OperateConstellationRequest = root.lookupType('gamepb.activitypb.OperateConstellationRequest');
     types.ClaimQingMeiDailySeedRequest = root.lookupType('gamepb.activitypb.ClaimQingMeiDailySeedRequest');
     types.StartQingMeiBrewRequest = root.lookupType('gamepb.activitypb.StartQingMeiBrewRequest');
@@ -228,7 +240,10 @@ async function loadProto() {
     types.SettleQingMeiBrewRequest = root.lookupType('gamepb.activitypb.SettleQingMeiBrewRequest');
     types.ClaimQixiBridgeRewardsRequest = root.lookupType('gamepb.activitypb.ClaimQixiBridgeRewardsRequest');
     types.GiftQixiSachetRequest = root.lookupType('gamepb.activitypb.GiftQixiSachetRequest');
+    types.CharityRedFlowerOperateRequest = root.lookupType('gamepb.activitypb.CharityRedFlowerOperateRequest');
     types.ActivityOperateReply = root.lookupType('gamepb.activitypb.ActivityOperateReply');
+    types.GetWeatherStatusRequest = root.lookupType('gamepb.weatherpb.GetWeatherStatusRequest');
+    types.GetWeatherStatusReply = root.lookupType('gamepb.weatherpb.GetWeatherStatusReply');
     types.GetSeasonInfoRequest = root.lookupType('gamepb.seasonpb.GetSeasonInfoRequest');
     types.GetSeasonInfoReply = root.lookupType('gamepb.seasonpb.GetSeasonInfoReply');
     types.ClaimBattlePassRewardsRequest = root.lookupType('gamepb.seasonpb.ClaimBattlePassRewardsRequest');
@@ -332,6 +347,7 @@ async function loadProto() {
     types.ProductsHasChangedNotify = root.lookupType('gamepb.mallpb.ProductsHasChangedNotify');
     types.ActiviesChangeNotify = root.lookupType('gamepb.activitypb.ActiviesChangeNotify');
     types.SkinChangeNotify = root.lookupType('gamepb.skinpb.SkinChangeNotify');
+    types.WeatherChangeNotify = root.lookupType('gamepb.weatherpb.WeatherChangeNotify');
     // Proto 加载完成
     log('系统', 'Protobuf 定义加载完成');
 }

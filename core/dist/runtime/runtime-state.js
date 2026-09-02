@@ -22,6 +22,8 @@ function createRuntimeState(options) {
         return {
             ...accountConfig,
             systemTimeZone: getRuntimeConfig().timeZone,
+            systemServerUrl: getRuntimeConfig().serverUrl,
+            systemClientVersion: getRuntimeConfig().clientVersion,
             __revision: configRevision,
         };
     }

@@ -67,9 +67,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const rawBody = (req.body && typeof req.body === 'object') ? req.body : {};
             const requestedName = typeof rawBody.name === 'string' ? rawBody.name.trim() : '';
             const body = typeof rawBody.name === 'string' ? { ...rawBody, name: requestedName } : rawBody;
-            if (!requestedName) {
-                return res.status(400).json({ ok: false, error: '账号备注不能为空' });
-            }
+            // 备注允许留空（扫码登录场景），新增账号由存储层默认命名为 账号{id}
             const username = String((req as any).adminUser || '');
             const visibleAccounts = getAccountList(ctx, username);
             const remarkMatchedAccount = !body.id && requestedName

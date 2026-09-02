@@ -42,10 +42,6 @@ const form = reactive({
 // 添加账号
 async function addAccount(data: any) {
   const name = String(data?.name || '').trim()
-  if (!name) {
-    errorMessage.value = '请输入账号备注'
-    return false
-  }
 
   loading.value = true
   errorMessage.value = ''
@@ -155,10 +151,6 @@ function isWxFlowActive(taskId: string, flowVersion: number) {
 async function getWxCodeAndAdd(taskId: string, flowVersion: number) {
   if (!isWxFlowActive(taskId, flowVersion))
     return
-  if (!form.name.trim()) {
-    wxError.value = '请先填写账号备注'
-    return
-  }
   const codeResult = await api.post(`/api/wx-login/tasks/${taskId}/code`)
   if (!isWxFlowActive(taskId, flowVersion))
     return
@@ -167,7 +159,8 @@ async function getWxCodeAndAdd(taskId: string, flowVersion: number) {
     throw new Error('未获取到登录 Code')
 
   // Deliberately use the same account API and payload as the manual form.
-  await addAccount({ name: form.name, code, platform: 'wx', loginType: 'manual' })
+  // 备注留空时由后端自动生成默认名称
+  await addAccount({ name: form.name.trim(), code, platform: 'wx', loginType: 'manual' })
 }
 
 async function confirmWxLogin(taskId: string, flowVersion: number) {
@@ -202,11 +195,6 @@ async function pollWxLoginRequest(taskId: string, flowVersion: number) {
       wxStatus.value = '已扫码，请在手机上确认'
     }
     else if (status === 'authorized') {
-      if (!form.name.trim()) {
-        wxError.value = '请先填写账号备注'
-        wxPollTimer = setTimeout(() => void pollWxLogin(taskId, flowVersion), 1200)
-        return
-      }
       stopWxPolling()
       await confirmWxLogin(taskId, flowVersion)
       return
@@ -391,8 +379,8 @@ onBeforeUnmount(resetWxLogin)
         <div v-else class="space-y-4" role="tabpanel" aria-label="微信扫码登录">
           <BaseInput
             v-model="form.name"
-            label="账号备注（必填）"
-            placeholder="请输入账号备注"
+            label="账号备注（选填）"
+            placeholder="留空自动生成"
             class="farm-input"
           />
           <div class="min-h-64 flex flex-col items-center justify-center gap-3">

@@ -16,12 +16,12 @@ exports.getRemainingBadOperationTimes = getRemainingBadOperationTimes;
 exports.getOperationLimits = getOperationLimits;
 exports.getCanGetHelpExp = getCanGetHelpExp;
 exports.setCanGetHelpExp = setCanGetHelpExp;
+exports.isFriendCheckRunning = isFriendCheckRunning;
 exports.checkFriends = checkFriends;
 exports.startFriendCheckLoop = startFriendCheckLoop;
 exports.stopFriendCheckLoop = stopFriendCheckLoop;
 exports.refreshFriendCheckLoop = refreshFriendCheckLoop;
 exports.onFriendApplicationReceived = onFriendApplicationReceived;
-exports.runBadOnceOnStartup = runBadOnceOnStartup;
 exports.isHelpExpLimitReached = isHelpExpLimitReached;
 const { CONFIG } = require('../../config/config');
 const crypto = require('node:crypto');
@@ -31,11 +31,19 @@ const { getDataFile } = require('../../config/runtime-paths');
 const { createScheduler } = require('../scheduler');
 const { readJsonFile, writeJsonFileAtomic } = require('../json-db');
 const { setOperationLimitsCallback } = require('../farm');
-const { isAutomationOn, getFriendBlacklist, } = require('../../models/store');
+const { isAutomationOn, getFriendBlacklist, getAutoAcceptFriendMinLevel, getAutoAcceptRequireOwnLevel, getAutoAcceptHarvestStealEnabled, getAutoAcceptHarvestStealHarvest, getAutoAcceptHarvestStealSteal, } = require('../../models/store');
 const { sellAllFruits } = require('../warehouse');
-const { getAllFriends, acceptFriends, getApplications, } = require('./api');
+const { getCareerInfo } = require('../career');
+const { getAllFriends, acceptFriends, rejectFriends, getApplications, } = require('./api');
+const { isHarvestStealFilterEnabled, evaluateLevelFilter, evaluateHarvestStealFilter, } = require('./application-filter');
 const { extractReplyFriends, clearAllInvalidKnownFriendGidCooldowns, } = require('./gid-manager');
-const { visitFriend, visitFriendForSteal, visitFriendForHelp, inFriendQuietHours, clearFriendsListCache, } = require('./visit-strategy');
+const { visitFriend, inFriendQuietHours, cacheFriendsListFromReply, clearFriendsListCache, } = require('./visit-strategy');
+const { buildFriendVisitPlan } = require('./visit-plan');
+const { getFriendDogState, flushFriendPetCacheNow } = require('./pet-cache');
+// 延迟引用 pet-sync，它反向依赖本模块的 isFriendCheckRunning
+function petSyncRef() {
+    return require('./pet-sync');
+}
 // ============ 内部状态 ============
 let isCheckingFriends = false;
 let friendLoopRunning = false;
@@ -45,12 +53,13 @@ const friendScheduler = createScheduler('friend');
 const operationLimits = new Map();
 let canGetHelpExp = true;
 let helpAutoDisabledByLimit = false;
-let badExecutedOnStartup = false;
 let badOperationLimitReached = false;
 // Captured PutWeeds/PutInsects replies both consume operation 10003.
 // PutInsects additionally reports 10004, but 10003 is the shared daily quota.
 const BAD_SHARED_LIMIT_ID = 10003;
 const BAD_DAILY_STATE_VERSION = 1;
+// 一轮最多对多少位「没可偷也没可帮」的好友做纯捣乱访问（按等级降序）
+const MAX_BAD_ONLY_VISITS_PER_ROUND = 20;
 const OP_NAMES = {
     10001: '浇水',
     10002: '除虫',
@@ -239,6 +248,11 @@ function getCanGetHelpExp() {
 function setCanGetHelpExp(val) {
     canGetHelpExp = val;
 }
+// 好友巡查与面板的好友天气扫描共用“进入好友农场”这一游戏状态，
+// 扫描靠这个标志让位，保证好友任务优先执行。
+function isFriendCheckRunning() {
+    return isCheckingFriends;
+}
 async function checkFriends(options = {}) {
     const state = getUserState();
     if (!isAutomationOn('friend'))
@@ -263,60 +277,92 @@ async function checkFriends(options = {}) {
     checkDailyReset();
     try {
         const friendsReply = await getAllFriends();
+        // 巡查结果同时刷新面板好友列表缓存，避免页面再次请求同一份列表。
+        cacheFriendsListFromReply(friendsReply);
         const friends = extractReplyFriends(friendsReply);
         if (friends.length === 0) {
             log('好友', '没有好友', { module: 'friend', event: '好友扫描', result: 'empty' });
             return false;
         }
         const blacklist = new Set(getFriendBlacklist(accountId));
-        const stealFriends = [];
-        const helpFriends = [];
-        const visitedGids = new Set();
-        for (const f of friends) {
-            const gid = toNum(f.gid);
-            if (gid === state.gid)
-                continue;
-            if (visitedGids.has(gid))
-                continue;
-            if (blacklist.has(gid))
-                continue;
-            const name = f.remark || f.name || `GID:${gid}`;
-            const p = f.plant;
-            const stealNum = p ? toNum(p.steal_plant_num) : 0;
-            const dryNum = p ? toNum(p.dry_num) : 0;
-            const weedNum = p ? toNum(p.weed_num) : 0;
-            const insectNum = p ? toNum(p.insect_num) : 0;
-            if (stealNum > 0 && effectiveStealEnabled) {
-                stealFriends.push({ gid, name, stealNum });
-            }
-            if ((dryNum > 0 || weedNum > 0 || insectNum > 0) && effectiveHelpEnabled) {
-                helpFriends.push({ gid, name, dryNum, weedNum, insectNum });
-            }
-            visitedGids.add(gid);
-        }
-        // 排序：偷菜多的优先
-        stealFriends.sort((a, b) => b.stealNum - a.stealNum);
-        // 排序：帮助需求多的优先
-        helpFriends.sort((a, b) => {
-            const helpA = a.dryNum + a.weedNum + a.insectNum;
-            const helpB = b.dryNum + b.weedNum + b.insectNum;
-            return helpB - helpA;
+        // 经验满不帮时，本轮只帮当天缓存已确认是护主犬的好友；缓存没结论的交给每日宠物同步补齐。
+        const stopWhenExpLimit = !!isAutomationOn('friend_help_exp_limit') && !ignoreExpLimit;
+        const protectDogBypassEnabled = !!isAutomationOn('friend_help_protect_dog_ignore_exp_limit');
+        const helpAllowedForAll = !stopWhenExpLimit || canGetHelpExp;
+        // 一次算清每位好友这轮要做哪几件事，然后每位好友只进一次农场把三件事一起做完。
+        const plan = buildFriendVisitPlan({
+            friends,
+            myGid: state.gid,
+            blacklist,
+            stealEnabled: effectiveStealEnabled,
+            helpEnabled: effectiveHelpEnabled,
+            badEnabled: effectiveBadEnabled && !isBadOperationLimitReached(),
+            helpAllowedForAll,
+            protectDogBypassEnabled,
+            getDogState: getFriendDogState,
+            badBudget: getRemainingBadOperationTimes(),
+            maxBadOnlyVisits: MAX_BAD_ONLY_VISITS_PER_ROUND,
         });
         const totalActions = { steal: 0, farming: 0, putBug: 0, putWeed: 0 };
-        // 第二阶段：批量偷菜
-        if (stealFriends.length > 0 && effectiveStealEnabled) {
-            // log('好友', `开始批量偷菜，共 ${stealFriends.length} 个好友有可偷`, {
-            //     module: 'friend', event: '开始批量偷菜', count: stealFriends.length
-            // });
-            for (const friend of stealFriends) {
-                try {
-                    await visitFriendForSteal(friend, totalActions, state.gid, state.accountId);
+        if (plan.skippedExpLimit > 0) {
+            log('好友', `经验已达上限，本轮跳过 ${plan.skippedExpLimit} 位非护主犬好友（未进农场，其中 ${plan.skippedUnknownDog} 位宠物待同步）`, {
+                module: 'friend',
+                event: '好友巡查跳过',
+                reason: 'protect_dog_cache_filtered',
+                count: plan.skippedExpLimit,
+                unknownDog: plan.skippedUnknownDog,
+            });
+        }
+        if (plan.visits.length === 0)
+            return false;
+        log('好友', `开始好友巡查，本轮 ${plan.visits.length} 位（可偷 ${plan.stealCount} / 需帮 ${plan.helpCount} / 纯捣乱 ${plan.badOnlyCount}）`, {
+            module: 'friend',
+            event: '开始好友巡查',
+            count: plan.visits.length,
+            steal: plan.stealCount,
+            help: plan.helpCount,
+            bad: plan.badOnlyCount,
+        });
+        // 经验在本轮中途满掉之后被跳过的好友数
+        let midRoundExpSkipped = 0;
+        for (const target of plan.visits) {
+            if (target.wantBad) {
+                // 纯捣乱的好友都排在队尾，额度一用完这一轮就可以收工
+                if (isBadOperationLimitReached() || getRemainingBadOperationTimes() <= 0) {
+                    log('好友', '放虫放草次数已用完，停止执行', { module: 'friend', event: '放虫放草次数用完' });
+                    break;
                 }
-                catch {
-                    // 单个好友失败不影响整体
-                }
-                await randomDelay(500, 800);
             }
+            else if (target.wantHelp && !target.wantSteal && stopWhenExpLimit && !canGetHelpExp) {
+                // 帮忙是这次进农场的唯一目的，但经验在本轮中途满了：不是护主犬就别进去了
+                if (!protectDogBypassEnabled || getFriendDogState(target.gid) !== 'protect') {
+                    midRoundExpSkipped += 1;
+                    continue;
+                }
+            }
+            try {
+                await visitFriend(target, totalActions, state.gid, state.accountId, {
+                    allowSteal: target.wantSteal,
+                    allowHelp: target.wantHelp,
+                    allowBad: target.wantBad,
+                    ignoreExpLimit,
+                });
+            }
+            catch (e) {
+                log('好友', `巡查好友失败: ${target.name}, 错误: ${e.message}`, {
+                    module: 'friend', event: '好友巡查失败', friendName: target.name, error: e.message,
+                });
+            }
+            // 捣乱访问之间放慢一些，其余保持原节奏
+            if (target.wantBad)
+                await randomDelay(2000, 3500);
+            else
+                await randomDelay(500, 800);
+        }
+        if (midRoundExpSkipped > 0) {
+            log('好友', `本轮帮助经验在中途达到上限，跳过剩余 ${midRoundExpSkipped} 位非护主犬好友`, {
+                module: 'friend', event: '好友巡查跳过', reason: 'exp_limit', count: midRoundExpSkipped,
+            });
         }
         // 偷菜后自动出售
         if (totalActions.steal > 0) {
@@ -325,86 +371,6 @@ async function checkFriends(options = {}) {
             }
             catch {
                 // ignore
-            }
-        }
-        // 第三阶段：批量帮助
-        if (helpFriends.length > 0 && effectiveHelpEnabled) {
-            log('好友', `开始批量帮助，共 ${helpFriends.length} 个好友需要帮助`, {
-                module: 'friend', event: '开始批量帮助', count: helpFriends.length
-            });
-            for (let i = 0; i < helpFriends.length; i++) {
-                const friend = helpFriends[i];
-                log('好友', `批量帮助第 ${i + 1}/${helpFriends.length} 个好友: ${friend.name}`, { module: 'friend', event: '批量帮助开始', index: i + 1, total: helpFriends.length, friendName: friend.name });
-                // 检查是否还能获得帮助经验
-                // const stopWhenExpLimit = !!isAutomationOn('friend_help_exp_limit');
-                const stopWhenExpLimit = !!isAutomationOn('friend_help_exp_limit') && !ignoreExpLimit;
-                if (stopWhenExpLimit && !canGetHelpExp) {
-                    log('好友', `批量帮助中断：经验已达上限`, { module: 'friend', event: '批量帮助中断', reason: 'exp_limit' });
-                    break;
-                }
-                try {
-                    // await visitFriendForHelp(friend, totalActions, state.gid, state.accountId);
-                    await visitFriendForHelp(friend, totalActions, state.gid, state.accountId, ignoreExpLimit);
-                    log('好友', `批量帮助第 ${i + 1} 个好友完成: ${friend.name}`, { module: 'friend', event: '批量帮助完成', index: i + 1, friendName: friend.name });
-                }
-                catch (e) {
-                    log('好友', `批量帮助第 ${i + 1} 个好友失败: ${friend.name}, 错误: ${e.message}`, { module: 'friend', event: '批量帮助失败', index: i + 1, friendName: friend.name, error: e.message });
-                }
-                await randomDelay(500, 800);
-            }
-            log('好友', '批量帮助循环结束', { module: 'friend', event: '批量帮助结束' });
-        }
-        // 第四阶段：批量捣乱（放虫放草）
-        if (effectiveBadEnabled && !isBadOperationLimitReached()) {
-            log('好友', '开始自动放虫放草', { module: 'friend', event: '开始自动放虫放草' });
-            const badFriends = [];
-            const badVisitedGids = new Set();
-            for (const f of friends) {
-                const gid = toNum(f.gid);
-                if (gid === state.gid)
-                    continue;
-                if (badVisitedGids.has(gid))
-                    continue;
-                if (blacklist.has(gid))
-                    continue;
-                const name = f.remark || f.name || `GID:${gid}`;
-                const p = f.plant;
-                const stealNum = p ? toNum(p.steal_plant_num) : 0;
-                const dryNum = p ? toNum(p.dry_num) : 0;
-                const weedNum = p ? toNum(p.weed_num) : 0;
-                const insectNum = p ? toNum(p.insect_num) : 0;
-                // 只没有可偷、可帮助的好友才考虑捣乱
-                if (stealNum === 0 && dryNum === 0 && weedNum === 0 && insectNum === 0) {
-                    const level = toNum(f.level);
-                    badFriends.push({ gid, name, level });
-                }
-                badVisitedGids.add(gid);
-            }
-            // 按等级降序排序，优先处理等级高的好友
-            badFriends.sort((a, b) => b.level - a.level);
-            // 只取等级最高的前20个
-            const topBadFriends = badFriends.slice(0, 20);
-            if (topBadFriends.length > 0) {
-                log('好友', `找到 ${badFriends.length} 个可捣乱的好友，处理等级最高的前${topBadFriends.length}个`, { module: 'friend', event: '放虫放草好友列表', totalCount: badFriends.length, topCount: topBadFriends.length });
-                for (let i = 0; i < topBadFriends.length; i++) {
-                    const friend = topBadFriends[i];
-                    if (isBadOperationLimitReached())
-                        break;
-                    // 检查是否还有捣乱次数
-                    if (getRemainingBadOperationTimes() <= 0) {
-                        log('好友', `放虫放草次数已用完，停止执行`, { module: 'friend', event: '放虫放草次数用完' });
-                        break;
-                    }
-                    try {
-                        await visitFriend(friend, totalActions, state.gid, state.accountId);
-                    }
-                    catch {
-                        // 单个好友失败不影响整体
-                    }
-                    if (isBadOperationLimitReached())
-                        break;
-                    await randomDelay(2000, 3500);
-                }
             }
         }
         // 生成总结日志
@@ -417,7 +383,7 @@ async function checkFriends(options = {}) {
             summary.push(`放虫${totalActions.putBug}`);
         if (totalActions.putWeed > 0)
             summary.push(`放草${totalActions.putWeed}`);
-        const totalVisited = stealFriends.length + helpFriends.length;
+        const totalVisited = plan.visits.length;
         if (summary.length > 0) {
             log('好友', `巡查完成 → ${summary.join('/')}`, {
                 module: 'friend', event: '好友巡查循环', result: 'ok', visited: totalVisited, summary
@@ -462,10 +428,14 @@ function startFriendCheckLoop(options = {}) {
     }
     // 启动时检查一次待处理的好友申请
     friendScheduler.setTimeoutTask('friend_check_bootstrap_applications', 3000, () => checkAndAcceptApplications());
+    // 好友宠物每日同步（自带启动错峰与定时重试）
+    petSyncRef().startFriendPetSyncTimer();
 }
 function stopFriendCheckLoop() {
     friendLoopRunning = false;
     externalSchedulerMode = false;
+    petSyncRef().stopFriendPetSyncTimer();
+    flushFriendPetCacheNow();
     clearAllInvalidKnownFriendGidCooldowns();
     clearFriendsListCache();
     networkEvents.off('friendApplicationReceived', onFriendApplicationReceived);
@@ -477,20 +447,40 @@ function refreshFriendCheckLoop(delayMs = 200) {
     friendScheduler.setTimeoutTask('friend_check_loop', Math.max(0, delayMs), () => friendCheckLoop());
 }
 // ============ 自动同意好友申请 (微信同玩) ============
+let applicationQueue = Promise.resolve();
+function getApplicationFilterConfig() {
+    return {
+        minLevel: getAutoAcceptFriendMinLevel(),
+        requireOwnLevel: getAutoAcceptRequireOwnLevel(),
+        ownLevel: toNum((getUserState() || {}).level),
+        harvestStealEnabled: getAutoAcceptHarvestStealEnabled(),
+        harvestPart: getAutoAcceptHarvestStealHarvest(),
+        stealPart: getAutoAcceptHarvestStealSteal(),
+    };
+}
+function enqueueApplications(applications) {
+    applicationQueue = applicationQueue
+        .then(() => processFriendApplications(applications))
+        .catch((e) => {
+        logWarn('申请', `处理好友申请失败: ${e && e.message ? e.message : e}`);
+    });
+}
 /**
  * 处理服务器推送的好友申请
  */
 function onFriendApplicationReceived(applications) {
+    if (!Array.isArray(applications) || applications.length === 0)
+        return;
     const names = applications.map((a) => a.name || `GID:${toNum(a.gid)}`).join(', ');
     log('申请', `收到 ${applications.length} 个好友申请: ${names}`);
-    // 自动同意
-    const gids = applications.map((a) => toNum(a.gid));
-    acceptFriendsWithRetry(gids);
+    enqueueApplications(applications);
 }
 /**
- * 检查并同意所有待处理的好友申请
+ * 检查并处理所有待处理的好友申请
  */
 async function checkAndAcceptApplications() {
+    if (!isAutomationOn('friend_auto_accept'))
+        return;
     try {
         const reply = await getApplications();
         const applications = reply.applications || [];
@@ -498,11 +488,76 @@ async function checkAndAcceptApplications() {
             return;
         const names = applications.map((a) => a.name || `GID:${toNum(a.gid)}`).join(', ');
         log('申请', `发现 ${applications.length} 个待处理申请: ${names}`);
-        const gids = applications.map((a) => toNum(a.gid));
-        await acceptFriendsWithRetry(gids);
+        await processFriendApplications(applications);
     }
     catch {
         // 静默失败，可能是 QQ 平台不支持
+    }
+}
+async function processFriendApplications(applications) {
+    if (!isAutomationOn('friend_auto_accept'))
+        return;
+    const list = Array.isArray(applications) ? applications : [];
+    if (list.length === 0)
+        return;
+    const config = getApplicationFilterConfig();
+    const checkRatio = isHarvestStealFilterEnabled(config);
+    const accountId = process.env.FARM_ACCOUNT_ID || '';
+    const blacklist = new Set(getFriendBlacklist(accountId));
+    const toAccept = [];
+    const toReject = [];
+    for (let i = 0; i < list.length; i++) {
+        const app = list[i];
+        const gid = toNum(app && app.gid);
+        const name = (app && app.name) || `GID:${gid}`;
+        const level = toNum(app && app.level);
+        if (!gid)
+            continue;
+        if (blacklist.has(gid)) {
+            toReject.push({ gid, name, reason: '已在本地黑名单' });
+            continue;
+        }
+        const levelDecision = evaluateLevelFilter(level, config);
+        if (levelDecision.action === 'reject') {
+            toReject.push({ gid, name, reason: levelDecision.reason || '等级不足' });
+            continue;
+        }
+        if (!checkRatio) {
+            toAccept.push(gid);
+            continue;
+        }
+        try {
+            const career = await getCareerInfo(gid);
+            const ratioDecision = evaluateHarvestStealFilter(career.harvest, career.steal, config);
+            if (ratioDecision.action === 'reject') {
+                toReject.push({ gid, name, reason: ratioDecision.reason || '收偷比不足' });
+            }
+            else {
+                toAccept.push(gid);
+            }
+        }
+        catch (e) {
+            logWarn('申请', `${name} 生涯查询失败，暂不处理: ${e && e.message ? e.message : e}`);
+        }
+        if (i < list.length - 1 && checkRatio) {
+            await randomDelay(150, 300);
+        }
+    }
+    for (const item of toReject) {
+        log('申请', `拒绝 ${item.name}: ${item.reason}`);
+    }
+    await rejectFriendsWithRetry(toReject.map((item) => item.gid));
+    await acceptFriendsWithRetry(toAccept);
+}
+async function rejectFriendsWithRetry(gids) {
+    if (gids.length === 0)
+        return;
+    try {
+        await rejectFriends(gids);
+        log('申请', `已拒绝 ${gids.length} 人`);
+    }
+    catch (e) {
+        logWarn('申请', `拒绝失败: ${e.message}`);
     }
 }
 /**
@@ -521,105 +576,6 @@ async function acceptFriendsWithRetry(gids) {
     }
     catch (e) {
         logWarn('申请', `同意失败: ${e.message}`);
-    }
-}
-// ============ 启动时执行一次放虫放草 ============
-async function runBadOnceOnStartup() {
-    if (badExecutedOnStartup) {
-        return;
-    }
-    const autoBadEnabled = isAutomationOn('friend_bad');
-    if (!autoBadEnabled) {
-        return;
-    }
-    const state = getUserState();
-    if (!state.gid) {
-        log('好友', '用户未登录，无法执行放虫放草', { module: 'friend', event: '放虫放草未登录' });
-        return;
-    }
-    const accountId = process.env.FARM_ACCOUNT_ID || '';
-    if (isBadOperationLimitReached())
-        return;
-    if (isCheckingFriends) {
-        friendScheduler.setTimeoutTask('bad_startup_once_retry', 5000, () => runBadOnceOnStartup());
-        return;
-    }
-    isCheckingFriends = true;
-    log('好友', '========== 启动时放虫放草开始 ==========', { module: 'friend', event: '启动放虫放草开始' });
-    try {
-        const friendsReply = await getAllFriends();
-        const friends = extractReplyFriends(friendsReply);
-        if (friends.length === 0) {
-            log('好友', '没有好友，放虫放草结束', { module: 'friend', event: '没有游戏好友' });
-            return;
-        }
-        const blacklist = new Set(getFriendBlacklist(accountId));
-        const badFriends = [];
-        const visitedGids = new Set();
-        // 筛选可捣乱的好友（排除成熟植物的好友）
-        for (const f of friends) {
-            const gid = toNum(f.gid);
-            if (gid === state.gid)
-                continue;
-            if (visitedGids.has(gid))
-                continue;
-            if (blacklist.has(gid))
-                continue;
-            const name = f.remark || f.name || `GID:${gid}`;
-            const p = f.plant;
-            const stealNum = p ? toNum(p.steal_plant_num) : 0;
-            const dryNum = p ? toNum(p.dry_num) : 0;
-            const weedNum = p ? toNum(p.weed_num) : 0;
-            const insectNum = p ? toNum(p.insect_num) : 0;
-            // 只没有可偷、可帮助的好友才考虑捣乱
-            if (stealNum === 0 && dryNum === 0 && weedNum === 0 && insectNum === 0) {
-                const level = toNum(f.level);
-                badFriends.push({ gid, name, level });
-            }
-            visitedGids.add(gid);
-        }
-        // 按等级降序排序，优先处理等级高的好友
-        badFriends.sort((a, b) => b.level - a.level);
-        // 只取等级最高的前20个
-        const topBadFriends = badFriends.slice(0, 20);
-        log('好友', `找到 ${badFriends.length} 个可捣乱的好友，处理等级最高的前${topBadFriends.length}个`, { module: 'friend', event: '放虫放草好友列表', totalCount: badFriends.length, topCount: topBadFriends.length });
-        const totalActions = { steal: 0, farming: 0, putBug: 0, putWeed: 0 };
-        let processedCount = 0;
-        for (let i = 0; i < topBadFriends.length; i++) {
-            const friend = topBadFriends[i];
-            if (isBadOperationLimitReached())
-                break;
-            // 检查是否还有捣乱次数
-            if (getRemainingBadOperationTimes() <= 0) {
-                log('好友', `放虫放草次数已用完，停止执行。已处理 ${processedCount} 个好友`, { module: 'friend', event: '放虫放草次数用完', processedCount });
-                break;
-            }
-            log('好友', `启动时放虫放草 ${i + 1}/${topBadFriends.length}: ${friend.name} (等级${friend.level})`, { module: 'friend', event: '放虫放草处理好友', index: i + 1, total: topBadFriends.length, friendName: friend.name, level: friend.level });
-            try {
-                // 使用 visitFriend 函数，类似 V1 版本逻辑
-                await visitFriend(friend, totalActions, state.gid);
-                processedCount++;
-            }
-            catch (e) {
-                log('好友', `放虫放草失败: ${friend.name}, 错误: ${e.message}`, { module: 'friend', event: '放虫放草失败', friendName: friend.name, error: e.message });
-            }
-            if (isBadOperationLimitReached())
-                break;
-            await randomDelay(2000, 3500);
-        }
-        badExecutedOnStartup = true;
-        const summary = [];
-        if (totalActions.putBug > 0)
-            summary.push(`放虫${totalActions.putBug}`);
-        if (totalActions.putWeed > 0)
-            summary.push(`放草${totalActions.putWeed}`);
-        log('好友', `========== 启动时放虫放草结束 ========== 处理${processedCount}人${summary.length > 0 ? ` → ${summary.join('/')}` : ''}`, { module: 'friend', event: '启动放虫放草结束', processedCount, summary });
-    }
-    catch (err) {
-        logWarn('好友', `启动时放虫放草异常: ${err.message}`);
-    }
-    finally {
-        isCheckingFriends = false;
     }
 }
 // ============ 公开状态查询 ============

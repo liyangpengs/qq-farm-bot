@@ -8,10 +8,12 @@ export interface AutomationConfig {
     farm_push: boolean;
     land_upgrade: boolean;
     friend: boolean;
+    friend_auto_accept: boolean;
     friend_help_exp_limit: boolean;
     friend_steal: boolean;
     friend_help: boolean;
     friend_bad: boolean;
+    friend_help_protect_dog_ignore_exp_limit: boolean;
     task: boolean;
     fertilizer_gift: boolean;
     fertilizer_buy_organic: boolean;
@@ -29,11 +31,14 @@ export interface AutomationConfig {
     fertilizer_land_types: FertilizerLandType[];
     fertilizer_smart_seconds: number;
     skip_own_weed_bug: boolean;
+    show_manual_fertilizer: boolean;
 }
 export interface IntervalConfig {
     farm: number;
     farmMin: number;
     farmMax: number;
+    friendMin: number;
+    friendMax: number;
     helpMin: number;
     helpMax: number;
     stealMin: number;
@@ -66,7 +71,14 @@ export interface AccountConfig {
     fertilizerBuyNormalThresholdHours: number;
     fertilizerBuyCheckIntervalMinutes: number;
     bagSeedPriority: number[];
+    /** seedId -> 允许种植的土地类型。缺 key 视为不限制。 */
+    bagSeedLandTypes: Record<string, FertilizerLandType[]>;
     bagSeedFallbackStrategy: BagSeedFallbackStrategy;
+    autoAcceptFriendMinLevel: number;
+    autoAcceptRequireOwnLevel: boolean;
+    autoAcceptHarvestStealEnabled: boolean;
+    autoAcceptHarvestStealHarvest: number;
+    autoAcceptHarvestStealSteal: number;
 }
 export interface OfflineReminder {
     channel: string;
@@ -92,6 +104,7 @@ export interface DeviceInfo {
 export interface SystemConfig {
     serverUrl: string;
     clientVersion: string;
+    clientVersionUpdatedAt?: number;
     platform: string;
     os: string;
     timeZone: string;

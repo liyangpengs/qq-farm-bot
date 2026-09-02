@@ -1,9 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const { readTextFile, writeJsonFileAtomic } = require('../../services/json-db');
-const { DEFAULT_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone } = require('../../config/config');
+const { DEFAULT_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone, resolveClientVersionUpdatedAt } = require('../../config/config');
 const sharedState = require('./shared-state');
-const { STORE_FILE, PUSHOO_CHANNELS, DEFAULT_OFFLINE_REMINDER, isManagedDefaultClientVersion, globalConfig, normalizeAccountConfig, cloneAccountConfig, DEFAULT_ACCOUNT_CONFIG, } = sharedState;
+const { STORE_FILE, PUSHOO_CHANNELS, DEFAULT_OFFLINE_REMINDER, globalConfig, normalizeAccountConfig, cloneAccountConfig, DEFAULT_ACCOUNT_CONFIG, } = sharedState;
 function normalizeOfflineReminder(input) {
     const src = (input && typeof input === 'object') ? input : {};
     let offlineDeleteSec = Number.parseInt(src.offlineDeleteSec, 10);
@@ -116,9 +116,11 @@ function setSystemConfig(config) {
     const srcDevice = (config.deviceInfo && typeof config.deviceInfo === 'object') ? config.deviceInfo : {};
     const topVersion = String(config.clientVersion || '').trim();
     const deviceVersion = String(srcDevice.clientVersion || '').trim();
-    const customDeviceVersion = deviceVersion && !isManagedDefaultClientVersion(deviceVersion) ? deviceVersion : '';
-    const customTopVersion = topVersion && !isManagedDefaultClientVersion(topVersion) ? topVersion : '';
-    const clientVersion = customDeviceVersion || customTopVersion || DEFAULT_DEVICE_INFO.clientVersion;
+    const requestedVersion = deviceVersion || topVersion;
+    const clientVersion = requestedVersion || DEFAULT_DEVICE_INFO.clientVersion;
+    const currentVersion = String(globalConfig.systemConfig?.clientVersion || DEFAULT_DEVICE_INFO.clientVersion).trim();
+    const currentUpdatedAt = Number(globalConfig.systemConfig?.clientVersionUpdatedAt);
+    const clientVersionUpdatedAt = resolveClientVersionUpdatedAt(clientVersion, currentVersion, currentUpdatedAt, config.clientVersionUpdatedAt);
     const deviceInfo = {
         os: String(srcDevice.os || DEFAULT_DEVICE_INFO.os).trim(),
         clientVersion,
@@ -131,6 +133,7 @@ function setSystemConfig(config) {
     globalConfig.systemConfig = {
         serverUrl: String(config.serverUrl || '').trim(),
         clientVersion: deviceInfo.clientVersion,
+        clientVersionUpdatedAt,
         platform: String(config.platform || 'qq').trim(),
         os: deviceInfo.os,
         timeZone: normalizeTimeZone(config.timeZone || DEFAULT_TIME_ZONE),

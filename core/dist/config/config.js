@@ -2,8 +2,29 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 // ============ 设备预设 ============
 // clientVersion 由 CONFIG.clientVersion 动态获取，不写死在预设中
-const DEFAULT_CLIENT_VERSION = '1.13.2.9_20260723';
+const DEFAULT_CLIENT_VERSION = '1.13.3.16_20260826';
+const DEFAULT_CLIENT_VERSION_UPDATED_AT = 1788238800000;
 const DEFAULT_TIME_ZONE = 'Asia/Shanghai';
+function resolveClientVersion(savedVersion, savedUpdatedAt) {
+    const version = String(savedVersion || '').trim();
+    const updatedAt = Number(savedUpdatedAt);
+    if (version && Number.isFinite(updatedAt) && updatedAt > DEFAULT_CLIENT_VERSION_UPDATED_AT) {
+        return { clientVersion: version, clientVersionUpdatedAt: updatedAt };
+    }
+    return {
+        clientVersion: DEFAULT_CLIENT_VERSION,
+        clientVersionUpdatedAt: DEFAULT_CLIENT_VERSION_UPDATED_AT,
+    };
+}
+function resolveClientVersionUpdatedAt(clientVersion, currentVersion, currentUpdatedAt, requestedUpdatedAt, now = Date.now()) {
+    const requested = Number(requestedUpdatedAt);
+    if (Number.isFinite(requested) && requested > 0)
+        return requested;
+    if (String(clientVersion || '').trim() !== String(currentVersion || '').trim())
+        return now;
+    const current = Number(currentUpdatedAt);
+    return Number.isFinite(current) && current > 0 ? current : DEFAULT_CLIENT_VERSION_UPDATED_AT;
+}
 const TIME_ZONE_OPTIONS = [
     { value: 'Asia/Shanghai', label: '北京时间 / 上海（UTC+8）' },
     { value: 'UTC', label: '协调世界时（UTC）' },
@@ -111,6 +132,7 @@ const DEFAULT_DEVICE_INFO = { ...DEVICE_PRESETS[0].deviceInfo, clientVersion: DE
 const DEFAULT_SYSTEM_CONFIG = {
     serverUrl: 'wss://gate-obt.nqf.qq.com/prod/ws',
     clientVersion: DEFAULT_CLIENT_VERSION,
+    clientVersionUpdatedAt: DEFAULT_CLIENT_VERSION_UPDATED_AT,
     platform: 'qq',
     os: DEFAULT_DEVICE_INFO.os,
     timeZone: DEFAULT_TIME_ZONE,
@@ -119,6 +141,7 @@ const DEFAULT_SYSTEM_CONFIG = {
 const CONFIG = {
     serverUrl: DEFAULT_SYSTEM_CONFIG.serverUrl,
     clientVersion: DEFAULT_CLIENT_VERSION,
+    clientVersionUpdatedAt: DEFAULT_CLIENT_VERSION_UPDATED_AT,
     platform: DEFAULT_SYSTEM_CONFIG.platform,
     os: DEFAULT_SYSTEM_CONFIG.os,
     timeZone: DEFAULT_SYSTEM_CONFIG.timeZone,
@@ -152,6 +175,13 @@ function updateRuntimeConfig(newConfig) {
     }
     if (newConfig.clientVersion && typeof newConfig.clientVersion === 'string') {
         CONFIG.clientVersion = newConfig.clientVersion;
+        CONFIG.deviceInfo.clientVersion = newConfig.clientVersion;
+    }
+    if (newConfig.clientVersionUpdatedAt !== undefined) {
+        const updatedAt = Number(newConfig.clientVersionUpdatedAt);
+        if (Number.isFinite(updatedAt) && updatedAt > 0) {
+            CONFIG.clientVersionUpdatedAt = updatedAt;
+        }
     }
     if (newConfig.platform && typeof newConfig.platform === 'string') {
         CONFIG.platform = newConfig.platform;
@@ -173,6 +203,7 @@ function getRuntimeConfig() {
     return {
         serverUrl: CONFIG.serverUrl,
         clientVersion: CONFIG.clientVersion,
+        clientVersionUpdatedAt: CONFIG.clientVersionUpdatedAt,
         platform: CONFIG.platform,
         os: CONFIG.os,
         timeZone: CONFIG.timeZone,
@@ -206,6 +237,7 @@ const PHASE_NAMES = ['未知', '种子', '发芽', '小叶', '大叶', '开花',
 module.exports = {
     CONFIG,
     DEFAULT_CLIENT_VERSION,
+    DEFAULT_CLIENT_VERSION_UPDATED_AT,
     DEFAULT_TIME_ZONE,
     PlantPhase,
     PHASE_NAMES,
@@ -215,6 +247,8 @@ module.exports = {
     getDevicePresets,
     getTimeZoneOptions,
     normalizeTimeZone,
+    resolveClientVersion,
+    resolveClientVersionUpdatedAt,
     DEVICE_PRESETS,
 };
 //# sourceMappingURL=config.js.map

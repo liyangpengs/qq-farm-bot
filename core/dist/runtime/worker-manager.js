@@ -1,6 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const { createScheduler } = require('../services/scheduler');
+const DEFAULT_API_CALL_TIMEOUT_MS = 10000;
+// 好友现场天气需要逐个 Enter/Leave，单批最多 5 位好友；
+// 好友列表只读缓存或拉一次名单，给的余量少一些。
+const API_CALL_TIMEOUTS_MS = {
+    scanWeatherFriends: 60000,
+    getWeatherFriends: 30000,
+};
 function createWorkerManager(options) {
     const { fork, WorkerThread, runtimeMode = 'thread', processRef, mainEntryPath, workerScriptPath, workers, globalLogs, log, addAccountLog, normalizeStatusForPanel, buildConfigSnapshotForAccount, getOfflineAutoDeleteMs, triggerOfflineReminder, sendConfiguredPush, addOrUpdateAccount, deleteAccount, refreshAccountCode, onStatusSync, onWorkerLog, } = options;
     const managerScheduler = createScheduler('worker_manager');
@@ -120,6 +127,8 @@ function createWorkerManager(options) {
                 code: account.code,
                 platform: account.platform,
                 systemTimeZone: initialConfigSnapshot.systemTimeZone,
+                systemServerUrl: initialConfigSnapshot.systemServerUrl,
+                systemClientVersion: initialConfigSnapshot.systemClientVersion,
             },
         });
         child.send({ type: 'config_sync', config: initialConfigSnapshot });
@@ -480,7 +489,8 @@ function createWorkerManager(options) {
         return new Promise((resolve, reject) => {
             const id = worker.reqId++;
             worker.requests.set(id, { resolve, reject });
-            managerScheduler.setTimeoutTask(`api_timeout_${accountId}_${id}`, 10000, () => {
+            const timeoutMs = API_CALL_TIMEOUTS_MS[method] || DEFAULT_API_CALL_TIMEOUT_MS;
+            managerScheduler.setTimeoutTask(`api_timeout_${accountId}_${id}`, timeoutMs, () => {
                 if (worker.requests.has(id)) {
                     worker.requests.delete(id);
                     reject(new Error('API Timeout'));

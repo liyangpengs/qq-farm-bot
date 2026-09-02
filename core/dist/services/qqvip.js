@@ -8,6 +8,8 @@ const { types } = require('../utils/proto');
 const { log, toNum, getSystemDateKey } = require('../utils/utils');
 const DAILY_KEY = 'vip_daily_gift';
 const CHECK_COOLDOWN_MS = 10 * 60 * 1000;
+const NOT_QQ_VIP_ERROR_CODE = 1021001;
+const ALREADY_CLAIMED_ERROR_CODE = 1021002;
 let doneDateKey = '';
 let lastCheckAt = 0;
 let lastClaimAt = 0;
@@ -39,9 +41,17 @@ function getRewardSummary(items) {
     }
     return summary.join('/');
 }
+function hasErrorCode(err, code) {
+    if (Number(err && err.code) === code)
+        return true;
+    return new RegExp(`\\bcode=${code}\\b`).test(String((err && err.message) || err || ''));
+}
+function isNotQQVipError(err) {
+    return hasErrorCode(err, NOT_QQ_VIP_ERROR_CODE);
+}
 function isAlreadyClaimedError(err) {
     const msg = String((err && err.message) || '');
-    return msg.includes('code=1021002') || msg.includes('今日已领取') || msg.includes('已领取');
+    return hasErrorCode(err, ALREADY_CLAIMED_ERROR_CODE) || msg.includes('今日已领取') || msg.includes('已领取');
 }
 async function getQQVipRewardsStatus() {
     const body = types.GetQQVipRewardsStatusRequest.encode(types.GetQQVipRewardsStatusRequest.create({})).finish();
@@ -57,7 +67,7 @@ async function claimQQVipRewards(rewardTypes) {
     const body = types.ClaimQQVipRewardsRequest.encode(types.ClaimQQVipRewardsRequest.create({
         reward_types: rewardTypes,
     })).finish();
-    const { body: replyBody } = await sendMsgAsync('gamepb.qqvippb.QQVipService', 'ClaimQQVipRewards', body);
+    const { body: replyBody } = await sendMsgAsync('gamepb.qqvippb.QQVipService', 'ClaimQQVipRewards', body, { expectedErrorCodes: [NOT_QQ_VIP_ERROR_CODE, ALREADY_CLAIMED_ERROR_CODE] });
     return types.ClaimQQVipRewardsReply.decode(replyBody);
 }
 async function performDailyVipGift(force = false) {
@@ -105,6 +115,19 @@ async function performDailyVipGift(force = false) {
         return true;
     }
     catch (e) {
+        if (isNotQQVipError(e)) {
+            markDoneToday();
+            lastResult = 'none';
+            lastHasGift = false;
+            lastCanClaim = false;
+            log('会员', '非QQ会员，跳过会员礼包', {
+                module: 'task',
+                event: DAILY_KEY,
+                result: 'none',
+                reason: 'not_qq_vip',
+            });
+            return false;
+        }
         if (isAlreadyClaimedError(e)) {
             markDoneToday();
             lastClaimAt = Date.now();

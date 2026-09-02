@@ -10,7 +10,7 @@ const { toNum, log, logWarn, randomDelay } = require('../../utils/utils');
 const { createScheduler } = require('../scheduler');
 const { recordOperation } = require('../stats');
 const { getAllLands, harvest, farming, unlockLand, upgradeLand } = require('./api');
-const { analyzeLands, resolveRemovableHarvestedLands } = require('./land-analysis');
+const { analyzeLands, getCleanableFarmSocialEventItemIds, resolveRemovableHarvestedLands, } = require('./land-analysis');
 const { autoPlantEmptyLands, runFertilizerByConfig } = require('./planting');
 const { checkAndBuyFertilizerBoth } = require('../mall');
 // 延迟加载以打破循环依赖: visit-strategy → farm/index → scheduler → visit-strategy
@@ -97,7 +97,7 @@ async function harvestMatureOwnLandsOnce(actions) {
  * 手动/自动执行农场操作
  * @param opType - 'all', 'harvest', 'clear', 'plant', 'upgrade'
  */
-async function runFarmOperation(opType) {
+async function runFarmOperation(opType, targetLandIdInput = null) {
     const landsReply = await getAllLands();
     if (!landsReply.lands || landsReply.lands.length === 0) {
         if (opType !== 'all') {
@@ -108,11 +108,23 @@ async function runFarmOperation(opType) {
     const lands = landsReply.lands;
     const state = getUserState();
     const status = analyzeLands(lands, isFirstFarmCheck, state.gid);
+    const socialEventItemIds = getCleanableFarmSocialEventItemIds(landsReply);
+    const hasTargetLandId = targetLandIdInput !== null
+        && targetLandIdInput !== undefined
+        && String(targetLandIdInput).trim() !== '';
+    const targetLandId = toNum(targetLandIdInput);
+    if (hasTargetLandId && (!Number.isSafeInteger(targetLandId) || targetLandId <= 0)) {
+        throw new Error('地块编号无效');
+    }
+    if (hasTargetLandId && opType !== 'clear') {
+        throw new Error('指定地块仅支持单点务农');
+    }
     // 摘要
     const statusParts = [];
     if (status.harvestable.length)
         statusParts.push(`收:${status.harvestable.length}`);
-    const farmingCount = new Set([...status.needWeed, ...status.needBug, ...status.needInteractionCleanup]).size;
+    const farmingCount = new Set([...status.needWeed, ...status.needBug, ...status.needInteractionCleanup]).size
+        + socialEventItemIds.length;
     if (farmingCount > 0)
         statusParts.push(`农:${farmingCount}`);
     if (status.needWater.length)
@@ -131,15 +143,33 @@ async function runFarmOperation(opType) {
     if (opType === 'all' || opType === 'clear') {
         // 检查是否跳过一键务农（仅自动模式生效，手动clear不受影响）
         const skipOwnWeedBug = opType === 'all' && isAutomationOn('skip_own_weed_bug');
-        const farmingLandIds = [...new Set([
+        let farmingLandIds = [...new Set([
                 ...status.needWeed,
                 ...status.needBug,
                 ...status.needWater,
                 ...status.needInteractionCleanup,
             ])];
+        const validSingleLandIds = new Set([
+            ...status.growing,
+            ...status.harvestable,
+            ...status.dead,
+        ]);
+        if (hasTargetLandId) {
+            if (!validSingleLandIds.has(targetLandId)) {
+                throw new Error(`土地#${targetLandId} 当前不能执行务农`);
+            }
+            const targetNeedsFarming = farmingLandIds.includes(targetLandId);
+            farmingLandIds = targetNeedsFarming || socialEventItemIds.length > 0 ? [targetLandId] : [];
+        }
+        else if (socialEventItemIds.length > 0 && farmingLandIds.length === 0) {
+            // 青蛙属于农场级事件，但 Farming 仍需携带一块有效作物地；官方单点抓包也是该结构。
+            const fallbackLandId = status.growing[0] || status.harvestable[0] || status.dead[0] || 0;
+            if (fallbackLandId > 0)
+                farmingLandIds = [fallbackLandId];
+        }
         if (!skipOwnWeedBug && farmingLandIds.length > 0) {
             try {
-                await farming(farmingLandIds);
+                await farming(farmingLandIds, socialEventItemIds);
                 const parts = [];
                 if (status.needWeed.length)
                     parts.push(`草${status.needWeed.length}`);
@@ -149,11 +179,17 @@ async function runFarmOperation(opType) {
                     parts.push(`水${status.needWater.length}`);
                 if (status.needInteractionCleanup.length)
                     parts.push(`道具${status.needInteractionCleanup.length}`);
-                actions.push(`一键务农${parts.join('/')}`);
+                if (socialEventItemIds.length)
+                    parts.push(`青蛙${socialEventItemIds.length}`);
+                actions.push(hasTargetLandId
+                    ? `单点务农#${targetLandId}${parts.length ? `(${parts.join('/')})` : ''}`
+                    : `一键务农${parts.join('/')}`);
                 recordOperation('farming', farmingLandIds.length);
             }
             catch (e) {
-                logWarn('一键务农', e.message);
+                logWarn(hasTargetLandId ? '单点务农' : '一键务农', e.message);
+                if (hasTargetLandId)
+                    throw e;
             }
         }
     }
@@ -327,6 +363,7 @@ function startFarmCheckLoop(options = {}) {
     externalSchedulerMode = !!options.externalScheduler;
     farmLoopRunning = true;
     networkEvents.on('landsChanged', onLandsChangedPush);
+    networkEvents.on('farmSocialEventsChanged', onFarmSocialEventsChangedPush);
     if (!externalSchedulerMode) {
         scheduleNextFarmCheck(2000);
     }
@@ -351,11 +388,30 @@ function onLandsChangedPush(lands) {
             await checkFarm();
     });
 }
+function onFarmSocialEventsChangedPush(events) {
+    if (!isAutomationOn('farm_push'))
+        return;
+    if (isCheckingFarm)
+        return;
+    const now = Date.now();
+    if (now - lastPushTime < 500)
+        return;
+    lastPushTime = now;
+    const count = Array.isArray(events) ? events.length : 0;
+    log('农场', `收到农场社交事件推送: ${count}个，检查中...`, {
+        module: 'farm', event: '农场社交事件通知', result: 'trigger_check', count
+    });
+    farmScheduler.setTimeoutTask('farm_push_check', 100, async () => {
+        if (!isCheckingFarm)
+            await checkFarm();
+    });
+}
 function stopFarmCheckLoop() {
     farmLoopRunning = false;
     externalSchedulerMode = false;
     farmScheduler.clearAll();
     networkEvents.removeListener('landsChanged', onLandsChangedPush);
+    networkEvents.removeListener('farmSocialEventsChanged', onFarmSocialEventsChangedPush);
     // 停止化肥自动购买检测定时器
     stopFertilizerBuyCheckTimer();
 }
@@ -427,6 +483,7 @@ module.exports = {
     scheduleNextFarmCheck,
     startFarmCheckLoop,
     onLandsChangedPush,
+    onFarmSocialEventsChangedPush,
     stopFarmCheckLoop,
     refreshFarmCheckLoop,
     startFertilizerBuyCheckTimer,

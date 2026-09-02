@@ -5,7 +5,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getAllFriends = getAllFriends;
 exports.acceptFriends = acceptFriends;
+exports.rejectFriends = rejectFriends;
 exports.getApplications = getApplications;
+exports.delFriend = delFriend;
 exports.enterFriendFarm = enterFriendFarm;
 exports.leaveFriendFarm = leaveFriendFarm;
 exports.helpWater = helpWater;
@@ -23,6 +25,7 @@ const { sendMsgAsync, getUserState, GatewayError } = require('../../utils/networ
 const { types } = require('../../utils/proto');
 const { toLong, toNum, log, logWarn, sleep, randomDelay } = require('../../utils/utils');
 const { getFarmingSkillGiftCount } = require('../dog-skill-gifts');
+const { recordFriendDogFromEnterReply } = require('./pet-cache');
 const { syncKnownFriendGidsFromRecentVisitors, fetchQqFriendsByKnownGids, syncKnownFriendGidsFromFriends, getEffectiveKnownQqFriendGids, fetchQqFriendsByLegacyMethod, dedupeFriendsByGid, buildFriendReply, } = require('./gid-manager');
 // 延迟引用 scheduler 模块，避免循环依赖
 let _scheduler = null;
@@ -31,18 +34,19 @@ function schedulerRef() {
         _scheduler = require('./scheduler');
     return _scheduler;
 }
+const allFriendsRequests = {};
 // ============ 好友 API ============
-async function getAllFriends(forceSync = false) {
+async function fetchAllFriends(forceSync, priority) {
     const isQQ = CONFIG.platform === 'qq';
     if (isQQ) {
-        await syncKnownFriendGidsFromRecentVisitors(forceSync);
-        const friendsFromKnownGids = await fetchQqFriendsByKnownGids();
+        await syncKnownFriendGidsFromRecentVisitors(forceSync, priority);
+        const friendsFromKnownGids = await fetchQqFriendsByKnownGids(priority);
         if (friendsFromKnownGids.length > 0) {
             syncKnownFriendGidsFromFriends(friendsFromKnownGids);
             return buildFriendReply(friendsFromKnownGids);
         }
         try {
-            const legacyFriends = dedupeFriendsByGid(await fetchQqFriendsByLegacyMethod());
+            const legacyFriends = dedupeFriendsByGid(await fetchQqFriendsByLegacyMethod(priority));
             if (legacyFriends.length > 0) {
                 syncKnownFriendGidsFromFriends(legacyFriends);
             }
@@ -63,8 +67,26 @@ async function getAllFriends(forceSync = false) {
         }
     }
     const body = types.GetAllFriendsRequest.encode(types.GetAllFriendsRequest.create({})).finish();
-    const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body);
+    const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetAll', body, { priority });
     return types.GetAllFriendsReply.decode(replyBody);
+}
+async function getAllFriends(forceSync = false, priority = 'normal') {
+    // 同优先级好友列表请求合并，避免页面刷新、巡田和后台同步同时重复拉取。
+    // 低优先级请求不会阻塞普通请求；反过来低优先级可以复用正在执行的普通请求。
+    if (priority === 'low' && allFriendsRequests.normal)
+        return allFriendsRequests.normal;
+    const current = allFriendsRequests[priority];
+    if (current)
+        return current;
+    const request = fetchAllFriends(forceSync, priority);
+    allFriendsRequests[priority] = request;
+    try {
+        return await request;
+    }
+    finally {
+        if (allFriendsRequests[priority] === request)
+            delete allFriendsRequests[priority];
+    }
 }
 async function acceptFriends(gids) {
     const body = types.AcceptFriendsRequest.encode(types.AcceptFriendsRequest.create({
@@ -73,25 +95,48 @@ async function acceptFriends(gids) {
     const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'AcceptFriends', body);
     return types.AcceptFriendsReply.decode(replyBody);
 }
+async function rejectFriends(gids) {
+    const body = types.RejectFriendsRequest.encode(types.RejectFriendsRequest.create({
+        friend_gids: gids.map((g) => toLong(g)),
+    })).finish();
+    const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'RejectFriends', body);
+    return types.RejectFriendsReply.decode(replyBody);
+}
 async function getApplications() {
     const body = types.GetApplicationsRequest.encode(types.GetApplicationsRequest.create({})).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'GetApplications', body);
     return types.GetApplicationsReply.decode(replyBody);
 }
-async function enterFriendFarm(friendGid) {
+async function delFriend(gid) {
+    const numericGid = toNum(gid);
+    if (!numericGid)
+        throw new Error('无效的好友 GID');
+    if (!types.DelFriendRequest || !types.DelFriendReply) {
+        throw new Error('DelFriend 接口类型未加载');
+    }
+    const body = types.DelFriendRequest.encode(types.DelFriendRequest.create({
+        friend_gid: toLong(numericGid),
+    })).finish();
+    const { body: replyBody } = await sendMsgAsync('gamepb.friendpb.FriendService', 'DelFriend', body);
+    return types.DelFriendReply.decode(replyBody);
+}
+async function enterFriendFarm(friendGid, priority = 'normal') {
     const body = types.VisitEnterRequest.encode(types.VisitEnterRequest.create({
         host_gid: toLong(friendGid),
         reason: 2, // ENTER_REASON_FRIEND
     })).finish();
-    const { body: replyBody } = await sendMsgAsync('gamepb.visitpb.VisitService', 'Enter', body);
-    return types.VisitEnterReply.decode(replyBody);
+    const { body: replyBody } = await sendMsgAsync('gamepb.visitpb.VisitService', 'Enter', body, { priority });
+    const reply = types.VisitEnterReply.decode(replyBody);
+    // Enter 回包是护主犬信息的唯一来源；所有进好友农场的调用都在这里顺手写缓存，不额外花 RPC。
+    recordFriendDogFromEnterReply(friendGid, reply);
+    return reply;
 }
-async function leaveFriendFarm(friendGid) {
+async function leaveFriendFarm(friendGid, priority = 'normal') {
     const body = types.VisitLeaveRequest.encode(types.VisitLeaveRequest.create({
         host_gid: toLong(friendGid),
     })).finish();
     try {
-        await sendMsgAsync('gamepb.visitpb.VisitService', 'Leave', body);
+        await sendMsgAsync('gamepb.visitpb.VisitService', 'Leave', body, { priority });
     }
     catch { /* 离开失败不影响主流程 */ }
 }

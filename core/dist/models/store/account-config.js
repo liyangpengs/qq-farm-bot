@@ -2,7 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const sharedState = require('./shared-state');
 const { readKnownFriendGidsCache, writeKnownFriendGidsCache } = require('./gid-cache');
-const { globalConfig, normalizeAccountConfig, cloneAccountConfig, normalizeFertilizerLandTypes, normalizeKnownFriendGids, normalizeKnownFriendGidSyncCooldownSec, normalizeFriendsListCacheTtlSec, normalizeBagSeedPriority, normalizeBagSeedFallbackStrategy, normalizeIntervals, normalizeTimeString, ALLOWED_PLANTING_STRATEGIES, } = sharedState;
+const { globalConfig, normalizeAccountConfig, cloneAccountConfig, normalizeFertilizerLandTypes, normalizeKnownFriendGids, normalizeKnownFriendGidSyncCooldownSec, normalizeFriendsListCacheTtlSec, normalizeBagSeedPriority, normalizeBagSeedLandTypes, normalizeBagSeedFallbackStrategy, normalizeIntervals, normalizeTimeString, normalizeAutoAcceptFriendMinLevel, normalizeAutoAcceptHarvestStealHarvest, normalizeAutoAcceptHarvestStealSteal, ALLOWED_PLANTING_STRATEGIES, } = sharedState;
+function cloneBagSeedLandTypes(input) {
+    const cloned = {};
+    for (const [seedId, types] of Object.entries(input || {})) {
+        cloned[seedId] = [...(types || [])];
+    }
+    return cloned;
+}
 function getAccountConfigSnapshot(accountId) {
     const id = sharedState.resolveAccountId(accountId);
     if (!id)
@@ -73,7 +80,13 @@ function getConfigSnapshot(accountId) {
         fertilizerBuyNormalThresholdHours: Math.max(0, Math.min(990, Number(cfg.fertilizerBuyNormalThresholdHours) || 0)),
         fertilizerBuyCheckIntervalMinutes: Math.max(1, Math.min(1440, Number(cfg.fertilizerBuyCheckIntervalMinutes) || 30)),
         bagSeedPriority: [...(cfg.bagSeedPriority || [])],
+        bagSeedLandTypes: cloneBagSeedLandTypes(cfg.bagSeedLandTypes),
         bagSeedFallbackStrategy: cfg.bagSeedFallbackStrategy,
+        autoAcceptFriendMinLevel: cfg.autoAcceptFriendMinLevel,
+        autoAcceptRequireOwnLevel: !!cfg.autoAcceptRequireOwnLevel,
+        autoAcceptHarvestStealEnabled: !!cfg.autoAcceptHarvestStealEnabled,
+        autoAcceptHarvestStealHarvest: cfg.autoAcceptHarvestStealHarvest,
+        autoAcceptHarvestStealSteal: cfg.autoAcceptHarvestStealSteal,
         ui: { ...globalConfig.ui },
     };
 }
@@ -172,8 +185,26 @@ function applyConfigSnapshot(snapshot, options = {}) {
     if (cfg.bagSeedPriority !== undefined && cfg.bagSeedPriority !== null) {
         next.bagSeedPriority = normalizeBagSeedPriority(cfg.bagSeedPriority);
     }
+    if (cfg.bagSeedLandTypes !== undefined && cfg.bagSeedLandTypes !== null) {
+        next.bagSeedLandTypes = normalizeBagSeedLandTypes(cfg.bagSeedLandTypes);
+    }
     if (cfg.bagSeedFallbackStrategy !== undefined && cfg.bagSeedFallbackStrategy !== null) {
         next.bagSeedFallbackStrategy = normalizeBagSeedFallbackStrategy(cfg.bagSeedFallbackStrategy, next.bagSeedFallbackStrategy);
+    }
+    if (cfg.autoAcceptFriendMinLevel !== undefined && cfg.autoAcceptFriendMinLevel !== null) {
+        next.autoAcceptFriendMinLevel = normalizeAutoAcceptFriendMinLevel(cfg.autoAcceptFriendMinLevel, next.autoAcceptFriendMinLevel);
+    }
+    if (cfg.autoAcceptRequireOwnLevel !== undefined && cfg.autoAcceptRequireOwnLevel !== null) {
+        next.autoAcceptRequireOwnLevel = !!cfg.autoAcceptRequireOwnLevel;
+    }
+    if (cfg.autoAcceptHarvestStealEnabled !== undefined && cfg.autoAcceptHarvestStealEnabled !== null) {
+        next.autoAcceptHarvestStealEnabled = !!cfg.autoAcceptHarvestStealEnabled;
+    }
+    if (cfg.autoAcceptHarvestStealHarvest !== undefined && cfg.autoAcceptHarvestStealHarvest !== null) {
+        next.autoAcceptHarvestStealHarvest = normalizeAutoAcceptHarvestStealHarvest(cfg.autoAcceptHarvestStealHarvest, next.autoAcceptHarvestStealHarvest);
+    }
+    if (cfg.autoAcceptHarvestStealSteal !== undefined && cfg.autoAcceptHarvestStealSteal !== null) {
+        next.autoAcceptHarvestStealSteal = normalizeAutoAcceptHarvestStealSteal(cfg.autoAcceptHarvestStealSteal, next.autoAcceptHarvestStealSteal);
     }
     if (cfg.ui && typeof cfg.ui === 'object') {
         const theme = String(cfg.ui.theme || '').toLowerCase();
@@ -200,6 +231,9 @@ function getPlantingStrategy(accountId) {
 }
 function getBagSeedPriority(accountId) {
     return [...(getAccountConfigSnapshot(accountId).bagSeedPriority || [])];
+}
+function getBagSeedLandTypes(accountId) {
+    return cloneBagSeedLandTypes(getAccountConfigSnapshot(accountId).bagSeedLandTypes);
 }
 function getBagSeedFallbackStrategy(accountId) {
     return normalizeBagSeedFallbackStrategy(getAccountConfigSnapshot(accountId).bagSeedFallbackStrategy);
@@ -302,6 +336,21 @@ function getFertilizerBuyNormalThresholdHours(accountId) {
 function getFertilizerBuyCheckIntervalMinutes(accountId) {
     return Math.max(1, Math.min(1440, Number(getAccountConfigSnapshot(accountId).fertilizerBuyCheckIntervalMinutes) || 30));
 }
+function getAutoAcceptFriendMinLevel(accountId) {
+    return normalizeAutoAcceptFriendMinLevel(getAccountConfigSnapshot(accountId).autoAcceptFriendMinLevel);
+}
+function getAutoAcceptRequireOwnLevel(accountId) {
+    return !!getAccountConfigSnapshot(accountId).autoAcceptRequireOwnLevel;
+}
+function getAutoAcceptHarvestStealEnabled(accountId) {
+    return !!getAccountConfigSnapshot(accountId).autoAcceptHarvestStealEnabled;
+}
+function getAutoAcceptHarvestStealHarvest(accountId) {
+    return normalizeAutoAcceptHarvestStealHarvest(getAccountConfigSnapshot(accountId).autoAcceptHarvestStealHarvest);
+}
+function getAutoAcceptHarvestStealSteal(accountId) {
+    return normalizeAutoAcceptHarvestStealSteal(getAccountConfigSnapshot(accountId).autoAcceptHarvestStealSteal);
+}
 function getPlantBlacklist(accountId) {
     return [...(getAccountConfigSnapshot(accountId).plantBlacklist || [])];
 }
@@ -328,6 +377,7 @@ module.exports = {
     getPreferredSeed,
     getPlantingStrategy,
     getBagSeedPriority,
+    getBagSeedLandTypes,
     getBagSeedFallbackStrategy,
     getIntervals,
     getFriendQuietHours,
@@ -348,6 +398,11 @@ module.exports = {
     getFertilizerBuyNormalCount,
     getFertilizerBuyNormalThresholdHours,
     getFertilizerBuyCheckIntervalMinutes,
+    getAutoAcceptFriendMinLevel,
+    getAutoAcceptRequireOwnLevel,
+    getAutoAcceptHarvestStealEnabled,
+    getAutoAcceptHarvestStealHarvest,
+    getAutoAcceptHarvestStealSteal,
     getPlantBlacklist,
     setPlantBlacklist,
     getDefaultAccountConfig,

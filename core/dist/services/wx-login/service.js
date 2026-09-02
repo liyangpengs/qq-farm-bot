@@ -35,7 +35,7 @@ async function reissueWxLoginCode(loginBuffer, appId) {
     return (0, native_protocol_1.getNativeWxLoginCode)(loginBuffer, appId);
 }
 function cookieHeader(cookies) {
-    return [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
+    return Array.from(cookies, ([name, value]) => `${name}=${value}`).join('; ');
 }
 function storeCookies(cookies, headers) {
     const headerValue = headers.get('set-cookie');

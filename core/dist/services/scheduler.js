@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const { createModuleLogger } = require('./logger');
+const { classForSchedulerNamespace, runWithRequestClass } = require('../utils/request-context');
 const schedulerLogger = createModuleLogger('scheduler');
 const schedulerRegistry = new Map();
 function toDelayMs(value, fallbackMs = 0) {
@@ -65,6 +66,12 @@ function createScheduler(namespace = 'default') {
     const name = String(namespace || 'default');
     const store = ensureNamespaceStore(name);
     const timers = store.timers;
+    // 定时任务默认属于哪个请求班次：任务体内部发的所有 Gateway 请求都会继承它，
+    // 这样后台定时任务不会伪装成用户前台操作去抢连接。
+    const defaultRequestClass = classForSchedulerNamespace(name);
+    function runTask(taskFn) {
+        return runWithRequestClass(defaultRequestClass, taskFn);
+    }
     function clear(taskName) {
         const key = String(taskName || '');
         const entry = timers.get(key);
@@ -111,7 +118,7 @@ function createScheduler(namespace = 'default') {
             current.lastRunAt = Date.now();
             current.runCount += 1;
             try {
-                await taskFn();
+                await runTask(taskFn);
             }
             catch (e) {
                 schedulerLogger.warn(`[${name}] timeout 任务执行失败: ${key}`, {
@@ -163,7 +170,7 @@ function createScheduler(namespace = 'default') {
             current.lastRunAt = Date.now();
             current.runCount += 1;
             try {
-                await taskFn();
+                await runTask(taskFn);
             }
             catch (e) {
                 schedulerLogger.warn(`[${name}] interval 任务执行失败: ${key}`, {
