@@ -15,11 +15,13 @@ services:
     volumes:
       - qq-farm-data:/app/core/data
       - qq-farm-logs:/app/core/data/logs
+      - /run/qqfarm-napcat-bridge:/run/qqfarm-napcat-bridge
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       - NODE_ENV=production
       - ADMIN_PORT=3690
       - ALLOW_ORIGIN=https://farm.linxiaoran.com
+      - NAPCAT_BRIDGE_SOCKET=/run/qqfarm-napcat-bridge/bridge.sock
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3690/api/game-version"]
       interval: 30s

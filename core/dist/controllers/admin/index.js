@@ -18,6 +18,7 @@ const { mountFriendRoutes } = require('./friend-routes');
 const { mountActivityCenterRoutes } = require('./activity-center-routes');
 const { mountCommerceRoutes } = require('./commerce-routes');
 const { mountWxLoginRoutes } = require('./wx-login-routes');
+const { mountQqLoginRoutes } = require('./qq-login-routes');
 const { setupSocketIO, emitRealtimeStatus: _emitStatus, emitRealtimeLog: _emitLog, emitRealtimeAccountLog: _emitAccountLog, } = require('./socket');
 const adminLogger = createModuleLogger('admin');
 let ctx = null;
@@ -57,6 +58,7 @@ function startAdminServer(dataProvider) {
     // Mount route modules
     mountAuthRoutes(app, ctx);
     mountWxLoginRoutes(app, ctx);
+    mountQqLoginRoutes(app, ctx);
     mountFarmRoutes(app, ctx);
     mountFriendRoutes(app, ctx);
     mountAccountRoutes(app, ctx);
