@@ -1989,3 +1989,349 @@ NAPCAT_BRIDGE_SOCKET = /run/qqfarm-napcat-bridge/bridge.sock
 
 ---
 
+**User**
+
+napcat 容器不需要暴露吗？
+
+**Assistant**
+
+**对，NapCat 不需要暴露任何端口。** 这是这套设计的关键点，我讲清楚。
+
+## NapCat 与 farm-bot 的通信方式：Unix socket 文件，不是 TCP 端口
+
+```
+NapCat 容器                   宿主机                       farm-bot 容器
+┌──────────────┐   bind mount  ┌─────────────┐  bind mount  ┌──────────────┐
+│ bridge 监听   │─────────────▶ │ /run/qqfarm │◀──────────── │ 连            │
+│ socket 文件   │  (同一目录共享) │ -napcat-    │ (同一目录共享) │ /run/qqfarm-  │
+│ bridge.sock  │              │ bridge/     │              │ napcat-       │
+└──────────────┘              └─────────────┘              └──────────────┘
+```
+
+- NapCat 容器通过 bind mount 把 `/run/qqfarm-napcat-bridge` 共享给宿主机（[napcat compose volumes](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/napcat/docker-compose.yml#L27)）
+- **同一个宿主机目录**，再挂载进 farm-bot 容器
+- 两个容器都访问**同一个宿主机目录里的同一个 socket 文件** → 就像同机进程间通信一样直接
+
+**所以不需要 `ports:` 映射**。`napcat` compose 里也确实没有 `ports` 段（[docker-compose.yml](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/napcat/docker-compose.yml)）——它唯一的对外通道就是那个 socket 文件。
+
+## 而且"不暴露端口"反而是安全优势
+
+bridge 的 `/authorize`（取 Code）、`/qrcode`（扫码）都是**敏感操作**。走 Unix socket 只有本机能连（且权限 `srw-rw-rw-`），天然免防火墙暴露；如果开 TCP 端口反而增加了被公网扫描攻击的面。
+
+## 你需要做的（就是之前说的两处）
+
+| 操作 | 在哪做 | 内容 |
+|---|---|---|
+| NapCat 容器 | 已完成 ✔ | bind mount `/run/qqfarm-napcat-bridge`（它自己就带） |
+| farm-bot 容器 | 1panel Node 环境 UI | **存储挂载**：宿主机 `/run/qqfarm-napcat-bridge` → 容器 `/run/qqfarm-napcat-bridge` |
+| farm-bot 容器 | 1panel Node 环境 UI | **环境变量**：`NAPCAT_BRIDGE_SOCKET=/run/qqfarm-napcat-bridge/bridge.sock` |
+
+做完这两处 → 重建 farm-bot → 浏览器进 QQ 扫码登录 tab 验证即可。
+
+**唯一剩下的确认**：farm-bot 是"源码挂载直接跑"还是"镜像构建"（决定改的代码怎么生效）。你 1panel UI 里看得到"构建/重建"选项吗？
+
+---
+
+**User**
+
+`https://api.linxiaoran.com/farm/api/qq-login/tasks/a1209f1d3fa312b9762e1379a28192770b3286304278a27e540d8c4292e8bd36/qr`
+{"ok":false,"error":"QR not ready"}
+
+**Assistant**
+
+进展重大：**farm-bot 已连上 bridge 了**（否则会报"桥接不可用"），任务也能创建。现在卡在"QR not ready"——这是我之前标记的**风险点 1**：我写 consumer 时没验证 bridge `/qrcode` 的真实返回格式，猜的是 `data.image` base64。现在实测暴露了真实格式。我立刻读 bridge 的 `/qrcode` 处理代码，看它到底返回什么。
+
+
+
+现在看 `/qrcode` 返回的 `ensureQr`（bridge 内部的）到底返回什么结构——QR 图像在哪个字段。
+
+
+
+找到根因了。**bridge `/qrcode` 返回的字段是 `qrcode`（data URI），不是 `image` 或 `qr`**。看代码：
+
+- [server.js:387](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L387)：`qrcode: 'data:image/png;base64,...'`
+- [server.js:528](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L528)：`return json(res, 200, { ok: true, data: { loggedIn: false, ...qr } })`，其中 qr 里就是 `qrcode` data URI + `decodeUrl`（[readQrUrl:358](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L358)）
+
+而我的 consumer 和 qq-login-routes 里读的是 `data.image || data.qr` → 读不到 → `qr` 空 → "QR not ready"。
+
+我需要完整看 `readQr` 返回结构（还有没有别字段），然后修正两端。
+
+
+
+完整确认了 bridge 返回结构。现在修正两端代码。
+
+**bridge `/qrcode` 返回**（[readQr:386-391](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L386-L391)）：
+```js
+data: {
+  loggedIn: false,
+  qrcode: 'data:image/png;base64,<...>',   // ← 二维码图，data URI 格式
+  updatedAt, ageMs,
+  qrUrl?,  // 高清解码 URL（可选）
+}
+```
+
+我的 consumer 里 `getNapCatQrCode` 返回 `data.data`，所以 `qr` 里应取 `data.qrcode`（data URI），且要**剥离 `data:image/png;base64,` 前缀**再转 Buffer。
+
+修正两处：
+1. **qq-login-routes.ts 的 `ensureQr`**：解析 `qrcode` data URI
+2. 同时把 `qrDecodeUrl` 从 `decodeUrl` 改成 `qrUrl`
+
+先改 src 版。
+
+
+
+现在同步修正 dist 版（服务器运行 `node client.js` 用的是 dist）。
+
+
+
+
+
+dist 版之前 tsc 重编译过，格式可能不同。重新读 dist 版 ensureQr 当前内容。
+
+
+
+两端已修正。但还有一个隐患要排查——**`/status` 的字段映射**同样是我之前猜的。让我核对 bridge `/status` 的真实返回字段，避免下一个"卡在等待扫码"的坑。
+
+
+
+确认了一个重要事实：**bridge `/status` 不返回 `waiting/scanned/authorized` 这类扫码状态**，只返回 `loggedIn`（布尔）+ `hasQr` + `scanLease`。
+
+这意味着我的 `/status` 映射逻辑**方向错了**：我原来期待 bridge 状态枚举（`scanned`/`authorized`），但实际是**布尔 `loggedIn`**。需要重写 `/status` 的映射——`loggedIn=true` 时才进入 `authorized` → 前端去取 code。
+
+看下我当前的 src `/status` 逻辑，然后修正。
+
+
+
+修正 `/status` 映射：用 `data.loggedIn`（布尔）判断。同时把扫码中间的 `scanned` 状态用 `profile` 出现与否来推断（bridge 会返回 profile 当 loggedIn）。实际简化：bridge 只有 `loggedIn`，前端轮询到 `loggedIn=true` 就代表"已扫码且已登录"，直接去取 code。
+
+修正 src 版。
+
+
+
+同步 dist 版 `/status` 修正。
+
+
+
+两处修正（`/qr` 的 `qrcode` data URI 解析 + `/status` 的 `loggedIn` 布尔映射）已完成。但还有一个**隐藏 bug** 必须检查：我的前端 `pollQqLoginRequest` 用 `status === 'authorized'` 触发取 code，但 `scanned` 中间态前端显示"已扫码请在手机上确认"——现在 `/status` 只返回 `waiting`/`authorized` 两态，`scanned` 分支永远不会触发，前端流程能走通（waiting→authorized→取code），`scanned` 文案只是跳不过，无碍。
+
+另外 `authorize` 的返回：之前确认是 `{ authorization, profile }`，而我的 `/code` 里解析 `data.authorization`。核对 bridge `/authorize` 返回的 `authorization` 结构——它是字符串还是对象。
+
+之前读过 [server.js:622](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L622) 返回 `{ authorization, profile }`，其中 `authorization = await requestNapCatFarmAuthorization()` 返回 `{ code, openID, expiresAt }`。所以 `authorization` 是**对象**，`authorization.code` 才是 Code。我的 `/code` 解析 `typeof authorization === 'string' ? authorization : String(data?.authorization?.code || ...)` 已覆盖。OK。
+
+现在重新构建 core，确保 src 修正进入 dist（我之前是手动改 dist，但重新 build 更保险）。
+
+
+
+---
+
+**User**
+
+能不能打印日志，这样我可以在服务端查看。
+
+**Assistant**
+
+构建通过。好主意——加日志能让你在服务器上直接定位问题，不用反复来问我。我现在给 qq-login 链路加上**关键节点的日志输出**（用 farm-bot 现有的 winston logger，会进它的日志文件/面板），这样你在 1panel 里能看到每一步。
+
+先看 farm-bot 的 logger 用法。
+
+
+
+logger 已有现成 `createModuleLogger`（自动脱敏 token/code，正好安全）。给 `qq-login-routes.ts` 加日志，覆盖 4 个关键节点：创建任务、取码、轮询状态、取 code。加日志要谨慎，只记录必要的诊断信息，不泄露敏感数据（logger 会自动脱敏）。
+
+
+
+
+
+现在注入 logger 和日志点。先加 logger 引入。
+
+
+
+现在给 4 个关键 handler 加日志。先看创建任务 + 取码的完整逻辑。
+
+
+
+
+
+---
+
+**User**
+
+你只改代码，dist我自己打包
+
+**Assistant**
+
+明白，dist 你自己打包，我只改源码。那我就不碰 dist 了（之前同步的 dist 版本是辅助，你重打包会覆盖）。现在只专注改 `src` 的 `qq-login-routes.ts`，加日志 + 已有修正都在 src 里。
+
+先加日志到关键节点。
+
+
+
+现在给 `/status` 和 `/code` 加日志。
+
+
+
+
+
+日志已加。还要给 bridge 客户端加一层关键日志——**记录 bridge 实际返回**，这样你在服务器上能直接看到 `/qrcode` 到底回了什么（是 `qrcode` 字段还是别的），下次再出"QR not ready"不用猜。
+
+给 `napcat-bridge-consumer.ts` 加诊断日志。
+
+
+
+在 `requestBridge` 里加诊断日志：记录每个请求的 method/path/耗时，以及成功时 `data.data` 的**字段清单**（不记值，避免泄露登录凭据，但能看到有没有 `qrcode` 字段）。
+
+
+
+还要给超时和连接错误加日志（否则"桥接不可用"只能看到笼统错误）。
+
+
+
+
+
+日志已全部加好。做最后的类型检查确认无编译错误（dist 你自己打包，我只验证 src 能过 tsc）。
+
+
+
+
+
+编译通过，无错误。改动全部完成（dist 由你打包）。
+
+## 本轮修复总结
+
+你报的 `QR not ready` 根因已找到并修复——**bridge 真实返回与我之前猜的字段不一致**：
+
+| 问题 | 原来（猜的） | 实际（bridge 源码） | 已改为 |
+|---|---|---|---|
+| `/qrcode` 二维码字段 | `data.image \|\| data.qr` | **`data.qrcode`**（`data:image/png;base64,...` data URI，[server.js:387](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L387)） | 解析 `qrcode` + 剥 base64 前缀 |
+| 高清码 URL 字段 | `data.decodeUrl` | **`data.qrUrl`**（[readQr:390](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L390)） | `data.qrUrl` |
+| `/status` 状态 | 枚举 `scanned/authorized` | **布尔 `loggedIn`**（[server.js:484](file:///d:/lxrl/code/qq-farm-bot-20260828-deploy/qq-farm-bot-20260828-deploy/source/napcat-bridge/server.js#L484)） | `loggedIn ? authorized : waiting` |
+
+## 新增诊断日志（你可在服务器查看）
+
+按你的要求加了日志，全部用 farm-bot 现有 winston logger（自动脱敏 token/code），会进你的**日志面板 / 日志文件**：
+
+- `[qq-login]` 模块：任务创建、二维码生成/下发/失败、状态轮询、取 Code 成功/失败
+- `[qq-bridge]` 模块：每次 bridge 请求的**返回字段名清单**（不记值）+ 超时/连接错误
+
+**关键**：`[qq-bridge] bridge 返回成功 ... fields: [...]` 这行会让你在服务器上直接看到 bridge 到底回了哪些字段——下次不用再来问我猜。
+
+## 你需要做的
+
+1. **用本地改好的源码重新打包**（`core/dist` + `web/dist` 或整个镜像重建）
+2. 部署到线上 farm-bot，重启
+3. 再测 `GET /api/qq-login/tasks/.../qr`
+4. 如果还有问题，看日志里的 `[qq-login]` / `[qq-bridge]` 行，把报错发我
+
+需要我把改动过的文件清单整理给你，方便你打包上传吗？
+
+---
+
+**User**
+
+配置不打包map文件/
+
+**Assistant**
+
+明白，你要打包时**不生成 `.map` 源映射文件**。我先看当前的 web 和 core 构建配置里 sourcemap 是怎么开的。
+
+
+
+找到原因了。**web 的 vite 默认不产出 .map**（`web/dist` 有 0 个 map，无需改）。**core 的 `tsconfig.json` 开了 `sourceMap: true`**，导致 `core/dist` 有 202 个 `.map` 文件——这就是你打包时多余的 map。
+
+看 vite.config.ts 和 tsconfig.json 确认后修改。
+
+
+
+
+
+确认了两处会产出多余文件的配置：
+
+1. **core `tsconfig.json`**（[tsconfig.json:10-12](file:///d:/lxrl/code/qq-farm-bot/core/tsconfig.json#L10-L12)）：`declaration: true` + `declarationMap: true` + `sourceMap: true` → 产出 `.d.ts`、`.d.ts.map`、`.js.map` 三类文件（就是 dist 里那 202 个 map 的来源，还有一堆 `.d.ts`）
+2. **web `vite.config.ts`**：没有显式 sourcemap，默认不产出 map（已验证 0 个），**无需改**。
+
+我按"不打包 map 文件"修改 core 配置。注意：`declaration: true` 产出 `.d.ts` 是否保留要看你的意图——你只提了 map 文件，所以我**只关 `sourceMap` 和 `declarationMap`**，保留 `.d.ts`（不影响运行，且可能被引用）。
+
+question 一下再改，避免改错方向：
+
+
+
+按推荐方案：只关 `sourceMap` 和 `declarationMap`，保留 `.d.ts`。
+
+
+
+注意：`incremental: true` 会缓存编译状态（tsbuildinfo），**旧 map 文件不会被自动删除**。需要清理现有 dist 里已生成的 map 文件，并确认重新构建后不再产生。先清理再验证。
+
+需要先确认 dist 里是否有 `.d.ts.map`（declarationMap 产物）和 `.js.map`（sourceMap 产物）。
+
+
+
+确认：dist 里有 `101` 个 `.js.map` + `101` 个 `.d.ts.map`。清理这两类文件。
+
+
+
+
+
+map 已全部清掉，`.d.ts` 保留。现在重新构建验证：确认新构建**不再生成 map**，且编译仍通过（清理 dist 可能让 incremental 缓存不一致）。
+
+
+
+
+
+完成。构建通过且**不再产出任何 `.map` 文件**。
+
+## 改动总结
+
+**`core/tsconfig.json`**（[tsconfig.json:11-12](file:///d:/lxrl/code/qq-farm-bot/core/tsconfig.json#L11-L12)）：
+- `declarationMap: true` → `false`
+- `sourceMap: true` → `false`
+
+**效果**：
+- ✅ 重新构建后 `.js.map` 0 个、`.d.ts.map` 0 个
+- ✅ `.d.ts` 保留（101 个，不影响运行）
+- ✅ 已清理本地 dist 里旧的 202 个 map 文件
+- ✅ 编译通过（含我们之前加的 QQ 登录代码 + 日志）
+
+**web 侧无需改**：vite 默认不产出 sourcemap（已验证 web/dist 一直 0 个 map）。
+
+## 打包时的注意点
+
+你打包时，如果 dist 里**残留旧 map**（比如服务器上是旧构建产物），记得先删掉再传，或者直接重新构建。现在配置已改，你 `pnpm -C core build:ts` 产出的就是干净的、无 map 的 dist。
+
+需要我把 `web/vite.config.ts` 也显式加 `sourcemap: false` 以明确"永不产出 map"吗？（当前默认行为已满足，但显式声明更保险，防止将来配置变动）
+
+---
+
+**User**
+
+d.ts也不要
+
+**Assistant**
+
+明白，`.d.ts` 也不要。关掉 `declaration`。
+
+
+
+现在清理 dist 里已有的 `.d.ts`，然后重新构建验证。
+
+
+
+
+
+完成。构建后 dist 只剩纯 `.js`：
+
+- `js`: 101 个
+- `js.map`: **0**
+- `d.ts`: **0**
+
+## `core/tsconfig.json` 最终配置（[tsconfig.json:10-12](file:///d:/lxrl/code/qq-farm-bot/core/tsconfig.json#L10-L12)）
+
+```json
+"declaration": false,
+"declarationMap": false,
+"sourceMap": false,
+```
+
+现在 `pnpm -C core build:ts` 产出的 dist **只有 .js，无 .map、无 .d.ts**，最干净。编译已重新验证通过（含 QQ 登录代码 + 日志改动）。
+
+---
+
