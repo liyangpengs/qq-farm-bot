@@ -938,4 +938,3 @@ module.exports = {
     weatherStatusDto,
     weatherAvailability,
 };
-//# sourceMappingURL=weather-activity.js.map

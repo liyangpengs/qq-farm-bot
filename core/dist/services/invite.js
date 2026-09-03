@@ -136,4 +136,3 @@ module.exports = {
     processInviteCodes,
     clearShareFile,
 };
-//# sourceMappingURL=invite.js.map

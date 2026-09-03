@@ -205,4 +205,3 @@ function resetFriendPetCacheMemory() {
     entries = null;
     lastFullSyncDate = '';
 }
-//# sourceMappingURL=pet-cache.js.map

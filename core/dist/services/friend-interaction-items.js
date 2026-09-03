@@ -634,4 +634,3 @@ module.exports = {
     useFriendFarmInteractionItem,
     useSelfInteractionItemBatch,
 };
-//# sourceMappingURL=friend-interaction-items.js.map

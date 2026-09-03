@@ -30,4 +30,3 @@ async function getCareerInfoOrNull(gid) {
     }
 }
 module.exports = { getCareerInfo, getCareerInfoOrNull };
-//# sourceMappingURL=career.js.map

@@ -129,4 +129,3 @@ function getIllustratedSnapshot() {
 module.exports = {
     getIllustratedSnapshot,
 };
-//# sourceMappingURL=illustrated.js.map

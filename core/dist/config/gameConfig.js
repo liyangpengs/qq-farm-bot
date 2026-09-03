@@ -536,4 +536,3 @@ module.exports = {
     getIllustratedBuffs,
     getMutantDisplayPlantId,
 };
-//# sourceMappingURL=gameConfig.js.map

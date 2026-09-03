@@ -11,6 +11,9 @@ export {};
  * 再把 bridge 的 JSON 响应规范化成 { ok, data } 或抛错。
  */
 const http = require('node:http');
+const { createModuleLogger } = require('./logger');
+
+const qqBridgeLogger = createModuleLogger('qq-bridge');
 
 const SOCKET_PATH = process.env.NAPCAT_BRIDGE_SOCKET || '/run/qqfarm-napcat-bridge/bridge.sock';
 
@@ -57,14 +60,17 @@ function requestBridge(
                 const chunks: Buffer[] = [];
                 res.on('data', (chunk: Buffer) => chunks.push(chunk));
                 res.on('end', () => {
+                    const startedAt = Date.now();
                     let data: any = null;
                     try {
                         data = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
                     }
                     catch {
+                        qqBridgeLogger.error('bridge 返回非 JSON', { method, path: pathWithOwner, statusCode: res.statusCode });
                         return reject(new NapCatBridgeError(`QQ 登录桥接返回非 JSON（HTTP ${res.statusCode}）`, { statusCode: res.statusCode }));
                     }
                     if (res.statusCode < 200 || res.statusCode >= 300 || !data.ok) {
+                        qqBridgeLogger.error('bridge 请求失败', { method, path: pathWithOwner, statusCode: res.statusCode, error: data.error });
                         const error: any = new NapCatBridgeError(
                             data.error || `QQ 登录桥接失败（HTTP ${res.statusCode}）`,
                             {
@@ -75,12 +81,21 @@ function requestBridge(
                         );
                         return reject(error);
                     }
+                    // 只记录返回字段名（不记值），用于排查接口契约是否对齐
+                    const fields = Object.keys(data.data || {}).slice(0, 10);
+                    qqBridgeLogger.debug('bridge 返回成功', { method, path: pathWithOwner, statusCode: res.statusCode, ms: Date.now() - startedAt, fields });
                     resolve(data.data || {});
                 });
             },
         );
-        req.on('timeout', () => req.destroy(new NapCatBridgeError('QQ 登录桥接请求超时')));
-        req.on('error', (error: any) => reject(new NapCatBridgeError(`QQ 登录桥接不可用: ${error.message}`)));
+        req.on('timeout', () => {
+            qqBridgeLogger.error('bridge 请求超时', { method, path: pathWithOwner, timeoutMs });
+            req.destroy(new NapCatBridgeError('QQ 登录桥接请求超时'));
+        });
+        req.on('error', (error: any) => {
+            qqBridgeLogger.error('bridge 连接错误', { method, path: pathWithOwner, error: error.message });
+            reject(new NapCatBridgeError(`QQ 登录桥接不可用: ${error.message}`));
+        });
         if (payload) req.write(payload);
         req.end();
     });

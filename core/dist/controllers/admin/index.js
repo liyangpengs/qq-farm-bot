@@ -104,4 +104,3 @@ module.exports = {
     emitRealtimeLog,
     emitRealtimeAccountLog,
 };
-//# sourceMappingURL=index.js.map

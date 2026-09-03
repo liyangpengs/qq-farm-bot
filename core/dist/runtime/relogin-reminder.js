@@ -87,4 +87,3 @@ function createReloginReminderService(options) {
     return { getOfflineAutoDeleteMs, triggerOfflineReminder, sendConfiguredPush };
 }
 module.exports = { createReloginReminderService };
-//# sourceMappingURL=relogin-reminder.js.map

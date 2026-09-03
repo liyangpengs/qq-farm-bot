@@ -99,4 +99,3 @@ function mountWxLoginRoutes(app, ctx) {
     } });
 }
 module.exports = { mountWxLoginRoutes };
-//# sourceMappingURL=wx-login-routes.js.map

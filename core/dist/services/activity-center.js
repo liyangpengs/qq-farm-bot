@@ -1792,4 +1792,3 @@ module.exports = {
     donateCharityRedFlowerLove,
     claimCharityRedFlowerDailyGift,
 };
-//# sourceMappingURL=activity-center.js.map

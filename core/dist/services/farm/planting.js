@@ -918,4 +918,3 @@ module.exports = {
     runFertilizerByConfig,
     fertilizeOwnLand,
 };
-//# sourceMappingURL=planting.js.map

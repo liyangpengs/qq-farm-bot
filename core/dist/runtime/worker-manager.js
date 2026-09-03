@@ -509,4 +509,3 @@ function createWorkerManager(options) {
 module.exports = {
     createWorkerManager,
 };
-//# sourceMappingURL=worker-manager.js.map

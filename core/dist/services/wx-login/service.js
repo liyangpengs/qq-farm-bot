@@ -175,4 +175,3 @@ class WxLoginService {
     }
 }
 exports.WxLoginService = WxLoginService;
-//# sourceMappingURL=service.js.map

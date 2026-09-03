@@ -251,4 +251,3 @@ module.exports = {
     resolveClientVersionUpdatedAt,
     DEVICE_PRESETS,
 };
-//# sourceMappingURL=config.js.map

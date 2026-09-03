@@ -136,4 +136,3 @@ module.exports = {
     buildActivityGameplayBindings,
     resolveActivityGameplays,
 };
-//# sourceMappingURL=activity-gameplay-registry.js.map

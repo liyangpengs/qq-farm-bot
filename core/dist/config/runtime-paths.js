@@ -45,4 +45,3 @@ module.exports = {
     ensureDataDir,
     getShareFilePath,
 };
-//# sourceMappingURL=runtime-paths.js.map

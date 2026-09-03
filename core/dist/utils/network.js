@@ -1045,4 +1045,3 @@ module.exports = {
     getWsErrorState,
     networkEvents,
 };
-//# sourceMappingURL=network.js.map

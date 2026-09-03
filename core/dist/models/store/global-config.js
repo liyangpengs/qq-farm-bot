@@ -160,4 +160,3 @@ module.exports = {
     getSystemConfig,
     setSystemConfig,
 };
-//# sourceMappingURL=global-config.js.map

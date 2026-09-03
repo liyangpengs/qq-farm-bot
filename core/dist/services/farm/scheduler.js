@@ -490,4 +490,3 @@ module.exports = {
     stopFertilizerBuyCheckTimer,
     checkFertilizerBuyOnce,
 };
-//# sourceMappingURL=scheduler.js.map

@@ -33,4 +33,3 @@ Object.defineProperty(exports, "doFriendOperation", { enumerable: true, get: fun
 Object.defineProperty(exports, "getFriendLandsDetail", { enumerable: true, get: function () { return visit_strategy_1.getFriendLandsDetail; } });
 Object.defineProperty(exports, "getFriendsList", { enumerable: true, get: function () { return visit_strategy_1.getFriendsList; } });
 Object.defineProperty(exports, "getFriendsListCacheOnly", { enumerable: true, get: function () { return visit_strategy_1.getFriendsListCacheOnly; } });
-//# sourceMappingURL=index.js.map

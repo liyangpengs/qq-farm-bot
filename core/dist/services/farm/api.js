@@ -221,4 +221,3 @@ module.exports = {
     encodePlantRequest,
     readMutantBook,
 };
-//# sourceMappingURL=api.js.map

@@ -118,4 +118,3 @@ function changePassword(username, oldPassword, newPassword) {
 }
 loadAdmins();
 module.exports = { getAdminInfo, getAdminMaxAccounts, validateAdmin, changePassword };
-//# sourceMappingURL=admin-store.js.map

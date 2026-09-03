@@ -33,4 +33,3 @@ function getRewardSummary(items) {
 module.exports = {
     getActivityInfo,
 };
-//# sourceMappingURL=randomdrop.js.map

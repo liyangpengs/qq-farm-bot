@@ -1139,4 +1139,3 @@ function syncStatus(force = false) {
         sendToMaster({ type: 'status_sync', data: fullStats });
     }
 }
-//# sourceMappingURL=worker.js.map

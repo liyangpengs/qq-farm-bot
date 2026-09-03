@@ -470,4 +470,3 @@ module.exports = {
         lastClaimAt: freeGiftLastAt,
     }),
 };
-//# sourceMappingURL=mall.js.map

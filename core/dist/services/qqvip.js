@@ -160,4 +160,3 @@ module.exports = {
         canClaim: lastCanClaim,
     }),
 };
-//# sourceMappingURL=qqvip.js.map

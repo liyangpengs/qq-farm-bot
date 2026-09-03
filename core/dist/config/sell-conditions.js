@@ -47,4 +47,3 @@ module.exports = {
     parseSellConditions,
     isSellConditionSatisfied,
 };
-//# sourceMappingURL=sell-conditions.js.map

@@ -59,4 +59,3 @@ module.exports = {
     writeTextFileAtomic,
     writeJsonFileAtomic,
 };
-//# sourceMappingURL=json-db.js.map

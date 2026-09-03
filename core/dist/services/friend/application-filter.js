@@ -48,4 +48,3 @@ module.exports = {
     evaluateLevelFilter,
     evaluateHarvestStealFilter,
 };
-//# sourceMappingURL=application-filter.js.map

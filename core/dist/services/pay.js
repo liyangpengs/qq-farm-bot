@@ -21,4 +21,3 @@ module.exports = {
     getDiamondBalance,
     getRechargeInfo,
 };
-//# sourceMappingURL=pay.js.map

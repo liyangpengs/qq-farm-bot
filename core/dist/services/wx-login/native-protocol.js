@@ -347,4 +347,3 @@ async function getNativeWxLoginCode(loginBuffer, appId) {
         }
     throw last || new Error('Unable to request wx.login code');
 }
-//# sourceMappingURL=native-protocol.js.map

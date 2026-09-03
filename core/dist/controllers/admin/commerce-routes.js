@@ -47,4 +47,3 @@ function mountCommerceRoutes(app, ctx) {
     app.post('/api/mystery-shop/purchase', withAccount((accountId, req) => (ctx.provider.purchaseMysteryOffer(accountId, req.body?.npcId))));
 }
 module.exports = { mountCommerceRoutes };
-//# sourceMappingURL=commerce-routes.js.map

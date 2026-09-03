@@ -62,4 +62,3 @@ module.exports = {
     detectSpeedHack,
     destroyWasm,
 };
-//# sourceMappingURL=crypto-wasm.js.map

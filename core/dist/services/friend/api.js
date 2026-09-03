@@ -320,4 +320,3 @@ async function putSocialItem(friendGid, landId, itemId) {
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'PutSocialItem', body);
     return types.PutSocialItemReply.decode(replyBody);
 }
-//# sourceMappingURL=api.js.map

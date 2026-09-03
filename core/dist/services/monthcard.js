@@ -143,4 +143,3 @@ module.exports = {
         hasClaimable: lastHasClaimable,
     }),
 };
-//# sourceMappingURL=monthcard.js.map

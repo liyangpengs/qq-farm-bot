@@ -20,4 +20,3 @@ __exportStar(require("./farm"), exports);
 __exportStar(require("./friend"), exports);
 __exportStar(require("./ipc"), exports);
 __exportStar(require("./worker"), exports);
-//# sourceMappingURL=index.js.map

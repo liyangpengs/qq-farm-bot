@@ -855,4 +855,3 @@ async function deleteFriend(friendGid) {
     });
     return { ok: true, gid };
 }
-//# sourceMappingURL=visit-strategy.js.map

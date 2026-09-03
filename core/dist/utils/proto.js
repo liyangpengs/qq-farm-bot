@@ -352,4 +352,3 @@ async function loadProto() {
     log('系统', 'Protobuf 定义加载完成');
 }
 module.exports = { loadProto, types };
-//# sourceMappingURL=proto.js.map

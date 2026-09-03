@@ -125,4 +125,3 @@ module.exports = {
         lastClaimAt,
     }),
 };
-//# sourceMappingURL=share.js.map

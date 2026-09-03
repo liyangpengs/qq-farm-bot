@@ -20,4 +20,3 @@ module.exports = {
     getActiveNPC,
     buy,
 };
-//# sourceMappingURL=mystery-shop.js.map

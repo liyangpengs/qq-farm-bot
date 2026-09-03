@@ -11,4 +11,3 @@ function createAdminContext(dataProvider) {
     };
 }
 module.exports = { createAdminContext };
-//# sourceMappingURL=context.js.map

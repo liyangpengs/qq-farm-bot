@@ -379,4 +379,3 @@ function mountFriendRoutes(app, ctx) {
     });
 }
 module.exports = { mountFriendRoutes };
-//# sourceMappingURL=friend-routes.js.map

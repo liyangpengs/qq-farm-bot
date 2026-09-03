@@ -192,4 +192,3 @@ module.exports = {
     stateFromDynamicNodes,
     stateWithNoClaimableDay,
 };
-//# sourceMappingURL=activity-center-state.js.map

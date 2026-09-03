@@ -30,4 +30,3 @@ module.exports = {
     getDisplayLandContext: landAnalysis.getDisplayLandContext,
     isOccupiedSlaveLand: landAnalysis.isOccupiedSlaveLand,
 };
-//# sourceMappingURL=index.js.map

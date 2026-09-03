@@ -89,4 +89,3 @@ module.exports = {
     getFarmingSkillGiftCount,
     checkAndClaimDogSkillGifts,
 };
-//# sourceMappingURL=dog-skill-gifts.js.map

@@ -35,4 +35,3 @@ class GatewayTokenProvider {
     }
 }
 module.exports = { createGatewayToken, GatewayTokenProvider };
-//# sourceMappingURL=gateway-token.js.map

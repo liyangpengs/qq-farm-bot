@@ -190,4 +190,3 @@ function mountActivityCenterRoutes(app, ctx) {
     app.post('/api/activity-center/qixi/gift', withAccount((accountId, req) => (ctx.provider.giftQixiSachet(accountId, req.body?.friendGid, req.body?.messageTextId ?? 15))));
 }
 module.exports = { mountActivityCenterRoutes };
-//# sourceMappingURL=activity-center-routes.js.map

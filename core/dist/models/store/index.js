@@ -56,4 +56,3 @@ module.exports = {
     getSystemConfig: globalConfig.getSystemConfig,
     setSystemConfig: globalConfig.setSystemConfig,
 };
-//# sourceMappingURL=index.js.map

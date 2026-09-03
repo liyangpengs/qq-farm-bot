@@ -61,4 +61,3 @@ module.exports = {
     claimWeakGuideReward,
     claimGuideRewards,
 };
-//# sourceMappingURL=guide.js.map

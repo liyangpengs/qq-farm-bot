@@ -338,4 +338,3 @@ function createDataProvider(options) {
 module.exports = {
     createDataProvider,
 };
-//# sourceMappingURL=data-provider.js.map

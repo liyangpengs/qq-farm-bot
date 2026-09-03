@@ -220,4 +220,3 @@ module.exports = {
     buildMysteryShopPush,
     checkMysteryShopTick,
 };
-//# sourceMappingURL=mystery-shop-auto.js.map

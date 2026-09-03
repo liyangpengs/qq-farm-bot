@@ -285,4 +285,3 @@ module.exports = {
     getFriendOptimizer,
     DEFAULT_CONFIG,
 };
-//# sourceMappingURL=rate-limiter.js.map

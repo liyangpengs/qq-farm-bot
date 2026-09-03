@@ -47,4 +47,3 @@ module.exports = {
     readKnownFriendGidsCache,
     writeKnownFriendGidsCache,
 };
-//# sourceMappingURL=gid-cache.js.map

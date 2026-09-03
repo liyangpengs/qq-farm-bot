@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const { NapCatBridgeError, getNapCatQrCode, getNapCatLoginStatus, getNapCatQrImage, authorizeNapCatFarm, reclaimNapCatScanLease, } = require('../../services/napcat-bridge-consumer');
 const { createAuthRequired } = require('./middleware');
+const { createModuleLogger } = require('../../services/logger');
+const qqLoginLogger = createModuleLogger('qq-login');
 const TASK_TTL_MS = 6 * 60_000; // QQ 扫码窗口比微信长（拉起临时实例数十秒）
 const tasks = new Map();
 function ownerOf(req) {
@@ -38,7 +40,9 @@ async function ensureQr(task) {
     }
     // 懒触发：首次才真正拉起临时 QQ 实例（耗时数十秒），避免每次进面板都冷启动
     const data = await getNapCatQrCode(task.owner);
-    const b64 = String(data?.image || data?.qr || '');
+    // bridge /qrcode 返回 data.qrcode = 'data:image/png;base64,<...>'（data URI）
+    const dataUri = String(data?.qrcode || '');
+    const b64 = dataUri.includes('base64,') ? dataUri.slice(dataUri.indexOf('base64,') + 7) : dataUri;
     if (b64) {
         try {
             task.qr = Buffer.from(b64, 'base64');
@@ -47,7 +51,7 @@ async function ensureQr(task) {
             task.qr = Buffer.alloc(0);
         }
     }
-    task.qrDecodeUrl = String(data?.decodeUrl || '');
+    task.qrDecodeUrl = String(data?.qrUrl || '');
     return task;
 }
 function mountQqLoginRoutes(app, ctx) {
@@ -63,12 +67,14 @@ function mountQqLoginRoutes(app, ctx) {
                 qr: Buffer.alloc(0),
             };
             tasks.set(task.id, task);
+            qqLoginLogger.info('创建 QQ 扫码任务', { taskId: task.id.slice(0, 8), owner });
             try {
                 await ensureQr(task);
             }
             catch (error) {
                 if (error instanceof NapCatBridgeError && error.busy) {
                     // 他人正在扫码：保留任务但不生成自己码，前端可看 busy 提示
+                    qqLoginLogger.warn('QQ 扫码通道被占用', { taskId: task.id.slice(0, 8), retryAfterMs: error.retryAfterMs });
                     res.json({
                         ok: true,
                         data: { ...publicTask(task), qr_url: `/api/qq-login/tasks/${task.id}/qr`, busy: true, retryAfterMs: error.retryAfterMs },
@@ -77,9 +83,11 @@ function mountQqLoginRoutes(app, ctx) {
                 }
                 throw error;
             }
+            qqLoginLogger.info('QQ 二维码生成成功', { taskId: task.id.slice(0, 8), qrBytes: task.qr.length });
             res.json({ ok: true, data: { ...publicTask(task), qr_url: `/api/qq-login/tasks/${task.id}/qr` } });
         }
         catch (error) {
+            qqLoginLogger.error('创建 QQ 扫码任务失败', { error: error.message });
             res.status(502).json({ ok: false, error: error.message });
         }
     });
@@ -91,13 +99,16 @@ function mountQqLoginRoutes(app, ctx) {
             await ensureQr(task);
         }
         catch (error) {
+            qqLoginLogger.error('拉取 QQ 二维码失败', { taskId: task.id.slice(0, 8), error: error.message });
             res.status(502).json({ ok: false, error: error.message });
             return;
         }
         if (task.qr && task.qr.length > 0) {
+            qqLoginLogger.info('下发 QQ 二维码图', { taskId: task.id.slice(0, 8), qrBytes: task.qr.length });
             res.type('png').send(task.qr);
         }
         else {
+            qqLoginLogger.warn('QQ 二维码不可用', { taskId: task.id.slice(0, 8) });
             res.status(404).json({ ok: false, error: 'QR not ready' });
         }
     });
@@ -107,26 +118,19 @@ function mountQqLoginRoutes(app, ctx) {
             return;
         try {
             const data = await getNapCatLoginStatus(task.owner);
-            const bridgeStatus = String(data?.status || 'waiting');
-            if (bridgeStatus === 'scanned') {
-                task.status = 'scanned';
-            }
-            else if (bridgeStatus === 'authorized' || bridgeStatus === 'confirmed' || bridgeStatus === 'logged_in') {
-                task.status = 'authorized';
-            }
-            else if (bridgeStatus === 'waiting' || bridgeStatus === 'scan_expired' || bridgeStatus === 'idle') {
-                task.status = 'waiting';
-            }
-            else {
-                task.status = 'waiting';
-            }
+            // bridge /status 返回布尔 loggedIn + hasQr，无扫码过程枚举。
+            // loggedIn=true 表示扫码并登录成功，前端随即去 /code 取授权码。
+            task.status = data?.loggedIn ? 'authorized' : 'waiting';
+            qqLoginLogger.debug('QQ 扫码状态轮询', { taskId: task.id.slice(0, 8), loggedIn: !!data?.loggedIn, hasQr: !!data?.hasQr });
             res.json({ ok: true, data: publicTask(task) });
         }
         catch (error) {
             if (error instanceof NapCatBridgeError && error.busy) {
+                qqLoginLogger.warn('QQ 扫码状态轮询遇占用', { taskId: task.id.slice(0, 8), retryAfterMs: error.retryAfterMs });
                 res.status(409).json({ ok: false, error: error.message, busy: true, retryAfterMs: error.retryAfterMs });
                 return;
             }
+            qqLoginLogger.error('QQ 扫码状态轮询失败', { taskId: task.id.slice(0, 8), error: error.message });
             res.status(502).json({ ok: false, error: error.message });
         }
     });
@@ -151,11 +155,13 @@ function mountQqLoginRoutes(app, ctx) {
                 email: String(data?.profile?.email || ''),
                 nick: String(data?.profile?.nick || data?.profile?.nickname || ''),
             };
+            qqLoginLogger.info('QQ 扫码登录成功取到 Code', { taskId: task.id.slice(0, 8), uin: task.uin, nick: result.nick });
             res.json({ ok: true, data: result });
             // 返回后清理：码已消费，租约也已在 bridge 侧释放
             tasks.delete(task.id);
         }
         catch (error) {
+            qqLoginLogger.error('取 QQ 登录 Code 失败', { taskId: task.id.slice(0, 8), error: error.message });
             res.status(502).json({ ok: false, error: error.message });
         }
     });
@@ -168,4 +174,3 @@ function mountQqLoginRoutes(app, ctx) {
     });
 }
 module.exports = { mountQqLoginRoutes };
-//# sourceMappingURL=qq-login-routes.js.map

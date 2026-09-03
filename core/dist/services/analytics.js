@@ -122,4 +122,3 @@ function getPlantRankings(sortBy = 'exp') {
 module.exports = {
     getPlantRankings,
 };
-//# sourceMappingURL=analytics.js.map

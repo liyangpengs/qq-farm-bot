@@ -295,4 +295,3 @@ async function fetchQqFriendsByLegacyMethod(priority = 'normal') {
     }
     throw new Error(errors.join(' | '));
 }
-//# sourceMappingURL=gid-manager.js.map

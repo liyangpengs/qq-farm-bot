@@ -380,4 +380,3 @@ module.exports = {
     MINI_PROGRAM_APP_ID,
     TSDK_GAME_ID,
 };
-//# sourceMappingURL=tsdk-runtime.js.map
