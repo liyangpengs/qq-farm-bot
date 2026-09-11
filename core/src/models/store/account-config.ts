@@ -98,6 +98,7 @@ function getConfigSnapshot(accountId?: unknown): AccountConfig & { ui: typeof gl
         fertilizerBuyNormalThresholdHours: Math.max(0, Math.min(990, Number(cfg.fertilizerBuyNormalThresholdHours) || 0)),
         fertilizerBuyCheckIntervalMinutes: Math.max(1, Math.min(1440, Number(cfg.fertilizerBuyCheckIntervalMinutes) || 30)),
         bagSeedPriority: [...(cfg.bagSeedPriority || [])],
+        bagSeedMultiLandReservationEnabled: !!cfg.bagSeedMultiLandReservationEnabled,
         bagSeedLandTypes: cloneBagSeedLandTypes(cfg.bagSeedLandTypes),
         bagSeedFallbackStrategy: cfg.bagSeedFallbackStrategy,
         autoAcceptFriendMinLevel: cfg.autoAcceptFriendMinLevel,
@@ -231,6 +232,10 @@ function applyConfigSnapshot(snapshot: Record<string, any> | undefined, options:
         next.bagSeedPriority = normalizeBagSeedPriority(cfg.bagSeedPriority);
     }
 
+    if (cfg.bagSeedMultiLandReservationEnabled !== undefined && cfg.bagSeedMultiLandReservationEnabled !== null) {
+        next.bagSeedMultiLandReservationEnabled = !!cfg.bagSeedMultiLandReservationEnabled;
+    }
+
     if (cfg.bagSeedLandTypes !== undefined && cfg.bagSeedLandTypes !== null) {
         next.bagSeedLandTypes = normalizeBagSeedLandTypes(cfg.bagSeedLandTypes);
     }
@@ -295,6 +300,10 @@ function getPlantingStrategy(accountId?: unknown): PlantingStrategy {
 
 function getBagSeedPriority(accountId?: unknown): number[] {
     return [...(getAccountConfigSnapshot(accountId).bagSeedPriority || [])];
+}
+
+function getBagSeedMultiLandReservationEnabled(accountId?: unknown): boolean {
+    return !!getAccountConfigSnapshot(accountId).bagSeedMultiLandReservationEnabled;
 }
 
 function getBagSeedLandTypes(accountId?: unknown): Record<string, FertilizerLandType[]> {
@@ -474,6 +483,7 @@ module.exports = {
     getPreferredSeed,
     getPlantingStrategy,
     getBagSeedPriority,
+    getBagSeedMultiLandReservationEnabled,
     getBagSeedLandTypes,
     getBagSeedFallbackStrategy,
     getIntervals,

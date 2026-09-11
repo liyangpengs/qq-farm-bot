@@ -85,6 +85,8 @@ export interface AccountConfig {
   fertilizerBuyNormalThresholdHours: number;
   fertilizerBuyCheckIntervalMinutes: number;
   bagSeedPriority: number[];
+  /** 是否为明确排在前面的多格背包种子保留尚未连成布局的空地。 */
+  bagSeedMultiLandReservationEnabled: boolean;
   /** seedId -> 允许种植的土地类型。缺 key 视为不限制。 */
   bagSeedLandTypes: Record<string, FertilizerLandType[]>;
   bagSeedFallbackStrategy: BagSeedFallbackStrategy;
