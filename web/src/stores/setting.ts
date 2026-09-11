@@ -71,6 +71,7 @@ export interface SettingsState {
   plantingStrategy: string
   preferredSeedId: number
   bagSeedPriority: number[]
+  bagSeedMultiLandReservationEnabled: boolean
   bagSeedLandTypes: Record<string, string[]>
   bagSeedFallbackStrategy: string
   intervals: IntervalsConfig
@@ -97,6 +98,7 @@ type SaveableSettingsKey
   = | 'plantingStrategy'
     | 'preferredSeedId'
     | 'bagSeedPriority'
+    | 'bagSeedMultiLandReservationEnabled'
     | 'bagSeedLandTypes'
     | 'bagSeedFallbackStrategy'
     | 'intervals'
@@ -122,6 +124,7 @@ const SAVEABLE_SETTINGS_KEYS: SaveableSettingsKey[] = [
   'plantingStrategy',
   'preferredSeedId',
   'bagSeedPriority',
+  'bagSeedMultiLandReservationEnabled',
   'bagSeedLandTypes',
   'bagSeedFallbackStrategy',
   'intervals',
@@ -147,6 +150,7 @@ function createDefaultSettings(): SettingsState {
     plantingStrategy: 'max_exp',
     preferredSeedId: 0,
     bagSeedPriority: [],
+    bagSeedMultiLandReservationEnabled: false,
     bagSeedLandTypes: {},
     bagSeedFallbackStrategy: 'level',
     intervals: {},
@@ -208,6 +212,7 @@ export const useSettingStore = defineStore('setting', () => {
       plantingStrategy: data.strategy || defaults.plantingStrategy,
       preferredSeedId: data.preferredSeed || defaults.preferredSeedId,
       bagSeedPriority: cloneValue(data.bagSeedPriority ?? defaults.bagSeedPriority),
+      bagSeedMultiLandReservationEnabled: data.bagSeedMultiLandReservationEnabled ?? defaults.bagSeedMultiLandReservationEnabled,
       bagSeedLandTypes: cloneValue(data.bagSeedLandTypes ?? defaults.bagSeedLandTypes),
       bagSeedFallbackStrategy: data.bagSeedFallbackStrategy ?? defaults.bagSeedFallbackStrategy,
       intervals: cloneValue(data.intervals || defaults.intervals),

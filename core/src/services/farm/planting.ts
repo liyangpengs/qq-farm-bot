@@ -5,7 +5,7 @@ export {};
 
 const protobuf = require('protobufjs');
 const { getPlantNameBySeedId, formatGrowTime, getPlantGrowTime, getAllSeeds, getPlantBySeedId } = require('../../config/gameConfig');
-const { getPreferredSeed, getAutomation, getPlantingStrategy, getBagSeedPriority, getBagSeedLandTypes, getBagSeedFallbackStrategy } = require('../../models/store');
+const { getPreferredSeed, getAutomation, getPlantingStrategy, getBagSeedPriority, getBagSeedMultiLandReservationEnabled, getBagSeedLandTypes, getBagSeedFallbackStrategy } = require('../../models/store');
 const { getUserState, getWsErrorState, sendMsgAsync } = require('../../utils/network');
 const { toNum, getServerTimeSec, log, logWarn, sleep } = require('../../utils/utils');
 const { types } = require('../../utils/proto');
@@ -247,6 +247,7 @@ async function plantFromBagSeeds(landsToPlant: any[], landTypeById?: Map<number,
     const bagSeeds = await getBagSeeds();
     const state = getUserState();
     const priorityList = getBagSeedPriority();
+    const multiLandReservationEnabled = getBagSeedMultiLandReservationEnabled();
     const explicitPrioritySeedIds = new Set<number>((Array.isArray(priorityList) ? priorityList : [])
         .map((seedId: any) => toNum(seedId))
         .filter((seedId: number) => seedId > 0));
@@ -362,7 +363,8 @@ async function plantFromBagSeeds(landsToPlant: any[], landTypeById?: Map<number,
             const allEligibleLandIds = seed.landTypes
                 ? filterLandIdsByTypes(allUnlockedLandIds, landTypeById, seed.landTypes)
                 : allUnlockedLandIds;
-            const reservation = !futureLayoutReserved
+            const reservation = multiLandReservationEnabled
+                && !futureLayoutReserved
                 && plantSize > 1
                 && explicitPrioritySeedIds.has(toNum(seed.seedId))
                 ? selectFutureLayoutReservation(allowedLandIds, allEligibleLandIds, plantSize)

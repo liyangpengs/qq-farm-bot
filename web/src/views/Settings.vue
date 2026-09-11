@@ -251,6 +251,7 @@ const localStrategySettings = ref({
   plantingStrategy: 'max_exp',
   preferredSeedId: 0,
   bagSeedPriority: [] as number[],
+  bagSeedMultiLandReservationEnabled: false,
   bagSeedLandTypes: {} as Record<string, string[]>,
   bagSeedFallbackStrategy: 'level',
   stealDelaySeconds: 0,
@@ -718,6 +719,7 @@ function syncLocalStrategySettings() {
       plantingStrategy: settings.value.plantingStrategy,
       preferredSeedId: settings.value.preferredSeedId,
       bagSeedPriority: settings.value.bagSeedPriority ?? [],
+      bagSeedMultiLandReservationEnabled: !!settings.value.bagSeedMultiLandReservationEnabled,
       bagSeedLandTypes: settings.value.bagSeedLandTypes ?? {},
       bagSeedFallbackStrategy: settings.value.bagSeedFallbackStrategy ?? 'level',
       stealDelaySeconds: settings.value.stealDelaySeconds ?? 0,
@@ -1695,6 +1697,15 @@ async function handleResetSystemConfig() {
                 :options="BAG_FALLBACK_STRATEGY_OPTIONS"
                 @change="handleBagFallbackStrategyChange"
               />
+              <div class="border border-gray-200 rounded-lg bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-800/40">
+                <BaseSwitch
+                  v-model="localStrategySettings.bagSeedMultiLandReservationEnabled"
+                  label="为高优先级多格种子预留土地"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  开启后可能暂时留空部分土地，直到明确排在前面的多格种子凑齐连续布局。默认关闭。
+                </p>
+              </div>
               <div class="border border-amber-200 rounded-lg bg-amber-50/70 p-3 space-y-3 dark:border-amber-800/50 dark:bg-amber-900/20">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>

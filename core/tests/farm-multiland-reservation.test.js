@@ -4,6 +4,39 @@ const test = require('node:test');
 const {
     selectFutureLayoutReservation,
 } = require('../dist/services/farm/layout-reservation');
+const {
+    DEFAULT_ACCOUNT_CONFIG,
+    globalConfig,
+    normalizeAccountConfig,
+} = require('../dist/models/store/shared-state');
+const {
+    applyConfigSnapshot,
+} = require('../dist/models/store/account-config');
+
+test('keeps multi-land reservation opt-in by default', () => {
+    assert.equal(DEFAULT_ACCOUNT_CONFIG.bagSeedMultiLandReservationEnabled, false);
+    assert.equal(normalizeAccountConfig({}).bagSeedMultiLandReservationEnabled, false);
+    assert.equal(normalizeAccountConfig({ bagSeedMultiLandReservationEnabled: true }).bagSeedMultiLandReservationEnabled, true);
+});
+
+test('round-trips the multi-land reservation account setting', () => {
+    const accountId = '__multiland_reservation_test__';
+    try {
+        const enabled = applyConfigSnapshot(
+            { bagSeedMultiLandReservationEnabled: true },
+            { accountId, persist: false },
+        );
+        assert.equal(enabled.bagSeedMultiLandReservationEnabled, true);
+
+        const disabled = applyConfigSnapshot(
+            { bagSeedMultiLandReservationEnabled: false },
+            { accountId, persist: false },
+        );
+        assert.equal(disabled.bagSeedMultiLandReservationEnabled, false);
+    } finally {
+        delete globalConfig.accountConfigs[accountId];
+    }
+});
 
 test('reserves the earliest stable 2x2 layout for a priority seed', () => {
     const reservation = selectFutureLayoutReservation(

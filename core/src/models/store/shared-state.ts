@@ -115,6 +115,7 @@ const DEFAULT_ACCOUNT_CONFIG: AccountConfig = {
     fertilizerBuyNormalThresholdHours: 10,
     fertilizerBuyCheckIntervalMinutes: 60,
     bagSeedPriority: [],
+    bagSeedMultiLandReservationEnabled: false,
     bagSeedLandTypes: {},
     bagSeedFallbackStrategy: 'level',
     autoAcceptFriendMinLevel: 0,
@@ -313,6 +314,9 @@ function cloneAccountConfig(base: Partial<AccountConfig> = DEFAULT_ACCOUNT_CONFI
         fertilizerBuyNormalThresholdHours: Math.max(0, Math.min(990, Number(base.fertilizerBuyNormalThresholdHours) || 0)),
         fertilizerBuyCheckIntervalMinutes: Math.max(1, Math.min(1440, Number(base.fertilizerBuyCheckIntervalMinutes) || 30)),
         bagSeedPriority: normalizeBagSeedPriority(base.bagSeedPriority),
+        bagSeedMultiLandReservationEnabled: base.bagSeedMultiLandReservationEnabled !== undefined
+            ? !!base.bagSeedMultiLandReservationEnabled
+            : DEFAULT_ACCOUNT_CONFIG.bagSeedMultiLandReservationEnabled,
         bagSeedLandTypes: normalizeBagSeedLandTypes(base.bagSeedLandTypes),
         bagSeedFallbackStrategy: normalizeBagSeedFallbackStrategy(base.bagSeedFallbackStrategy),
         autoAcceptFriendMinLevel: normalizeAutoAcceptFriendMinLevel(base.autoAcceptFriendMinLevel, DEFAULT_ACCOUNT_CONFIG.autoAcceptFriendMinLevel),
@@ -435,6 +439,10 @@ function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accoun
 
     if (src.bagSeedPriority !== undefined && src.bagSeedPriority !== null) {
         cfg.bagSeedPriority = normalizeBagSeedPriority(src.bagSeedPriority);
+    }
+
+    if (src.bagSeedMultiLandReservationEnabled !== undefined && src.bagSeedMultiLandReservationEnabled !== null) {
+        cfg.bagSeedMultiLandReservationEnabled = !!src.bagSeedMultiLandReservationEnabled;
     }
 
     if (src.bagSeedLandTypes !== undefined && src.bagSeedLandTypes !== null) {
