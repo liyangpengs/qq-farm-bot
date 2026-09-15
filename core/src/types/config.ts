@@ -116,6 +116,11 @@ export interface LoginSettings {
   qqQrLogin: boolean;
   napCatEndpoint: string;
   napCatSignature: string;
+  logoUrl: string;
+  loginSubtitle: string;
+  registerSubtitle: string;
+  purchaseUrl: string;
+  qqGroupUrl: string;
 }
 
 export interface DeviceInfo {

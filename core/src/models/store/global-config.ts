@@ -120,6 +120,11 @@ function normalizeLoginSettings(input: unknown): LoginSettings {
         qqQrLogin: typeof src.qqQrLogin === 'boolean' ? src.qqQrLogin : DEFAULT_LOGIN_SETTINGS.qqQrLogin,
         napCatEndpoint: typeof src.napCatEndpoint === 'string' ? src.napCatEndpoint.trim() : DEFAULT_LOGIN_SETTINGS.napCatEndpoint,
         napCatSignature: typeof src.napCatSignature === 'string' ? src.napCatSignature.trim() : DEFAULT_LOGIN_SETTINGS.napCatSignature,
+        logoUrl: typeof src.logoUrl === 'string' ? src.logoUrl.trim() : DEFAULT_LOGIN_SETTINGS.logoUrl,
+        loginSubtitle: typeof src.loginSubtitle === 'string' ? src.loginSubtitle.trim() : DEFAULT_LOGIN_SETTINGS.loginSubtitle,
+        registerSubtitle: typeof src.registerSubtitle === 'string' ? src.registerSubtitle.trim() : DEFAULT_LOGIN_SETTINGS.registerSubtitle,
+        purchaseUrl: typeof src.purchaseUrl === 'string' ? src.purchaseUrl.trim() : DEFAULT_LOGIN_SETTINGS.purchaseUrl,
+        qqGroupUrl: typeof src.qqGroupUrl === 'string' ? src.qqGroupUrl.trim() : DEFAULT_LOGIN_SETTINGS.qqGroupUrl,
     };
 }
 

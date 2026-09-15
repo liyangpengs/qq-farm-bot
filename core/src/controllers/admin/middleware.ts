@@ -4,10 +4,12 @@ export {};
 
 const crypto = require('node:crypto');
 const store = require('../../models/store');
+const userStore = require('../../models/user-store');
 const { normalizeAccountRef, resolveAccountId } = require('../../services/account-resolver');
 
 interface AuthenticatedRequest extends Request {
     adminToken?: string;
+    currentUser?: any;
 }
 
 function getClientIp(req: Request): string {
@@ -34,8 +36,55 @@ function createAuthRequired(ctx: AdminContext) {
             return;
         }
         req.adminToken = token;
+        req.currentUser = ctx.tokens.get(token) || null;
         next();
     };
+}
+
+function isAdminRole(role: unknown): boolean {
+    return role === 'admin' || role === 'super_admin';
+}
+
+function createRequireAdminRole() {
+    return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+        if (!req.currentUser || !isAdminRole(req.currentUser.role)) {
+            res.status(403).json({ ok: false, error: '需要管理员权限' });
+            return;
+        }
+        next();
+    };
+}
+
+// 当前系统仅存在单一管理员角色，超级管理员校验与管理员一致。
+function createRequireSuperAdminRole() {
+    return createRequireAdminRole();
+}
+
+function requireDangerConfirmation(req: Request, res: Response, requiredConfirmation: string): boolean {
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const confirmed = body.confirmed === true || body.confirmed === 'true' || body.confirmed === 1 || body.confirmed === '1';
+    if (!confirmed) {
+        res.status(400).json({ ok: false, error: '危险操作未确认', requiredConfirmation });
+        return false;
+    }
+    return true;
+}
+
+function getAdminUserMutationError(currentUser: any, targetUsername: string): string | null {
+    const normalizedTarget = String(targetUsername || '').trim();
+    if (!currentUser || !normalizedTarget) return null;
+    if (isAdminRole(currentUser.role)) return null;
+    if (String(currentUser.username || '').trim() === normalizedTarget) return null;
+    try {
+        const users = userStore.getAllUsers();
+        const targetUser = Array.isArray(users)
+            ? users.find((user: any) => String(user.username || '').trim() === normalizedTarget)
+            : null;
+        if (targetUser && isAdminRole(targetUser.role)) return '普通用户不能修改或删除管理员账号';
+    } catch {
+        // ignore lookup errors
+    }
+    return null;
 }
 
 function getAccountList(ctx: AdminContext): any[] {
@@ -53,6 +102,27 @@ function getAccountList(ctx: AdminContext): any[] {
 
 function getAccountIds(ctx: AdminContext): string[] {
     return getAccountList(ctx).map((account: any) => String(account.id || '')).filter(Boolean);
+}
+
+function getAccountsForUser(ctx: AdminContext, username: string | null = null): any[] {
+    const accounts = getAccountList(ctx);
+    if (!username) return accounts;
+    return accounts.filter((account: any) => String(account.username || '') === String(username));
+}
+
+function getAccessibleAccounts(ctx: AdminContext, req: AuthenticatedRequest): any[] {
+    const currentUser = req.currentUser;
+    if (!currentUser) return [];
+    if (isAdminRole(currentUser.role)) return getAccountList(ctx);
+    return getAccountsForUser(ctx, currentUser.username);
+}
+
+function canAccessAccount(ctx: AdminContext, req: AuthenticatedRequest, accountId: string): boolean {
+    const currentUser = req.currentUser;
+    if (!currentUser) return false;
+    if (isAdminRole(currentUser.role)) return true;
+    return getAccountsForUser(ctx, currentUser.username)
+        .some((account: any) => String(account.id) === String(accountId));
 }
 
 const isSoftRuntimeError = (err: any): boolean => {
@@ -93,6 +163,15 @@ function handleApiError(res: Response, err: any): void {
     res.status(500).json(payload);
 }
 
+function sendProviderError(res: Response, err: any): void {
+    if (res.headersSent) return;
+    if (isSoftRuntimeError(err) || isGatewayProtocolError(err)) {
+        res.json({ ok: false, error: (typeof err === 'string' ? err : err?.message) || 'Unknown error' });
+        return;
+    }
+    res.status(500).json({ ok: false, error: (typeof err === 'string' ? err : err?.message) || 'Unknown error' });
+}
+
 function resolveAccId(ctx: AdminContext, rawRef: any): string {
     const input = normalizeAccountRef(rawRef);
     if (!input) return '';
@@ -127,12 +206,21 @@ module.exports = {
     getClientIp,
     issueToken,
     createAuthRequired,
+    isAdminRole,
+    createRequireAdminRole,
+    createRequireSuperAdminRole,
+    requireDangerConfirmation,
+    getAdminUserMutationError,
     getAccountList,
     getAccountIds,
+    getAccountsForUser,
+    getAccessibleAccounts,
+    canAccessAccount,
     isSoftRuntimeError,
     isGatewayProtocolError,
     getProtocolErrorMessage,
     handleApiError,
+    sendProviderError,
     resolveAccId,
     getAccId,
     buildKnownFriendGidSettings,

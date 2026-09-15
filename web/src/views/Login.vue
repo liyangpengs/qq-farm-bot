@@ -7,16 +7,38 @@ import { useUserStore } from '@/stores/user'
 
 declare const __APP_VERSION__: string
 
+type Mode = 'login' | 'register' | 'renew' | 'reset'
+
 const userStore = useUserStore()
 const appVersion = __APP_VERSION__
 const gameVersion = ref('')
+const mode = ref<Mode>('login')
+
 const username = ref('')
 const password = ref('')
+const confirmPassword = ref('')
+const cardCode = ref('')
+const qq = ref('')
 const error = ref('')
 const success = ref('')
 const loading = ref(false)
 const lockoutRemaining = ref(0)
 const rateLimitRemaining = ref(0)
+
+const loginConfig = ref({
+  logoUrl: '',
+  loginSubtitle: '欢迎回来，请登录你的账号',
+  registerSubtitle: '注册新账号，开启自动化农场之旅',
+  purchaseUrl: '',
+  qqGroupUrl: '',
+})
+
+const titleMap: Record<Mode, string> = {
+  login: '账号登录',
+  register: '注册新账号',
+  renew: '卡密续费',
+  reset: '找回密码',
+}
 
 const usernameValid = computed(() => {
   const name = username.value
@@ -31,68 +53,148 @@ const usernameValid = computed(() => {
   return { valid: true, message: '' }
 })
 
+const qqValid = computed(() => {
+  if (!qq.value)
+    return true
+  return /^\d{5,12}$/.test(qq.value)
+})
+
+function switchMode(next: Mode) {
+  mode.value = next
+  error.value = ''
+  success.value = ''
+  password.value = ''
+  confirmPassword.value = ''
+  cardCode.value = ''
+}
+
 function validateForm(): boolean {
   if (!username.value) {
     error.value = '请输入用户名'
     return false
   }
-  if (!usernameValid.value.valid) {
+  if (mode.value === 'register' && !usernameValid.value.valid) {
     error.value = usernameValid.value.message
     return false
   }
-  if (!password.value) {
+  if (mode.value === 'register' && !qqValid.value) {
+    error.value = '绑定QQ格式不正确（需为5-12位数字）'
+    return false
+  }
+  if (mode.value !== 'renew' && !password.value) {
     error.value = '请输入密码'
+    return false
+  }
+  if ((mode.value === 'register' || mode.value === 'reset') && password.value !== confirmPassword.value) {
+    error.value = '两次输入的密码不一致'
+    return false
+  }
+  if ((mode.value === 'register' || mode.value === 'renew' || mode.value === 'reset') && !cardCode.value) {
+    error.value = '请输入卡密'
     return false
   }
   return true
 }
 
-async function handleSubmit() {
-  if (!validateForm())
-    return
+function applyResultError(data: any, fallback: string) {
+  if (data?.errorType === 'rate_limit') {
+    error.value = getApiErrorMessage(data, '请求过于频繁')
+    if (data.remainingMs)
+      rateLimitRemaining.value = Math.ceil(data.remainingMs / 1000)
+  }
+  else if (data?.errorType === 'locked') {
+    error.value = getApiErrorMessage(data, '账户已被锁定')
+    if (data.remainingMs)
+      lockoutRemaining.value = Math.ceil(data.remainingMs / 1000 / 60)
+  }
+  else {
+    error.value = getApiErrorMessage(data, fallback)
+  }
+}
 
-  loading.value = true
-  error.value = ''
-  success.value = ''
-
+async function handleLogin() {
   try {
     const result = await userStore.login(username.value, password.value)
     if (result.ok) {
-      if (result.data?.mustChangePassword)
-        success.value = '登录成功，请修改默认密码'
+      success.value = result.data?.mustChangePassword ? '登录成功，请修改默认密码' : '登录成功'
       setTimeout(() => {
         window.location.href = '/'
       }, 500)
     }
-    else if (result.errorType === 'rate_limit') {
-      error.value = result.error || '请求过于频繁，请稍后重试'
-      if (result.remainingMs)
-        rateLimitRemaining.value = Math.ceil(result.remainingMs / 1000)
-    }
-    else if (result.errorType === 'locked') {
-      error.value = result.error || '账户已被锁定'
-      if (result.remainingMs)
-        lockoutRemaining.value = Math.ceil(result.remainingMs / 1000 / 60)
-    }
     else {
-      error.value = result.error || '登录失败'
+      applyResultError(result, '登录失败')
     }
   }
   catch (e: any) {
-    const data = e.response?.data
-    if (data?.errorType === 'rate_limit') {
-      error.value = getApiErrorMessage(data, '请求过于频繁')
-      if (data.remainingMs)
-        rateLimitRemaining.value = Math.ceil(data.remainingMs / 1000)
-    }
-    else if (data?.errorType === 'locked') {
-      error.value = getApiErrorMessage(data, '账户已被锁定')
-      if (data.remainingMs)
-        lockoutRemaining.value = Math.ceil(data.remainingMs / 1000 / 60)
+    applyResultError(e.response?.data || e, '操作异常')
+  }
+}
+
+async function handleRegister() {
+  try {
+    const res = await userStore.register({
+      username: username.value,
+      password: password.value,
+      cardCode: cardCode.value,
+      qq: qq.value,
+    })
+    if (res.ok) {
+      success.value = '注册成功，请使用新账号登录'
+      setTimeout(() => switchMode('login'), 800)
     }
     else {
-      error.value = getApiErrorMessage(e, '操作异常')
+      error.value = res.error || '注册失败'
     }
+  }
+  catch (e: any) {
+    applyResultError(e.response?.data || e, '注册失败')
+  }
+}
+
+async function handleRenew() {
+  try {
+    const res = await userStore.publicRenew(username.value, cardCode.value)
+    if (res.ok)
+      success.value = '续费成功，请重新登录'
+    else
+      error.value = res.error || '续费失败'
+  }
+  catch (e: any) {
+    applyResultError(e.response?.data || e, '续费失败')
+  }
+}
+
+async function handleReset() {
+  try {
+    const res = await userStore.resetPassword(username.value, cardCode.value, password.value)
+    if (res.ok) {
+      success.value = '密码重置成功，请使用新密码登录'
+      setTimeout(() => switchMode('login'), 800)
+    }
+    else {
+      error.value = res.error || '密码重置失败'
+    }
+  }
+  catch (e: any) {
+    applyResultError(e.response?.data || e, '密码重置失败')
+  }
+}
+
+async function handleSubmit() {
+  if (!validateForm())
+    return
+  loading.value = true
+  error.value = ''
+  success.value = ''
+  try {
+    if (mode.value === 'login')
+      await handleLogin()
+    else if (mode.value === 'register')
+      await handleRegister()
+    else if (mode.value === 'renew')
+      await handleRenew()
+    else
+      await handleReset()
   }
   finally {
     loading.value = false
@@ -110,7 +212,21 @@ async function fetchGameVersion() {
   }
 }
 
-onMounted(fetchGameVersion)
+async function fetchLoginConfig() {
+  try {
+    const res = await api.get('/api/public/login-config', { skipErrorToast: true } as any)
+    if (res.data.ok && res.data.data)
+      loginConfig.value = { ...loginConfig.value, ...res.data.data }
+  }
+  catch (e) {
+    console.error('获取登录配置失败:', e)
+  }
+}
+
+onMounted(() => {
+  fetchGameVersion()
+  fetchLoginConfig()
+})
 </script>
 
 <template>
@@ -118,7 +234,7 @@ onMounted(fetchGameVersion)
     <section class="login-card">
       <header class="logo-area">
         <div class="logo-icon">
-          <img src="/icon.png" alt="">
+          <img :src="loginConfig.logoUrl || '/icon.png'" alt="">
         </div>
         <div>
           <span class="logo-kicker">QQ FARM</span>
@@ -126,10 +242,23 @@ onMounted(fetchGameVersion)
             QQ农场智能助手
           </h1>
           <p class="logo-subtitle">
-            超级管理员登录
+            {{ mode === 'register' ? loginConfig.registerSubtitle : loginConfig.loginSubtitle }}
           </p>
         </div>
       </header>
+
+      <nav class="mode-tabs">
+        <button
+          v-for="item in ([['login', '登录'], ['register', '注册'], ['renew', '续费'], ['reset', '找回密码']] as const)"
+          :key="item[0]"
+          type="button"
+          class="mode-tab"
+          :class="{ active: mode === item[0] }"
+          @click="switchMode(item[0])"
+        >
+          {{ item[1] }}
+        </button>
+      </nav>
 
       <form class="form-area" @submit.prevent="handleSubmit">
         <div class="form-group">
@@ -145,22 +274,69 @@ onMounted(fetchGameVersion)
             autocomplete="username"
             required
           />
-          <p v-if="username && !usernameValid.valid" class="form-hint error">
+          <p v-if="mode === 'register' && username && !usernameValid.valid" class="form-hint error">
             {{ usernameValid.message }}
           </p>
         </div>
 
-        <div class="form-group">
+        <div v-if="mode === 'register'" class="form-group">
+          <label class="form-label" for="qq">
+            <span class="i-carbon-logo-qq" />
+            绑定QQ
+          </label>
+          <BaseInput
+            id="qq"
+            v-model="qq"
+            type="text"
+            placeholder="请输入要绑定的QQ号"
+            autocomplete="off"
+          />
+          <p v-if="qq && !qqValid" class="form-hint error">
+            绑定QQ格式不正确（需为5-12位数字）
+          </p>
+        </div>
+
+        <div v-if="mode !== 'renew'" class="form-group">
           <label class="form-label" for="password">
             <span class="i-carbon-locked" />
-            密码
+            {{ mode === 'reset' ? '新密码' : '密码' }}
           </label>
           <BaseInput
             id="password"
             v-model="password"
             type="password"
             placeholder="请输入密码"
-            autocomplete="current-password"
+            :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
+            required
+          />
+        </div>
+
+        <div v-if="mode === 'register' || mode === 'reset'" class="form-group">
+          <label class="form-label" for="confirmPassword">
+            <span class="i-carbon-locked" />
+            确认密码
+          </label>
+          <BaseInput
+            id="confirmPassword"
+            v-model="confirmPassword"
+            type="password"
+            placeholder="请再次输入密码"
+            autocomplete="new-password"
+            required
+          />
+        </div>
+
+        <div v-if="mode !== 'login'" class="form-group">
+          <label class="form-label" for="cardCode">
+            <span class="i-carbon-ticket" />
+            卡密
+          </label>
+          <BaseInput
+            id="cardCode"
+            v-model="cardCode"
+            type="text"
+            placeholder="请输入卡密"
+            autocomplete="off"
             required
           />
         </div>
@@ -181,7 +357,7 @@ onMounted(fetchGameVersion)
         <BaseButton type="submit" variant="primary" block :loading="loading" class="submit-btn">
           <span v-if="!loading" class="inline-flex items-center gap-2">
             <span class="i-carbon-login" />
-            登录
+            {{ titleMap[mode] }}
           </span>
         </BaseButton>
       </form>
@@ -191,9 +367,35 @@ onMounted(fetchGameVersion)
           <span>Web v{{ appVersion }}</span>
           <span v-if="gameVersion">Game {{ gameVersion }}</span>
         </div>
-        <a href="https://github.com/liyangpengs/qq-farm-bot" target="_blank" rel="noopener noreferrer" class="github-link" aria-label="GitHub">
-          <span class="i-carbon-logo-github" />
-        </a>
+        <div class="footer-actions">
+          <a
+            v-if="loginConfig.qqGroupUrl"
+            :href="loginConfig.qqGroupUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer-link"
+            title="加入QQ群"
+            aria-label="加入QQ群"
+          >
+            <span class="i-carbon-group" />
+            <span class="footer-link__text">加入QQ群</span>
+          </a>
+          <a
+            v-if="loginConfig.purchaseUrl"
+            :href="loginConfig.purchaseUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer-link"
+            title="购买卡密"
+            aria-label="购买卡密"
+          >
+            <span class="i-carbon-shopping-cart" />
+            <span class="footer-link__text">购买卡密</span>
+          </a>
+          <a href="https://github.com/liyangpengs/qq-farm-bot" target="_blank" rel="noopener noreferrer" class="footer-link" aria-label="GitHub">
+            <span class="i-carbon-logo-github" />
+          </a>
+        </div>
       </footer>
     </section>
   </main>
@@ -244,7 +446,7 @@ onMounted(fetchGameVersion)
   display: flex;
   align-items: center;
   gap: 14px;
-  padding-bottom: 24px;
+  padding-bottom: 18px;
   border-bottom: 1px solid var(--ui-border);
 }
 
@@ -285,11 +487,36 @@ onMounted(fetchGameVersion)
   font-size: 12px;
 }
 
+.mode-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 14px 0 4px;
+}
+
+.mode-tab {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--ui-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.mode-tab.active {
+  border-color: rgba(67, 141, 99, 0.24);
+  color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+}
+
 .form-area {
   display: flex;
   flex-direction: column;
-  gap: 17px;
-  padding-top: 24px;
+  gap: 15px;
+  padding-top: 16px;
 }
 
 .form-group {
@@ -310,19 +537,6 @@ onMounted(fetchGameVersion)
 
 .form-label > span {
   color: var(--ui-primary);
-}
-
-.login-card :deep(.base-input) {
-  height: 42px;
-  border-color: var(--ui-border);
-  border-radius: 10px;
-  color: var(--ui-ink);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.login-card :deep(.base-input:focus) {
-  border-color: rgba(67, 141, 99, 0.55);
-  box-shadow: 0 0 0 3px rgba(67, 141, 99, 0.1);
 }
 
 .form-hint {
@@ -362,6 +576,7 @@ onMounted(fetchGameVersion)
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   margin-top: 22px;
   padding-top: 17px;
   border-top: 1px solid var(--ui-border);
@@ -374,17 +589,25 @@ onMounted(fetchGameVersion)
   gap: 12px;
 }
 
-.github-link {
-  display: grid;
-  width: 30px;
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   height: 30px;
-  place-items: center;
+  padding: 0 9px;
   border-radius: 8px;
   color: var(--ui-muted);
+  font-size: 11px;
   text-decoration: none;
 }
 
-.github-link:hover {
+.footer-link:hover {
   color: var(--ui-primary);
   background: var(--ui-primary-soft);
 }
@@ -412,6 +635,10 @@ onMounted(fetchGameVersion)
 
   .logo-title {
     font-size: 19px;
+  }
+
+  .footer-link__text {
+    display: none;
   }
 }
 </style>

@@ -17,6 +17,9 @@ const {
     handleApiError,
     getAccountList,
     resolveAccId,
+    getAccountsForUser,
+    canAccessAccount,
+    isAdminRole,
 } = require('./middleware');
 
 function mountAccountRoutes(app: Application, ctx: AdminContext): void {
@@ -25,6 +28,13 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
     app.get('/api/accounts', (req: Request, res: Response) => {
         try {
             const data = ctx.provider.getAccounts();
+            const currentUser = (req as any).currentUser;
+            if (currentUser && !isAdminRole(currentUser.role)) {
+                const owned = Array.isArray(data?.accounts)
+                    ? data.accounts.filter((a: any) => String(a.username || '') === String(currentUser.username))
+                    : [];
+                return res.json({ ok: true, data: { ...data, accounts: owned } });
+            }
             res.json({ ok: true, data });
         } catch (e: any) {
             handleApiError(res, e);
@@ -79,6 +89,15 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
 
             const resolvedUpdateId = isUpdate ? resolveAccId(ctx, updateRef) : '';
             const payload = isUpdate ? { ...body, id: resolvedUpdateId || String(updateRef) } : body;
+            const currentUser = (req as any).currentUser;
+            if (!isUpdate && currentUser && !isAdminRole(currentUser.role)) {
+                const ownedCount = getAccountsForUser(ctx, currentUser.username).length;
+                const limit = Number(currentUser.accountLimit) > 0 ? Number(currentUser.accountLimit) : 2;
+                if (ownedCount >= limit) {
+                    return res.status(403).json({ ok: false, error: `账号数量已达上限（${limit}），请购买额度卡密扩容` });
+                }
+                payload.username = currentUser.username;
+            }
             let wasRunning = false;
             if (isUpdate && ctx.provider.isAccountRunning) {
                 wasRunning = ctx.provider.isAccountRunning(payload.id);
@@ -132,6 +151,9 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
     app.delete('/api/accounts/:id', (req: Request, res: Response) => {
         try {
             const resolvedId = resolveAccId(ctx, req.params.id) || String(req.params.id || '');
+            if (!canAccessAccount(ctx, req as any, resolvedId)) {
+                return res.status(403).json({ ok: false, error: '无权操作此账号' });
+            }
 
             const before = ctx.provider.getAccounts();
             const target = findAccountByRef(before.accounts || [], req.params.id);
@@ -448,6 +470,11 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
                     qqQrLogin: body.qqQrLogin,
                     napCatEndpoint: body.napCatEndpoint,
                     napCatSignature: body.napCatSignature,
+                    logoUrl: body.logoUrl,
+                    loginSubtitle: body.loginSubtitle,
+                    registerSubtitle: body.registerSubtitle,
+                    purchaseUrl: body.purchaseUrl,
+                    qqGroupUrl: body.qqGroupUrl,
                 })
                 : { wechatQrLogin: true, qqQrLogin: false, napCatEndpoint: '', napCatSignature: '' };
             res.json({ ok: true, data: loginSettings });
