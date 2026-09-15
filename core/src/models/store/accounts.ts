@@ -22,6 +22,12 @@ function getAccounts(): AccountsData {
     return loadAccounts();
 }
 
+function getAccountsByUser(username: unknown): AccountsData {
+    const data = normalizeAccountsData(loadAccounts());
+    const owner = String(username || '');
+    return { ...data, accounts: data.accounts.filter(a => String(a.username || '') === owner) };
+}
+
 function normalizeAccountsData(raw: unknown): AccountsData {
     const data: any = raw && typeof raw === 'object' ? raw : {};
     const accounts: Account[] = (Array.isArray(data.accounts) ? data.accounts : []).map(normalizeAccount);
@@ -48,6 +54,8 @@ function normalizeAccount(raw: any): Account {
     };
     const nick = String(source.nick || '').trim();
     if (nick) account.nick = nick;
+    const username = String(source.username || '').trim();
+    if (username) account.username = username;
     return account;
 }
 
@@ -57,7 +65,7 @@ function addOrUpdateAccount(acc: Partial<Account> & { avatarUrl?: string }): Acc
     let touchedAccountId = '';
     const source: any = acc || {};
     const cleanAccount: any = {};
-    for (const key of ['id', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick']) {
+    for (const key of ['id', 'name', 'code', 'platform', 'uin', 'qq', 'avatar', 'avatarUrl', 'nick', 'username']) {
         if (source[key] !== undefined) cleanAccount[key] = source[key];
     }
     acc = cleanAccount;
@@ -105,6 +113,7 @@ module.exports = {
     loadAccounts,
     saveAccounts,
     getAccounts,
+    getAccountsByUser,
     normalizeAccountsData,
     addOrUpdateAccount,
     deleteAccount,

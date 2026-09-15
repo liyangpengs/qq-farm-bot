@@ -274,6 +274,7 @@ const connectionStatus = computed(() => {
 
 const navItems = computed(() => {
   return menuRoutes
+    .filter(item => !item.meta?.adminOnly || userStore.isAdmin)
     .map(item => ({
       path: item.path ? `/${item.path}` : '/',
       label: item.label,
@@ -425,7 +426,7 @@ async function copyToken() {
               {{ userStore.username }}
             </div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              超级管理员
+              {{ userStore.isAdmin ? '管理员' : '普通用户' }}
             </div>
           </div>
           <div class="py-1">

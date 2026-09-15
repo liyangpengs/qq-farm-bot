@@ -6,6 +6,7 @@ export interface MenuItem {
   component: () => Promise<any>
   meta?: {
     fullBleed?: boolean
+    adminOnly?: boolean
   }
 }
 
@@ -65,5 +66,13 @@ export const menuRoutes: MenuItem[] = [
     label: '设置',
     icon: 'i-carbon-settings',
     component: () => import('@/views/Settings.vue'),
+  },
+  {
+    path: 'admin',
+    name: 'UserAdmin',
+    label: '管理',
+    icon: 'i-carbon-user-admin',
+    component: () => import('@/views/UserAdmin.vue'),
+    meta: { adminOnly: true },
   },
 ]

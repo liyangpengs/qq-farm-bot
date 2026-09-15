@@ -86,6 +86,18 @@ router.beforeEach(async (to, _from) => {
     return { name: 'login' }
   }
 
+  if (to.meta.adminOnly) {
+    let role = ''
+    try {
+      role = JSON.parse(localStorage.getItem('user_info') || 'null')?.role || ''
+    }
+    catch {
+      role = ''
+    }
+    if (role !== 'admin' && role !== 'super_admin')
+      return { name: 'dashboard' }
+  }
+
   return true
 })
 

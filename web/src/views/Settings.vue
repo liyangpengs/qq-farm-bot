@@ -1291,6 +1291,11 @@ const localLoginSettings = ref({
   qqQrLogin: false,
   napCatEndpoint: '',
   napCatSignature: '',
+  logoUrl: '',
+  loginSubtitle: '',
+  registerSubtitle: '',
+  purchaseUrl: '',
+  qqGroupUrl: '',
 })
 const devicePresets = ref<any[]>([])
 const selectedPresetId = ref('')
@@ -1324,6 +1329,11 @@ function normalizeLoginSettings(source: any) {
     qqQrLogin: typeof source?.qqQrLogin === 'boolean' ? source.qqQrLogin : false,
     napCatEndpoint: typeof source?.napCatEndpoint === 'string' ? source.napCatEndpoint.trim() : '',
     napCatSignature: typeof source?.napCatSignature === 'string' ? source.napCatSignature.trim() : '',
+    logoUrl: typeof source?.logoUrl === 'string' ? source.logoUrl.trim() : '',
+    loginSubtitle: typeof source?.loginSubtitle === 'string' ? source.loginSubtitle.trim() : '',
+    registerSubtitle: typeof source?.registerSubtitle === 'string' ? source.registerSubtitle.trim() : '',
+    purchaseUrl: typeof source?.purchaseUrl === 'string' ? source.purchaseUrl.trim() : '',
+    qqGroupUrl: typeof source?.qqGroupUrl === 'string' ? source.qqGroupUrl.trim() : '',
   }
 }
 
@@ -2100,6 +2110,39 @@ async function handleResetSystemConfig() {
                     label="NapCat接口签名"
                     type="password"
                     placeholder="请输入 NapCat 接口签名"
+                  />
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50/70 p-4 sm:grid-cols-2 dark:border-gray-700 dark:bg-gray-900/30">
+                  <BaseInput
+                    v-model="localLoginSettings.logoUrl"
+                    label="Logo 图片地址"
+                    type="text"
+                    placeholder="留空使用默认图标"
+                  />
+                  <BaseInput
+                    v-model="localLoginSettings.qqGroupUrl"
+                    label="QQ群链接"
+                    type="text"
+                    placeholder="登录页底部进群图标链接"
+                  />
+                  <BaseInput
+                    v-model="localLoginSettings.loginSubtitle"
+                    label="登录页副标题"
+                    type="text"
+                    placeholder="欢迎回来，请登录你的账号"
+                  />
+                  <BaseInput
+                    v-model="localLoginSettings.registerSubtitle"
+                    label="注册页副标题"
+                    type="text"
+                    placeholder="注册新账号，开启自动化农场之旅"
+                  />
+                  <BaseInput
+                    v-model="localLoginSettings.purchaseUrl"
+                    label="购买卡密链接"
+                    type="text"
+                    placeholder="留空则不显示购买入口"
                   />
                 </div>
 

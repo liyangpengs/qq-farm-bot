@@ -3,6 +3,8 @@ const sharedState = require('./shared-state');
 const globalConfig = require('./global-config');
 const accountConfig = require('./account-config');
 const accounts = require('./accounts');
+const announcement = require('./announcement');
+const captureConfig = require('./capture-config');
 
 module.exports = {
     // Account config
@@ -55,10 +57,22 @@ module.exports = {
 
     // Accounts
     getAccounts: accounts.getAccounts,
+    getAccountsByUser: accounts.getAccountsByUser,
     addOrUpdateAccount: accounts.addOrUpdateAccount,
     deleteAccount: accounts.deleteAccount,
 
     // System config
     getSystemConfig: globalConfig.getSystemConfig,
     setSystemConfig: globalConfig.setSystemConfig,
+
+    // Announcement
+    getAnnouncement: announcement.getAnnouncement,
+    setAnnouncement: announcement.setAnnouncement,
+    shouldShowAnnouncement: announcement.shouldShowAnnouncement,
+    markAnnouncementRead: announcement.markAnnouncementRead,
+
+    // Capture
+    getCaptureConfig: captureConfig.getCaptureConfig,
+    setCaptureConfig: captureConfig.setCaptureConfig,
+    DEFAULT_CAPTURE_CONFIG: captureConfig.DEFAULT_CAPTURE_CONFIG,
 };

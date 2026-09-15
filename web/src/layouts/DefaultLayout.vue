@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
 import { NButton } from 'naive-ui/es/button'
+import { NModal } from 'naive-ui/es/modal'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import MobileBottomNav from '@/components/MobileBottomNav.vue'
 import Sidebar from '@/components/Sidebar.vue'
@@ -11,7 +12,7 @@ import { useAppStore } from '@/stores/app'
 const appStore = useAppStore()
 const route = useRoute()
 const isDesktop = useMediaQuery('(min-width: 1024px)')
-const { sidebarOpen, sidebarCollapsed } = storeToRefs(appStore)
+const { sidebarOpen, sidebarCollapsed, announcement, announcementVisible } = storeToRefs(appStore)
 const navigationExpanded = computed(() => isDesktop.value ? !sidebarCollapsed.value : sidebarOpen.value)
 const navigationToggleLabel = computed(() => navigationExpanded.value ? '收起侧栏' : '展开侧栏')
 
@@ -21,6 +22,10 @@ function toggleNavigation() {
   else
     appStore.toggleSidebar()
 }
+
+onMounted(() => {
+  appStore.fetchAnnouncement()
+})
 </script>
 
 <template>
@@ -67,6 +72,24 @@ function toggleNavigation() {
         </div>
       </div>
     </main>
+
+    <NModal
+      v-model:show="announcementVisible"
+      preset="card"
+      title="系统公告"
+      :style="{ width: 'min(560px, calc(100vw - 32px))' }"
+      :mask-closable="false"
+      :closable="false"
+    >
+      <div style="white-space: pre-wrap; line-height: 1.7; word-break: break-word;">{{ announcement.content }}</div>
+      <template #footer>
+        <div class="flex justify-end">
+          <NButton type="primary" @click="appStore.markAnnouncementRead()">
+            我知道了
+          </NButton>
+        </div>
+      </template>
+    </NModal>
 
     <MobileBottomNav v-if="!route.meta.fullBleed" />
   </div>

@@ -41,6 +41,11 @@ const DEFAULT_LOGIN_SETTINGS: LoginSettings = {
     qqQrLogin: false,
     napCatEndpoint: '',
     napCatSignature: '',
+    logoUrl: '',
+    loginSubtitle: '欢迎回来，请登录你的账号',
+    registerSubtitle: '注册新账号，开启自动化农场之旅',
+    purchaseUrl: '',
+    qqGroupUrl: '',
 };
 
 const DEFAULT_ACCOUNT_CONFIG: AccountConfig = {
@@ -549,6 +554,21 @@ function loadGlobalConfig(): void {
                     napCatSignature: typeof data.loginSettings.napCatSignature === 'string'
                         ? data.loginSettings.napCatSignature.trim()
                         : DEFAULT_LOGIN_SETTINGS.napCatSignature,
+                    logoUrl: typeof data.loginSettings.logoUrl === 'string'
+                        ? data.loginSettings.logoUrl.trim()
+                        : DEFAULT_LOGIN_SETTINGS.logoUrl,
+                    loginSubtitle: typeof data.loginSettings.loginSubtitle === 'string'
+                        ? data.loginSettings.loginSubtitle.trim()
+                        : DEFAULT_LOGIN_SETTINGS.loginSubtitle,
+                    registerSubtitle: typeof data.loginSettings.registerSubtitle === 'string'
+                        ? data.loginSettings.registerSubtitle.trim()
+                        : DEFAULT_LOGIN_SETTINGS.registerSubtitle,
+                    purchaseUrl: typeof data.loginSettings.purchaseUrl === 'string'
+                        ? data.loginSettings.purchaseUrl.trim()
+                        : DEFAULT_LOGIN_SETTINGS.purchaseUrl,
+                    qqGroupUrl: typeof data.loginSettings.qqGroupUrl === 'string'
+                        ? data.loginSettings.qqGroupUrl.trim()
+                        : DEFAULT_LOGIN_SETTINGS.qqGroupUrl,
                 };
             }
 
