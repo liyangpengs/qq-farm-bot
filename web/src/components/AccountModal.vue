@@ -125,7 +125,7 @@ async function addQrAccount(platform: 'wx' | 'qq', code: string, nickname: strin
 }
 
 async function submitPendingQrAccount(platform: 'wx' | 'qq') {
-  const name = form.name.trim()
+  const name = form.name.trim() || props.editData?.name || ''
   const code = platform === 'wx' ? wxPendingCode : qqPendingCode
   if (!name || !code || !props.show || activeLoginTab.value !== `${platform}_qr`)
     return
@@ -133,15 +133,18 @@ async function submitPendingQrAccount(platform: 'wx' | 'qq') {
   if (platform === 'wx') {
     wxPendingCode = ''
     wxError.value = ''
-    wxStatus.value = '正在添加账号...'
+    wxStatus.value = props.editData ? '正在重新登录...' : '正在添加账号...'
   }
   else {
     qqPendingCode = ''
     qqError.value = ''
-    qqStatus.value = '正在添加账号...'
+    qqStatus.value = props.editData ? '正在重新登录...' : '正在添加账号...'
   }
 
-  const saved = await addAccount({ name, code, platform, loginType: 'manual' })
+  const payload: any = { name, code, platform, loginType: 'manual' }
+  if (props.editData)
+    payload.id = props.editData.id
+  const saved = await addAccount(payload, !!props.editData)
   if (!saved && props.show && activeLoginTab.value === `${platform}_qr`) {
     if (platform === 'wx')
       wxPendingCode = code
@@ -608,8 +611,7 @@ watch(() => props.show, (newVal) => {
     errorMessage.value = ''
     activeLoginTab.value = 'code'
     resetWxLogin()
-    if (!props.editData)
-      void loadLoginSettings()
+    void loadLoginSettings()
     if (props.editData) {
       form.name = props.editData.name || ''
       form.code = props.editData.code || ''
@@ -676,7 +678,7 @@ onBeforeUnmount(() => {
           {{ errorMessage }}
         </div>
 
-        <NTabs v-if="!editData && loginSettingsLoaded" v-model:value="activeLoginTab" class="mb-4" type="line">
+        <NTabs v-if="loginSettingsLoaded" v-model:value="activeLoginTab" class="mb-4" type="line">
           <NTab name="code">
             输入 Code 登录
           </NTab>
