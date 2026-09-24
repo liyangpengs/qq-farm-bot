@@ -64,9 +64,9 @@ const form = reactive({
 })
 
 // 添加账号
-async function addAccount(data: any, skipNameCheck = false) {
+async function addAccount(data: any, isRelogin = false) {
   const name = String(data?.name || '').trim()
-  if (!skipNameCheck && !name) {
+  if (!isRelogin && !name) {
     errorMessage.value = '请输入账号备注'
     return false
   }
@@ -142,8 +142,6 @@ async function submitPendingQrAccount(platform: 'wx' | 'qq') {
   }
 
   const payload: any = { name, code, platform, loginType: 'manual' }
-  if (props.editData)
-    payload.id = props.editData.id
   const saved = await addAccount(payload, !!props.editData)
   if (!saved && props.show && activeLoginTab.value === `${platform}_qr`) {
     if (platform === 'wx')
@@ -212,32 +210,11 @@ async function submitManual() {
     form.code = code
   }
 
-  let payload: any = {}
-  if (props.editData) {
-    const onlyNameChanged = form.name !== props.editData.name
-      && form.code === (props.editData.code || '')
-      && form.platform === (props.editData.platform || 'qq')
-
-    if (onlyNameChanged) {
-      payload = { id: props.editData.id, name: form.name }
-    }
-    else {
-      payload = {
-        id: props.editData.id,
-        name: form.name,
-        code,
-        platform: form.platform,
-        loginType: 'manual',
-      }
-    }
-  }
-  else {
-    payload = {
-      name: form.name,
-      code,
-      platform: form.platform,
-      loginType: 'manual',
-    }
+  const payload: any = {
+    name: form.name,
+    code,
+    platform: props.editData ? (props.editData.platform || 'qq') : form.platform,
+    loginType: 'manual',
   }
 
   await addAccount(payload, !!props.editData)

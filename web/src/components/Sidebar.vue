@@ -578,7 +578,7 @@ async function copyToken() {
 
       <!-- Re-login prompt when account is stopped/disconnected -->
       <button
-        v-if="currentAccount?.id && !status?.connection?.connected"
+        v-if="connectionStatus.text === '未连接'"
         type="button"
         class="sidebar-relogin-btn mt-2 w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
         @click="accountToEdit = currentAccount; showAccountModal = true; showAccountDropdown = false"
