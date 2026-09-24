@@ -690,7 +690,7 @@ onBeforeUnmount(() => {
           </NTab>
         </NTabs>
 
-        <div v-if="editData || activeLoginTab === 'code'" class="space-y-4">
+        <div v-if="activeLoginTab === 'code'" class="space-y-4">
           <BaseInput
             v-if="!editData"
             v-model="form.name"
