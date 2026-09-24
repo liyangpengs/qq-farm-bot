@@ -64,9 +64,9 @@ const form = reactive({
 })
 
 // 添加账号
-async function addAccount(data: any) {
+async function addAccount(data: any, skipNameCheck = false) {
   const name = String(data?.name || '').trim()
-  if (!name) {
+  if (!skipNameCheck && !name) {
     errorMessage.value = '请输入账号备注'
     return false
   }
@@ -192,7 +192,7 @@ async function loadLoginSettings() {
 // 手动提交
 async function submitManual() {
   errorMessage.value = ''
-  if (!form.name.trim()) {
+  if (!props.editData && !form.name.trim()) {
     errorMessage.value = '请输入账号备注'
     return
   }
@@ -237,7 +237,7 @@ async function submitManual() {
     }
   }
 
-  await addAccount(payload)
+  await addAccount(payload, !!props.editData)
 }
 
 function stopWxPolling() {
@@ -690,6 +690,7 @@ onBeforeUnmount(() => {
 
         <div v-if="editData || activeLoginTab === 'code'" class="space-y-4">
           <BaseInput
+            v-if="!editData"
             v-model="form.name"
             label="账号备注（必填）"
             placeholder="请输入账号备注"
