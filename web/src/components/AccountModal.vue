@@ -64,9 +64,9 @@ const form = reactive({
 })
 
 // 添加账号
-async function addAccount(data: any) {
+async function addAccount(data: any, isRelogin = false) {
   const name = String(data?.name || '').trim()
-  if (!name) {
+  if (!isRelogin && !name) {
     errorMessage.value = '请输入账号备注'
     return false
   }
@@ -125,7 +125,7 @@ async function addQrAccount(platform: 'wx' | 'qq', code: string, nickname: strin
 }
 
 async function submitPendingQrAccount(platform: 'wx' | 'qq') {
-  const name = form.name.trim()
+  const name = form.name.trim() || props.editData?.name || ''
   const code = platform === 'wx' ? wxPendingCode : qqPendingCode
   if (!name || !code || !props.show || activeLoginTab.value !== `${platform}_qr`)
     return
@@ -133,15 +133,16 @@ async function submitPendingQrAccount(platform: 'wx' | 'qq') {
   if (platform === 'wx') {
     wxPendingCode = ''
     wxError.value = ''
-    wxStatus.value = '正在添加账号...'
+    wxStatus.value = props.editData ? '正在重新登录...' : '正在添加账号...'
   }
   else {
     qqPendingCode = ''
     qqError.value = ''
-    qqStatus.value = '正在添加账号...'
+    qqStatus.value = props.editData ? '正在重新登录...' : '正在添加账号...'
   }
 
-  const saved = await addAccount({ name, code, platform, loginType: 'manual' })
+  const payload: any = { name, code, platform, loginType: 'manual' }
+  const saved = await addAccount(payload, !!props.editData)
   if (!saved && props.show && activeLoginTab.value === `${platform}_qr`) {
     if (platform === 'wx')
       wxPendingCode = code
@@ -192,7 +193,7 @@ async function loadLoginSettings() {
 // 手动提交
 async function submitManual() {
   errorMessage.value = ''
-  if (!form.name.trim()) {
+  if (!props.editData && !form.name.trim()) {
     errorMessage.value = '请输入账号备注'
     return
   }
@@ -209,35 +210,14 @@ async function submitManual() {
     form.code = code
   }
 
-  let payload: any = {}
-  if (props.editData) {
-    const onlyNameChanged = form.name !== props.editData.name
-      && form.code === (props.editData.code || '')
-      && form.platform === (props.editData.platform || 'qq')
-
-    if (onlyNameChanged) {
-      payload = { id: props.editData.id, name: form.name }
-    }
-    else {
-      payload = {
-        id: props.editData.id,
-        name: form.name,
-        code,
-        platform: form.platform,
-        loginType: 'manual',
-      }
-    }
-  }
-  else {
-    payload = {
-      name: form.name,
-      code,
-      platform: form.platform,
-      loginType: 'manual',
-    }
+  const payload: any = {
+    name: form.name,
+    code,
+    platform: props.editData ? (props.editData.platform || 'qq') : form.platform,
+    loginType: 'manual',
   }
 
-  await addAccount(payload)
+  await addAccount(payload, !!props.editData)
 }
 
 function stopWxPolling() {
@@ -608,8 +588,7 @@ watch(() => props.show, (newVal) => {
     errorMessage.value = ''
     activeLoginTab.value = 'code'
     resetWxLogin()
-    if (!props.editData)
-      void loadLoginSettings()
+    void loadLoginSettings()
     if (props.editData) {
       form.name = props.editData.name || ''
       form.code = props.editData.code || ''
@@ -676,7 +655,7 @@ onBeforeUnmount(() => {
           {{ errorMessage }}
         </div>
 
-        <NTabs v-if="!editData && loginSettingsLoaded" v-model:value="activeLoginTab" class="mb-4" type="line">
+        <NTabs v-if="loginSettingsLoaded" v-model:value="activeLoginTab" class="mb-4" type="line">
           <NTab name="code">
             输入 Code 登录
           </NTab>
@@ -688,8 +667,9 @@ onBeforeUnmount(() => {
           </NTab>
         </NTabs>
 
-        <div v-if="editData || activeLoginTab === 'code'" class="space-y-4">
+        <div v-if="activeLoginTab === 'code'" class="space-y-4">
           <BaseInput
+            v-if="!editData"
             v-model="form.name"
             label="账号备注（必填）"
             placeholder="请输入账号备注"
