@@ -33,9 +33,12 @@ async function sendPlantRequest(
 }
 
 async function getAllLands(): Promise<any> {
+    const forecast = require('../level-forecast');
+    const revision = forecast.getLandForecastRevision();
     const body = types.AllLandsRequest.encode(types.AllLandsRequest.create({})).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'AllLands', body);
     const reply = types.AllLandsReply.decode(replyBody);
+    forecast.rememberLandForecast(reply.lands, getUserState(), revision);
     // 更新操作限制
     if (reply.operation_limits && onOperationLimitsUpdate) {
         onOperationLimitsUpdate(reply.operation_limits);

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 const props = withDefaults(defineProps<{
   land: any
+  showDetails?: boolean
   selectable?: boolean
   selected?: boolean
   selectionDisabled?: boolean
@@ -36,6 +37,7 @@ const emit = defineEmits<{
   select: [land: any]
   fertilize: [land: any, fertilizerType: 'normal' | 'organic']
   farm: [land: any]
+  details: [land: any]
 }>()
 
 const land = computed(() => props.land)
@@ -380,6 +382,9 @@ function markMutantIconFailed(effect: { id?: number }) {
     </div>
 
     <!-- Status Badges (game-style) -->
+    <button v-if="showDetails" type="button" class="mt-1 rounded px-2 py-1 text-[11px] text-gray-600 underline underline-offset-3 decoration-dotted dark:text-gray-300 hover:text-green-700 focus-visible:outline" :aria-label="`查看第 ${land.id} 块土地详情`" @click.stop="emit('details', land)" @keydown.stop>
+      土地详情
+    </button>
     <div class="mt-auto flex flex-wrap items-center justify-center gap-1 pt-1">
       <span
         v-if="purpleCrystalResonancePercent > 0"

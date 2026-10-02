@@ -1,0 +1,578 @@
+[
+  {
+    "land_id": 1,
+    "level": 2,
+    "level_need": 28,
+    "items_need": "1001:200000;"
+  },
+  {
+    "land_id": 1,
+    "level": 3,
+    "level_need": 40,
+    "items_need": "1001:600000;"
+  },
+  {
+    "land_id": 1,
+    "level": 4,
+    "level_need": 58,
+    "items_need": "1001:1000000;"
+  },
+  {
+    "land_id": 1,
+    "level": 5,
+    "level_need": 90,
+    "items_need": "1001:50000000;1005:500"
+  },
+  {
+    "land_id": 2,
+    "level": 2,
+    "level_need": 29,
+    "items_need": "1001:250000;"
+  },
+  {
+    "land_id": 2,
+    "level": 3,
+    "level_need": 41,
+    "items_need": "1001:800000;"
+  },
+  {
+    "land_id": 2,
+    "level": 4,
+    "level_need": 59,
+    "items_need": "1001:1400000;"
+  },
+  {
+    "land_id": 2,
+    "level": 5,
+    "level_need": 93,
+    "items_need": "1001:70000000;1005:600"
+  },
+  {
+    "land_id": 3,
+    "level": 2,
+    "level_need": 30,
+    "items_need": "1001:300000;"
+  },
+  {
+    "land_id": 3,
+    "level": 3,
+    "level_need": 42,
+    "items_need": "1001:1000000;"
+  },
+  {
+    "land_id": 3,
+    "level": 4,
+    "level_need": 60,
+    "items_need": "1001:1800000;"
+  },
+  {
+    "land_id": 3,
+    "level": 5,
+    "level_need": 96,
+    "items_need": "1001:90000000;1005:720"
+  },
+  {
+    "land_id": 4,
+    "level": 2,
+    "level_need": 31,
+    "items_need": "1001:350000;"
+  },
+  {
+    "land_id": 4,
+    "level": 3,
+    "level_need": 43,
+    "items_need": "1001:1200000;"
+  },
+  {
+    "land_id": 4,
+    "level": 4,
+    "level_need": 61,
+    "items_need": "1001:2200000;"
+  },
+  {
+    "land_id": 4,
+    "level": 5,
+    "level_need": 99,
+    "items_need": "1001:110000000;1005:860"
+  },
+  {
+    "land_id": 5,
+    "level": 2,
+    "level_need": 32,
+    "items_need": "1001:400000;"
+  },
+  {
+    "land_id": 5,
+    "level": 3,
+    "level_need": 44,
+    "items_need": "1001:1400000;"
+  },
+  {
+    "land_id": 5,
+    "level": 4,
+    "level_need": 62,
+    "items_need": "1001:2600000;"
+  },
+  {
+    "land_id": 5,
+    "level": 5,
+    "level_need": 102,
+    "items_need": "1001:130000000;1005:1030"
+  },
+  {
+    "land_id": 6,
+    "level": 2,
+    "level_need": 33,
+    "items_need": "1001:500000;"
+  },
+  {
+    "land_id": 6,
+    "level": 3,
+    "level_need": 45,
+    "items_need": "1001:1600000;"
+  },
+  {
+    "land_id": 6,
+    "level": 4,
+    "level_need": 63,
+    "items_need": "1001:3000000;"
+  },
+  {
+    "land_id": 6,
+    "level": 5,
+    "level_need": 105,
+    "items_need": "1001:150000000;1005:1230"
+  },
+  {
+    "land_id": 7,
+    "level": 2,
+    "level_need": 34,
+    "items_need": "1001:600000;"
+  },
+  {
+    "land_id": 7,
+    "level": 3,
+    "level_need": 46,
+    "items_need": "1001:1800000;"
+  },
+  {
+    "land_id": 7,
+    "level": 4,
+    "level_need": 64,
+    "items_need": "1001:3400000;"
+  },
+  {
+    "land_id": 7,
+    "level": 5,
+    "level_need": 108,
+    "items_need": "1001:170000000;1005:1470"
+  },
+  {
+    "land_id": 8,
+    "level": 2,
+    "level_need": 35,
+    "items_need": "1001:700000;"
+  },
+  {
+    "land_id": 8,
+    "level": 3,
+    "level_need": 47,
+    "items_need": "1001:2200000;"
+  },
+  {
+    "land_id": 8,
+    "level": 4,
+    "level_need": 65,
+    "items_need": "1001:4200000;"
+  },
+  {
+    "land_id": 8,
+    "level": 5,
+    "level_need": 111,
+    "items_need": "1001:190000000;1005:1760"
+  },
+  {
+    "land_id": 9,
+    "level": 2,
+    "level_need": 36,
+    "items_need": "1001:800000;"
+  },
+  {
+    "land_id": 9,
+    "level": 3,
+    "level_need": 48,
+    "items_need": "1001:2600000;"
+  },
+  {
+    "land_id": 9,
+    "level": 4,
+    "level_need": 66,
+    "items_need": "1001:5000000;"
+  },
+  {
+    "land_id": 9,
+    "level": 5,
+    "level_need": 114,
+    "items_need": "1001:210000000;1005:2110"
+  },
+  {
+    "land_id": 10,
+    "level": 2,
+    "level_need": 37,
+    "items_need": "1001:900000;"
+  },
+  {
+    "land_id": 10,
+    "level": 3,
+    "level_need": 49,
+    "items_need": "1001:3000000;"
+  },
+  {
+    "land_id": 10,
+    "level": 4,
+    "level_need": 67,
+    "items_need": "1001:5800000;"
+  },
+  {
+    "land_id": 10,
+    "level": 5,
+    "level_need": 117,
+    "items_need": "1001:230000000;1005:2530"
+  },
+  {
+    "land_id": 11,
+    "level": 2,
+    "level_need": 38,
+    "items_need": "1001:1000000;"
+  },
+  {
+    "land_id": 11,
+    "level": 3,
+    "level_need": 50,
+    "items_need": "1001:3400000;"
+  },
+  {
+    "land_id": 11,
+    "level": 4,
+    "level_need": 68,
+    "items_need": "1001:6600000;"
+  },
+  {
+    "land_id": 11,
+    "level": 5,
+    "level_need": 120,
+    "items_need": "1001:250000000;1005:3030"
+  },
+  {
+    "land_id": 12,
+    "level": 2,
+    "level_need": 39,
+    "items_need": "1001:1100000;"
+  },
+  {
+    "land_id": 12,
+    "level": 3,
+    "level_need": 51,
+    "items_need": "1001:3800000;"
+  },
+  {
+    "land_id": 12,
+    "level": 4,
+    "level_need": 69,
+    "items_need": "1001:7400000;"
+  },
+  {
+    "land_id": 12,
+    "level": 5,
+    "level_need": 123,
+    "items_need": "1001:270000000;1005:3630"
+  },
+  {
+    "land_id": 13,
+    "level": 2,
+    "level_need": 40,
+    "items_need": "1001:1200000;"
+  },
+  {
+    "land_id": 13,
+    "level": 3,
+    "level_need": 52,
+    "items_need": "1001:4200000;"
+  },
+  {
+    "land_id": 13,
+    "level": 4,
+    "level_need": 70,
+    "items_need": "1001:8200000;"
+  },
+  {
+    "land_id": 13,
+    "level": 5,
+    "level_need": 126,
+    "items_need": "1001:290000000;1005:4350"
+  },
+  {
+    "land_id": 14,
+    "level": 2,
+    "level_need": 41,
+    "items_need": "1001:1300000;"
+  },
+  {
+    "land_id": 14,
+    "level": 3,
+    "level_need": 53,
+    "items_need": "1001:4600000;"
+  },
+  {
+    "land_id": 14,
+    "level": 4,
+    "level_need": 71,
+    "items_need": "1001:9000000;"
+  },
+  {
+    "land_id": 14,
+    "level": 5,
+    "level_need": 129,
+    "items_need": "1001:310000000;1005:5220"
+  },
+  {
+    "land_id": 15,
+    "level": 2,
+    "level_need": 42,
+    "items_need": "1001:1400000;"
+  },
+  {
+    "land_id": 15,
+    "level": 3,
+    "level_need": 54,
+    "items_need": "1001:5000000;"
+  },
+  {
+    "land_id": 15,
+    "level": 4,
+    "level_need": 72,
+    "items_need": "1001:9800000;"
+  },
+  {
+    "land_id": 15,
+    "level": 5,
+    "level_need": 132,
+    "items_need": "1001:330000000;1005:6260"
+  },
+  {
+    "land_id": 16,
+    "level": 2,
+    "level_need": 43,
+    "items_need": "1001:1500000;"
+  },
+  {
+    "land_id": 16,
+    "level": 3,
+    "level_need": 55,
+    "items_need": "1001:5400000;"
+  },
+  {
+    "land_id": 16,
+    "level": 4,
+    "level_need": 73,
+    "items_need": "1001:10600000;"
+  },
+  {
+    "land_id": 16,
+    "level": 5,
+    "level_need": 135,
+    "items_need": "1001:350000000;1005:7510"
+  },
+  {
+    "land_id": 17,
+    "level": 2,
+    "level_need": 44,
+    "items_need": "1001:1600000;"
+  },
+  {
+    "land_id": 17,
+    "level": 3,
+    "level_need": 56,
+    "items_need": "1001:5800000;"
+  },
+  {
+    "land_id": 17,
+    "level": 4,
+    "level_need": 74,
+    "items_need": "1001:11400000;"
+  },
+  {
+    "land_id": 17,
+    "level": 5,
+    "level_need": 138,
+    "items_need": "1001:370000000;1005:9010"
+  },
+  {
+    "land_id": 18,
+    "level": 2,
+    "level_need": 45,
+    "items_need": "1001:1700000;"
+  },
+  {
+    "land_id": 18,
+    "level": 3,
+    "level_need": 57,
+    "items_need": "1001:6200000;"
+  },
+  {
+    "land_id": 18,
+    "level": 4,
+    "level_need": 75,
+    "items_need": "1001:12200000;"
+  },
+  {
+    "land_id": 18,
+    "level": 5,
+    "level_need": 141,
+    "items_need": "1001:390000000;1005:10810"
+  },
+  {
+    "land_id": 19,
+    "level": 2,
+    "level_need": 47,
+    "items_need": "1001:1800000;"
+  },
+  {
+    "land_id": 19,
+    "level": 3,
+    "level_need": 59,
+    "items_need": "1001:6600000;"
+  },
+  {
+    "land_id": 19,
+    "level": 4,
+    "level_need": 77,
+    "items_need": "1001:13000000;"
+  },
+  {
+    "land_id": 19,
+    "level": 5,
+    "level_need": 144,
+    "items_need": "1001:410000000;1005:12970"
+  },
+  {
+    "land_id": 20,
+    "level": 2,
+    "level_need": 49,
+    "items_need": "1001:1900000;"
+  },
+  {
+    "land_id": 20,
+    "level": 3,
+    "level_need": 61,
+    "items_need": "1001:7000000;"
+  },
+  {
+    "land_id": 20,
+    "level": 4,
+    "level_need": 79,
+    "items_need": "1001:13800000;"
+  },
+  {
+    "land_id": 20,
+    "level": 5,
+    "level_need": 147,
+    "items_need": "1001:430000000;1005:15560"
+  },
+  {
+    "land_id": 21,
+    "level": 2,
+    "level_need": 51,
+    "items_need": "1001:2000000;"
+  },
+  {
+    "land_id": 21,
+    "level": 3,
+    "level_need": 63,
+    "items_need": "1001:7400000;"
+  },
+  {
+    "land_id": 21,
+    "level": 4,
+    "level_need": 81,
+    "items_need": "1001:14600000;"
+  },
+  {
+    "land_id": 21,
+    "level": 5,
+    "level_need": 150,
+    "items_need": "1001:450000000;1005:18670"
+  },
+  {
+    "land_id": 22,
+    "level": 2,
+    "level_need": 53,
+    "items_need": "1001:2100000;"
+  },
+  {
+    "land_id": 22,
+    "level": 3,
+    "level_need": 65,
+    "items_need": "1001:7800000;"
+  },
+  {
+    "land_id": 22,
+    "level": 4,
+    "level_need": 83,
+    "items_need": "1001:15400000;"
+  },
+  {
+    "land_id": 22,
+    "level": 5,
+    "level_need": 153,
+    "items_need": "1001:470000000;1005:22400"
+  },
+  {
+    "land_id": 23,
+    "level": 2,
+    "level_need": 55,
+    "items_need": "1001:2200000;"
+  },
+  {
+    "land_id": 23,
+    "level": 3,
+    "level_need": 67,
+    "items_need": "1001:8200000;"
+  },
+  {
+    "land_id": 23,
+    "level": 4,
+    "level_need": 85,
+    "items_need": "1001:16200000;"
+  },
+  {
+    "land_id": 23,
+    "level": 5,
+    "level_need": 156,
+    "items_need": "1001:490000000;1005:26880"
+  },
+  {
+    "land_id": 24,
+    "level": 2,
+    "level_need": 57,
+    "items_need": "1001:2300000;"
+  },
+  {
+    "land_id": 24,
+    "level": 3,
+    "level_need": 69,
+    "items_need": "1001:8600000;"
+  },
+  {
+    "land_id": 24,
+    "level": 4,
+    "level_need": 87,
+    "items_need": "1001:17000000;"
+  },
+  {
+    "land_id": 24,
+    "level": 5,
+    "level_need": 159,
+    "items_need": "1001:510000000;1005:32250"
+  }
+]

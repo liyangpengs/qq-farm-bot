@@ -18,6 +18,7 @@ const {
 const { toNum, toTimeSec, getServerTimeSec, log, logWarn } = require('../../utils/utils');
 
 const MATURE_PHASE_RECORD_ID = 19;
+const { buildLandUpgradeDetail } = require('./land-upgrade');
 
 function int64String(value: any): string {
     if (value == null) return '0';
@@ -277,6 +278,7 @@ function buildLandDetail(land: any, options: { friendMode?: boolean; landsMap?: 
         landsLevel,
         landSize,
         landBuff,
+        landInfo: friendMode ? undefined : buildLandUpgradeDetail(land, landsMap),
         couldUnlock: !!land?.could_unlock,
         couldUpgrade: !!land?.could_upgrade,
         occupiedByMaster: !!context.occupiedByMaster,

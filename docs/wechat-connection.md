@@ -7,7 +7,7 @@ Windows 微信真实样本（2026-09-25）确认：客户端为 `1.14.2.13_20260
 - 账号为 wx/wechat 且使用内置 QQ 默认版本时，握手、Login 和 Heartbeat 统一选择微信版本；自定义版本继续生效。QQ 保持原有版本与完整初始化凭据向量。
 - 微信 Login 使用渠道 `other`，从设备配置读取 network、memory 和 device_id。没有小游戏启动上下文时省略 scene_id，不套用本次样本的入口值。
 - 微信独立加载 `core/src/utils/tsdk-wx.wasm`，QQ 继续加载 `tsdk.wasm`。两者分别校验 SHA-256，容器与 pkg 资源清单均包含微信 WASM。
-- 微信 WASM SHA-256：`4bf6aa0ede9677fe82186c1a76f8df8a14ccd6d14b6ff1280230923189f4e972`；QQ 仍为 `2c9e377ecc9a4fd9019f12191b589d543a60d6654580eb3e237b35f1fa5b1cb7`。
+- 微信 WASM SHA-256：`4bf6aa0ede9677fe82186c1a76f8df8a14ccd6d14b6ff1280230923189f4e972`；QQ 当前构建与校验值见 [TSDK 运行约定](tsdk-runtime.md)。
 - ACE 请求按运行实例隔离：停止后到达的旧响应不再进入新实例，也不重置新实例的请求状态。5 秒处理周期、25 秒心跳及各分支调度策略保持原有设计。
 
 ## 已知能力边界

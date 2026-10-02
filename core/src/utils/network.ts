@@ -7,6 +7,7 @@ const { getClientVersion, getLoginDeviceInfo, isWechatPlatform } = require('./cl
 const { createScheduler } = require('../services/scheduler');
 const { updateStatusFromLogin, updateStatusGold, updateStatusLevel } = require('../services/status');
 const { recordOperation } = require('../services/stats');
+const { invalidateLandForecast } = require('../services/level-forecast');
 const { types } = require('./proto');
 const { toLong, toNum, syncServerTime, log, logWarn, sleep } = require('./utils');
 const cryptoWasm = require('./crypto-wasm');
@@ -544,6 +545,10 @@ function handleMessage(data: Buffer): void {
                 if (errorCode !== 0) {
                     pending.callback(new GatewayError(meta));
                 } else {
+                    if ((meta.service_name === 'gamepb.plantpb.PlantService' && meta.method_name !== 'AllLands')
+                        || (meta.service_name === 'gamepb.itempb.ItemService' && meta.method_name === 'Use')) {
+                        invalidateLandForecast();
+                    }
                     pending.callback(null, msg.body, meta);
                 }
                 
@@ -587,6 +592,7 @@ function handleNotify(msg: any): void {
                 const lands = notify.lands || [];
                 if (lands.length > 0) {
                     if (hostGid === userState.gid || hostGid === 0) {
+                        invalidateLandForecast();
                         networkEvents.emit('landsChanged', lands);
                     }
                 }
@@ -1040,6 +1046,7 @@ function clearNetworkRuntime(reason: string): void {
     networkScheduler.clearAll();
     stopAceRuntime(true);
     gatewayTokens.clear();
+    invalidateLandForecast();
     userState.gid = 0;
     userState.openId = '';
 }

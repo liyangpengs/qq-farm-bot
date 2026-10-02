@@ -109,6 +109,7 @@ const session: SessionData = {
 };
 
 let currentAccountId: string | null = null;
+let sessionStartedAt = Date.now();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function recordOperation(type: string, count: number = 1): void {
@@ -153,6 +154,7 @@ function doSave(): void {
 }
 
 function initStats(gold: number, exp: number, coupon: number = 0): void {
+    sessionStartedAt = Date.now();
     const g: number = Number.isFinite(Number(gold)) ? Number(gold) : 0;
     const e: number = Number.isFinite(Number(exp)) ? Number(exp) : 0;
     const c: number = Number.isFinite(Number(coupon)) ? Number(coupon) : 0;
@@ -278,6 +280,7 @@ function getStats(statusData: any, userState: any, connected: boolean, limits: a
             avatarUrl: String(userObj.avatarUrl || statusObj.avatarUrl || '').trim(),
         },
         uptime: process.uptime(),
+        sessionElapsedSeconds: Math.max(0, (Date.now() - sessionStartedAt) / 1000),
         operations: operationsSnapshot,
         sessionExpGained: session.expGained,
         sessionGoldGained: session.goldGained,

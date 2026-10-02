@@ -1187,6 +1187,9 @@ function syncStatus(force: boolean = false): void {
     fullStats.automation = getAutomation();
     fullStats.preferredSeed = getPreferredSeed();
     fullStats.levelProgress = expProgress;
+    fullStats.levelForecast = require('../services/level-forecast').getLevelForecast(
+        userState, expProgress, fullStats, fullStats.automation, farmQuiet,
+    );
     fullStats.configRevision = appliedConfigRevision;
     const hash = JSON.stringify(fullStats);
     const now = Date.now();

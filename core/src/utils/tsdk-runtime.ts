@@ -10,8 +10,8 @@ const { CONFIG } = require('../config/config');
 const { ensureDataDir, getResourcePath } = require('../config/runtime-paths');
 const { log, logWarn } = require('./utils');
 
-const TSDK_VERSION = 'v3.9.0.1790160550';
-const TSDK_SHA256 = '2c9e377ecc9a4fd9019f12191b589d543a60d6654580eb3e237b35f1fa5b1cb7';
+const TSDK_VERSION = 'v3.9.0.1790414929';
+const TSDK_SHA256 = 'f80c5f34f4e7dc55af468fbfd0a6e6ca43d0a1dcecd3f30731063aaf94704ff4';
 const TSDK_BUILDS = Object.freeze({
     qq: { file: 'tsdk.wasm', version: TSDK_VERSION, sha256: TSDK_SHA256 },
     wx: { file: 'tsdk-wx.wasm', version: 'v3.9.0.1790237209', sha256: '4bf6aa0ede9677fe82186c1a76f8df8a14ccd6d14b6ff1280230923189f4e972' },
