@@ -325,6 +325,17 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
         }
     });
 
+    app.post('/api/seeds/purchase', async (req: Request, res: Response) => {
+        const id = getAccId(ctx, req);
+        if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
+        try {
+            const data = await ctx.provider.purchaseSeed(id, req.body?.goodsId, req.body?.count);
+            res.json({ ok: true, data });
+        } catch (e: any) {
+            handleApiError(res, e);
+        }
+    });
+
     app.get('/api/illustrated', async (req: Request, res: Response) => {
         const id = getAccId(ctx, req);
         if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });

@@ -242,6 +242,7 @@ function createDataProvider(options: DataProviderOptions) {
             callWorkerApi(resolveAccountRefId(accountRef), 'purchaseMysteryOffer', npcId)
         ),
         getSeeds: (accountRef: string) => callWorkerApi(resolveAccountRefId(accountRef), 'getSeeds', true),
+        purchaseSeed: (accountRef: string, goodsId: unknown, count: unknown) => callWorkerApi(resolveAccountRefId(accountRef), 'purchaseSeed', goodsId, count),
 
         setAutomation: async (accountRef: string, key: string, value: any) => {
             const accountId = resolveAccountRefId(accountRef);

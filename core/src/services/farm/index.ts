@@ -23,6 +23,7 @@ module.exports = {
     getAllLands: api.getAllLands,
     getLandsDetail: planting.getLandsDetail,
     getAvailableSeeds: planting.getAvailableSeeds,
+    purchaseSeed: planting.purchaseSeed,
     runFarmOperation: scheduler.runFarmOperation,
     runFertilizerByConfig: planting.runFertilizerByConfig,
     fertilizeOwnLand: planting.fertilizeOwnLand,
