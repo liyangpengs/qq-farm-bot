@@ -4,12 +4,15 @@ const {
     getItemById,
     getItemImageById,
     getPlantBySeedId,
+    getPlantByFruitId,
     getPlantNameBySeedId,
     getIllustratedTypeByParam,
     getIllustratedSortByParam,
     getIllustratedBuffsByLevel,
     getIllustratedBuffs,
+    getAllSeeds,
 } = require('../config/gameConfig');
+const { getAvailableSeeds } = require('./farm');
 const protobuf = require('protobufjs');
 const { sendMsgAsync } = require('../utils/network');
 const { types } = require('../utils/proto');
@@ -124,8 +127,20 @@ async function buildIllustratedSnapshot(): Promise<any> {
     const cropLevels = await getIllustratedLevels(1);
     const mutantList = await getIllustratedList(2);
     const mutantLevels = await getIllustratedLevels(2);
+    const crop = normalizeBook(1, cropList, cropLevels);
+    const seeds = await getAvailableSeeds();
+    const seedById = new Map(seeds.map((seed: any) => [toNum(seed.seedId), seed]));
+    const localSeeds = new Map(getAllSeeds().map((seed: any) => [toNum(seed.seedId), seed]));
+    crop.items = crop.items.map((item: any) => {
+        const itemId = toNum(item.seedId);
+        const plant = getPlantBySeedId(itemId) || getPlantByFruitId(itemId);
+        const seedId = toNum(plant && plant.seed_id) || itemId;
+        const shopSeed: any = seedById.get(seedId);
+        const localSeed: any = localSeeds.get(seedId);
+        return { ...item, seedId, shopSeed: shopSeed || (localSeed ? { ...localSeed, goodsId: 0, price: null, unknownMeta: true, requiresUnlockCard: false } : null) };
+    });
     return {
-        crop: normalizeBook(1, cropList, cropLevels),
+        crop,
         mutant: normalizeBook(2, mutantList, mutantLevels),
         updatedAt: Date.now(),
     };

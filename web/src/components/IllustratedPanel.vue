@@ -2,19 +2,27 @@
 import { NButton } from 'naive-ui/es/button'
 import { NCard } from 'naive-ui/es/card'
 import { NModal } from 'naive-ui/es/modal'
+import { NInputNumber } from 'naive-ui/es/input-number'
 import { NProgress } from 'naive-ui/es/progress'
 import { NTab, NTabs } from 'naive-ui/es/tabs'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
+import api, { getApiErrorMessage } from '@/api'
 import { useAccountStore } from '@/stores/account'
 import { useIllustratedStore } from '@/stores/illustrated'
+import { useToastStore } from '@/stores/toast'
 
 const accountStore = useAccountStore()
 const illustratedStore = useIllustratedStore()
+const toast = useToastStore()
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
 const { data, loading, error } = storeToRefs(illustratedStore)
 const currentType = ref<'crop' | 'mutant'>('crop')
 const detailsOpen = ref(false)
+const purchaseDialogOpen = ref(false)
+const selectedSeedItem = ref<any>(null)
+const purchaseCount = ref(1)
+const purchasingSeedId = ref<number | null>(null)
 
 const book = computed(() => data.value?.[currentType.value] || null)
 const isConnected = computed(() => !!currentAccount.value?.running)
@@ -51,6 +59,52 @@ function progressPercent(value: any, next: any) {
   const current = Math.max(0, Number(value) || 0)
   const target = Math.max(current, Number(next) || 0)
   return target > 0 ? Math.min(100, Math.round(current / target * 100)) : 0
+}
+
+function openSeedPurchase(item: any) {
+  selectedSeedItem.value = item
+  purchaseCount.value = 1
+  purchaseDialogOpen.value = true
+}
+
+async function purchaseSeed() {
+  const item = selectedSeedItem.value
+  const seed = item?.shopSeed
+  if (!currentAccountId.value || !seed?.goodsId || purchasingSeedId.value !== null)
+    return
+  const count = Math.max(1, Math.min(seed.remainingPurchaseCount || 9999, Math.floor(Number(purchaseCount.value) || 1)))
+  purchasingSeedId.value = item.seedId
+  try {
+    const response = await api.post('/api/seeds/purchase', { goodsId: seed.goodsId, count }, {
+      headers: { 'x-account-id': String(currentAccountId.value) },
+      skipErrorToast: true,
+    } as any)
+    if (!response.data?.ok)
+      throw new Error(getApiErrorMessage(response.data, '种子购买失败'))
+    toast.success('种子购买成功：' + item.name)
+    purchaseDialogOpen.value = false
+    selectedSeedItem.value = null
+    await refresh()
+  }
+  catch (cause: any) {
+    toast.error(getApiErrorMessage(cause, '种子购买失败'))
+  }
+  finally {
+    purchasingSeedId.value = null
+  }
+}
+
+function seedAvailability(item: any) {
+  const seed = item.shopSeed
+  if (!seed)
+    return '当前商店未提供购买信息'
+  if (seed.unknownMeta)
+    return '活动/其他途径获取'
+  if (seed.locked)
+    return seed.requiresUnlockCard ? '需要种子解锁卡' : (seed.requiredLevel ? seed.requiredLevel + '级解锁' : '需要其他解锁条件')
+  if (seed.soldOut)
+    return '已达到限购数量'
+  return '当前无法购买'
 }
 
 async function refresh() {
@@ -130,9 +184,35 @@ watch(isConnected, refresh)
             <img v-if="item.image" :src="item.image" alt="" class="mx-auto h-10 w-10 object-contain sm:h-12 sm:w-12">
             <div class="mt-1 truncate text-center text-xs font-medium">{{ item.name }}</div>
             <div class="text-center text-xs text-gray-500">{{ item.unlocked ? '已收藏' : '未收藏' }}</div>
+            <div v-if="item.shopSeed?.goodsId && !item.shopSeed.locked && !item.shopSeed.soldOut && !item.shopSeed.unknownMeta" class="mt-2 flex justify-center">
+              <NButton size="tiny" type="primary" :loading="purchasingSeedId === item.seedId" :disabled="purchasingSeedId !== null" @click="openSeedPurchase(item)">
+                购买
+              </NButton>
+            </div>
+            <div v-else class="mt-2 min-h-8 text-center text-[10px] leading-4 text-gray-500">{{ seedAvailability(item) }}</div>
           </div>
         </div>
       </div>
+
+      <NModal v-model:show="purchaseDialogOpen" :mask-closable="purchasingSeedId === null" :close-on-esc="purchasingSeedId === null">
+        <NCard class="w-[calc(100vw-32px)] max-w-sm" :title="'购买' + (selectedSeedItem?.name || '种子')" closable @close="purchaseDialogOpen = false">
+          <div class="space-y-4">
+            <div class="text-sm text-gray-500">每批 {{ selectedSeedItem?.shopSeed?.itemCount || 1 }} 颗 · {{ selectedSeedItem?.shopSeed?.price || 0 }} 金</div>
+            <div class="flex items-center justify-between gap-3">
+              <span>购买批次</span>
+              <NInputNumber v-model:value="purchaseCount" :min="1" :max="selectedSeedItem?.shopSeed?.remainingPurchaseCount || 9999" :disabled="purchasingSeedId !== null" />
+            </div>
+            <div class="flex items-center justify-between border-t pt-3 text-sm">
+              <span>合计</span>
+              <strong>{{ ((selectedSeedItem?.shopSeed?.price || 0) * purchaseCount).toLocaleString() }} 金</strong>
+            </div>
+            <div class="flex justify-end gap-2">
+              <NButton secondary :disabled="purchasingSeedId !== null" @click="purchaseDialogOpen = false">取消</NButton>
+              <NButton type="primary" :loading="purchasingSeedId !== null" @click="purchaseSeed">确认购买</NButton>
+            </div>
+          </div>
+        </NCard>
+      </NModal>
 
       <NModal v-model:show="detailsOpen">
         <NCard :title="currentType === 'mutant' ? '超变图鉴属性加成' : '作物图鉴收藏奖励'" closable class="w-[calc(100vw-24px)] max-w-3xl" @close="detailsOpen = false">
