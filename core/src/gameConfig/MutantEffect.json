@@ -372,5 +372,27 @@
     "effect_res": null,
     "lod_animateRes": null,
     "animateRes_scale": null
+  },
+  {
+    "id": 18,
+    "effect_name": "藏品",
+    "actions": "6:0",
+    "activity_id": 0,
+    "hide_ui": false,
+    "ignore_land_bonus": true,
+    "ignore_land_yield_bonus": false,
+    "ignore_level_bonus": false,
+    "ignore_buff_bonus": null,
+    "tag": "藏品",
+    "name": "藏品",
+    "fruit_name": null,
+    "icon": "gui/texture/mutant/icon/naicha/spriteFrame",
+    "sort": 1,
+    "tips": "蓝晶土地上有概率出现",
+    "desc": null,
+    "effect_res_type": 2,
+    "effect_res": null,
+    "lod_animateRes": null,
+    "animateRes_scale": null
   }
 ]

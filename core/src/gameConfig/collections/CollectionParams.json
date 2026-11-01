@@ -1,0 +1,14 @@
+[
+  {
+    "key": "MAX_LIKE_PER_ITEM",
+    "str_val": null
+  },
+  {
+    "key": "ORNAMENT_BUBBLE_WINDOW_SEC",
+    "str_val": null
+  },
+  {
+    "key": "RULE",
+    "str_val": "{\n  \"uid\": \"ActivityRule\",\n  \"tips\": {\n    \"title\": \"玩法详情\",\n    \"txt\": [\n      {\n        \"img\": \"gui/texture/collect/bigImg/img_collect_rule/spriteFrame\",\n        \"height\": 1065\n      },\n      \"<b>【小贴士】</b><br/>\",\n      \"1、<b>藏品变异：</b>\",\n      \"仅蓝晶土地作物可触发藏品变异，藏品品质随作物品质而定。<br/>\",\n      \"2、<b>藏品展示：</b>\",\n      \"藏品激活后，可放置在场景中展示。<br/>\",\n      \"3、<b>藏品药水：</b>\",\n      \"催化剂作用于未成熟作物，立刻触发藏品变异；催化剂分 4 种品质，需和作物品质匹配才能使用。<br/>\"\n    ]\n  }\n}"
+  }
+]

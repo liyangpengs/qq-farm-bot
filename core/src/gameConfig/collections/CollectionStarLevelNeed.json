@@ -1,0 +1,152 @@
+[
+  {
+    "series_id": 2002,
+    "star_level": 1,
+    "items_need": "0:1",
+    "category": 1
+  },
+  {
+    "series_id": 2002,
+    "star_level": 2,
+    "items_need": "0:2;1001:3000000",
+    "category": 1
+  },
+  {
+    "series_id": 2002,
+    "star_level": 3,
+    "items_need": "0:4;1001:6000000",
+    "category": 1
+  },
+  {
+    "series_id": 2002,
+    "star_level": 4,
+    "items_need": "0:8;1001:12000000",
+    "category": 1
+  },
+  {
+    "series_id": 2002,
+    "star_level": 5,
+    "items_need": "0:16;1001:24000000",
+    "category": 1
+  },
+  {
+    "series_id": 1001,
+    "star_level": 1,
+    "items_need": "0:1",
+    "category": 1
+  },
+  {
+    "series_id": 1001,
+    "star_level": 2,
+    "items_need": "0:2;1001:2000000",
+    "category": 1
+  },
+  {
+    "series_id": 1001,
+    "star_level": 3,
+    "items_need": "0:4;1001:4000000",
+    "category": 1
+  },
+  {
+    "series_id": 1001,
+    "star_level": 4,
+    "items_need": "0:8;1001:8000000",
+    "category": 1
+  },
+  {
+    "series_id": 1001,
+    "star_level": 5,
+    "items_need": "0:16;1001:16000000",
+    "category": 1
+  },
+  {
+    "series_id": 2001,
+    "star_level": 1,
+    "items_need": "0:1",
+    "category": 1
+  },
+  {
+    "series_id": 2001,
+    "star_level": 2,
+    "items_need": "0:2;1001:3000000",
+    "category": 1
+  },
+  {
+    "series_id": 2001,
+    "star_level": 3,
+    "items_need": "0:4;1001:6000000",
+    "category": 1
+  },
+  {
+    "series_id": 2001,
+    "star_level": 4,
+    "items_need": "0:8;1001:12000000",
+    "category": 1
+  },
+  {
+    "series_id": 2001,
+    "star_level": 5,
+    "items_need": "0:16;1001:24000000",
+    "category": 1
+  },
+  {
+    "series_id": 3001,
+    "star_level": 1,
+    "items_need": "0:1",
+    "category": 1
+  },
+  {
+    "series_id": 3001,
+    "star_level": 2,
+    "items_need": "0:2;1001:5000000",
+    "category": 1
+  },
+  {
+    "series_id": 3001,
+    "star_level": 3,
+    "items_need": "0:4;1001:10000000",
+    "category": 1
+  },
+  {
+    "series_id": 3001,
+    "star_level": 4,
+    "items_need": "0:8;1001:20000000",
+    "category": 1
+  },
+  {
+    "series_id": 3001,
+    "star_level": 5,
+    "items_need": "0:16;1001:40000000",
+    "category": 1
+  },
+  {
+    "series_id": 4001,
+    "star_level": 1,
+    "items_need": "0:1",
+    "category": 1
+  },
+  {
+    "series_id": 4001,
+    "star_level": 2,
+    "items_need": "0:2;1001:25000000",
+    "category": 1
+  },
+  {
+    "series_id": 4001,
+    "star_level": 3,
+    "items_need": "0:4;1001:50000000",
+    "category": 1
+  },
+  {
+    "series_id": 4001,
+    "star_level": 4,
+    "items_need": "0:8;1001:100000000",
+    "category": 1
+  },
+  {
+    "series_id": 4001,
+    "star_level": 5,
+    "items_need": "0:16;1001:200000000",
+    "category": 1
+  }
+]

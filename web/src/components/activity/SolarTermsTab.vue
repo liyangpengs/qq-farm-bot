@@ -132,7 +132,7 @@ function claim() {
   color: #677871;
   background: rgba(255, 255, 255, 0.58);
   box-shadow: none;
-  font-weight: 400;
+  font-weight: var(--fw-400);
   cursor: pointer;
 }
 
@@ -140,7 +140,7 @@ function claim() {
   border-color: rgba(38, 128, 94, 0.28);
   color: #236e52;
   background: rgba(226, 245, 237, 0.9);
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .term-rail button.locked {
@@ -209,7 +209,7 @@ function claim() {
   background: #2f8d69;
   box-shadow: 0 8px 18px rgba(35, 113, 83, 0.18);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 

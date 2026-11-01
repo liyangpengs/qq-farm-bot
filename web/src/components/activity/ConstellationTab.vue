@@ -261,7 +261,7 @@ watch(() => props.constellation, (value) => {
   background: #fff8df;
   font-family: Arial, sans-serif;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1;
   text-align: center;
   cursor: pointer;

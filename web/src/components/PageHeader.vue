@@ -74,7 +74,7 @@ function toggleNavigation() {
   margin: 0;
   color: var(--ui-ink);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;

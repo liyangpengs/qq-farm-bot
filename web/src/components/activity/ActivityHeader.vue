@@ -129,7 +129,7 @@ h1 {
   overflow: hidden;
   color: var(--ui-ink);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1.3;
   letter-spacing: 0;
   text-overflow: ellipsis;
@@ -167,7 +167,7 @@ h1 {
   color: #2f7a52;
   background: #e4f1e7;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   line-height: 18px;
 }
 

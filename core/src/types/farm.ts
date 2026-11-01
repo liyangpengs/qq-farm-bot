@@ -8,7 +8,7 @@ export type PlantPhase =
   | 'harvestable'
   | 'withered';
 
-export type LandType = 'normal' | 'gold' | 'black' | 'red' | 'purple-gold';
+export type LandType = 'normal' | 'gold' | 'black' | 'red' | 'purple-gold' | 'blue-crystal';
 
 export interface LandData {
   landId: number;

@@ -1,5 +1,7 @@
 import { defineConfig, presetAttributify, presetIcons, presetUno } from 'unocss'
 
+const FONT_WEIGHTS = { light: 300, normal: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800, black: 900 }
+
 export default defineConfig({
   theme: {
     fontFamily: {
@@ -9,6 +11,12 @@ export default defineConfig({
       display: '"Microsoft YaHei", "PingFang SC", ui-sans-serif, system-ui, sans-serif',
     },
   },
+  // 字重类走 style.css 的 --fw-* 令牌，深色主题统一减 40。
+  rules: [
+    [/^font-(light|normal|medium|semibold|bold|extrabold|black)$/, ([, name]) => ({
+      'font-weight': `var(--fw-${FONT_WEIGHTS[name as keyof typeof FONT_WEIGHTS]})`,
+    })],
+  ],
   shortcuts: {
     'cartoon-card': 'rounded-lg border border-[var(--ui-border)] bg-[var(--ui-surface)] transition-colors',
     'farm-gradient': 'bg-[var(--ui-primary)]',
@@ -41,6 +49,8 @@ export default defineConfig({
     presetIcons({
       scale: 1.2,
       warn: true,
+      // 行内图标与文字视觉中心对齐；在 flex 容器里该属性不生效，不影响已有布局。
+      extraProperties: { 'vertical-align': '-0.125em' },
       collections: {
         'carbon': () => import('@iconify-json/carbon/icons.json').then(i => i.default),
         'fas': () => import('@iconify-json/fa-solid/icons.json').then(i => i.default),

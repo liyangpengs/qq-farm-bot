@@ -147,7 +147,7 @@ const canClaim = computed(() => Boolean(props.enabled && hasClaimableNode.value 
   margin-top: 6px;
   color: #fff;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .score i {
   padding: 0 3px;
@@ -196,7 +196,7 @@ const canClaim = computed(() => Boolean(props.enabled && hasClaimableNode.value 
   color: #effbff;
   background: rgba(7, 65, 119, 0.62);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 19px;
   cursor: pointer;
 }
@@ -315,7 +315,7 @@ const canClaim = computed(() => Boolean(props.enabled && hasClaimableNode.value 
     0 0 16px rgba(255, 207, 93, 0.55),
     inset 0 1px rgba(255, 255, 255, 0.5);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .claim-action button:disabled {

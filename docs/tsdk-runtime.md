@@ -1,13 +1,13 @@
 # TSDK Node.js 运行约定
 
-微信账号现使用独立的 `tsdk-wx.wasm`（`v3.9.0.1792565883`，SHA-256 `9c8b1ca061d8e122dd902ff651755d9d2f2006fdf5483765bffd9b9c10aee6ad`）；下述 QQ 向量与宿主参数仅适用于 QQ。平台选择及已知 ACEVM 限制见 [微信连接诊断](wechat-connection.md)。实际加载的资源路径与哈希分别记录为 diagnostics 的 `wasmPath` 和 `wasmSha256`。
+微信账号现使用独立的 `tsdk-wx.wasm`（`v3.9.0.1793442738`，161,072 bytes，SHA-256 `3d564429885ecb2a73f13860c12eb91f17802f49335cbc2aed9cd01c26257a1c`）；下述 QQ 向量与宿主参数仅适用于 QQ。平台选择及已知 ACEVM 限制见 [微信连接诊断](wechat-connection.md)。实际加载的资源路径与哈希分别记录为 diagnostics 的 `wasmPath` 和 `wasmSha256`。
 
 ## 版本与来源
 
-项目当前使用 `core/src/utils/tsdk.wasm`，来源为 2026-10-22 官方 QQ 小游戏 `1.15.1.4_20261001` 中的 TSDK `v3.9.0.1792566360`，文件大小为 160,956 bytes，SHA-256 为：
+项目当前使用 `core/src/utils/tsdk.wasm`，来源为 2026-11-01 官方 QQ 小游戏缓存 `1.16.0.5_20261028` 中的 TSDK `v3.9.0.1793443245`，文件大小为 161,122 bytes，SHA-256 为：
 
 ```text
-d1cd42c1f4f4cb15f111f16879f0edf7bf8d4a69a1bfe80d40138fdf3132dc15
+8d3285672fa11c09d21898349a337cbfcd76c5be410664546d9d18c4b8706ba4
 ```
 
 运行时固定参数：
@@ -17,9 +17,11 @@ d1cd42c1f4f4cb15f111f16879f0edf7bf8d4a69a1bfe80d40138fdf3132dc15
 - TSDK gameId：`3167`
 - appKey：`0`
 
-App ID 和宿主输入按账号平台选择。QQ 使用官方桌面端的设备文本 `windows;windows;windows 10.0;0;`、用户目录 `qqfile://usr/`，并在宿主不存在 `getAppBaseInfo` 时返回 debug 状态 `0`；微信账号继续使用项目设备配置、账号隔离目录和微信 App ID；设备平台转成微信使用的小写形式，debug 保留 `2`。QQ 虚拟用户目录收到的文件访问仍会安全映射到该账号自己的本地 TSDK 数据目录。
+App ID 和宿主输入按账号平台选择。QQ 使用官方桌面端的设备文本 `windows;windows;windows 10.0;0;`、用户目录 `qqfile://usr/`，并在宿主不存在 `getAppBaseInfo` 时返回 debug 状态 `0`；微信账号继续使用项目设备配置、账号隔离目录和微信 App ID，其中设备平台按微信格式转成小写，debug 保留 `2`。QQ 虚拟用户目录收到的文件访问仍会安全映射到该账号自己的本地 TSDK 数据目录。
 
-当前构建信息见 [2026-10-22 游戏版本与资源对齐](game-update-20261022.md)。微信环境探测与 ACEVM 仍存在 Node.js 宿主能力限制；版本和资源更新不代表动态检查已经通过。以下为历史验证记录。
+微信官方 `imports.a.o` 同时负责环境探测并写回结果，Node 目前没有实现，不能将它仅视作函数列表读取。相同合成输入下官方 JS 与 Node 的初始化凭据逐字节一致；与真实微信样本的剩余差异来自 SDK 自检位图，未通过改写位图消除。具体排查与边界见 [微信连接诊断](collections-20261101.md#微信独立复核)。
+
+本次逐字节验证与限制见 [2026-11-01 图鉴、变异宝典与藏品](collections-20261101.md)。WASM 导入和导出清单兼容，现有宿主映射、mergewasm 初始化和 ACE 调度保持兼容。以下为历史验证记录。
 
 ## 2026-10-02 升级验证
 

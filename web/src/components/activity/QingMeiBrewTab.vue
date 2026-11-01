@@ -210,7 +210,7 @@ function itemCount(uid: string) {
   display: block;
   color: #5c7b6c;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .qingmei-hero h1 {
   margin: 2px 0 5px;
@@ -270,7 +270,7 @@ function itemCount(uid: string) {
   border-radius: 10px;
   color: #fff;
   background: #2e8a66;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .seed-button:disabled,
@@ -318,7 +318,7 @@ function itemCount(uid: string) {
   color: #2e8a66;
   background: transparent;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .setup-heading button:disabled {
@@ -422,7 +422,7 @@ function itemCount(uid: string) {
 }
 .count-control .maximum-button {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .count-control input {
   width: 100%;

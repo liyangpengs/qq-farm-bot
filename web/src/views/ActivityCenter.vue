@@ -255,7 +255,7 @@ onUnmounted(() => {
   border-radius: 6px;
   color: var(--ui-primary);
   background: var(--ui-surface);
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 
@@ -347,7 +347,7 @@ onUnmounted(() => {
   color: var(--ui-primary);
   background: var(--ui-primary-soft);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .activity-entry--upcoming .activity-entry__icon,
@@ -389,7 +389,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .activity-entry--supported .activity-entry__footer > span {

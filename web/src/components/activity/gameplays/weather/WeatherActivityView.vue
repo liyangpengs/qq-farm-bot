@@ -566,7 +566,7 @@ watch(friendList, (friends) => {
   color: #2f7459;
   background: rgba(221, 241, 233, 0.9);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .weather-status.active .weather-status__badge {
   color: #79530e;
@@ -672,13 +672,13 @@ watch(friendList, (friends) => {
 }
 .task-row__heading span.completed {
   color: #2e8a66;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .task-stock {
   display: block;
   margin-left: auto;
   color: #236e52 !important;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   text-align: right !important;
 }
 .task-meter {
@@ -933,7 +933,7 @@ watch(friendList, (friends) => {
   color: #64766e;
   font-size: 10px;
   font-style: normal;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .selected-friend > small {
   line-height: 1.45;

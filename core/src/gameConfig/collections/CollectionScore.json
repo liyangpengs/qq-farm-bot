@@ -1,0 +1,32 @@
+[
+  {
+    "star_level": 1,
+    "score": "400;600;1000;5000",
+    "pedestal_score": "0;300;1800;6000",
+    "category": "1"
+  },
+  {
+    "star_level": 2,
+    "score": "720;1080;1800;9000",
+    "pedestal_score": null,
+    "category": "1"
+  },
+  {
+    "star_level": 3,
+    "score": "1280;1920;3200;16000",
+    "pedestal_score": null,
+    "category": "1"
+  },
+  {
+    "star_level": 4,
+    "score": "2240;3360;5600;28000",
+    "pedestal_score": null,
+    "category": "1"
+  },
+  {
+    "star_level": 5,
+    "score": "3200;4800;8000;40000",
+    "pedestal_score": null,
+    "category": "1"
+  }
+]

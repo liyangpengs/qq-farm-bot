@@ -335,7 +335,7 @@ onUnmounted(() => sequence++)
   border-radius: 11px;
   color: var(--muted);
   background: transparent;
-  font-weight: 800;
+  font-weight: var(--fw-800);
 }
 .tea-tabs button.selected {
   border: 2px solid var(--wood-dark);
@@ -418,7 +418,7 @@ button {
   color: var(--ink);
   background: linear-gradient(180deg, var(--paper-hi), #f1e1c2);
   box-shadow: 0 3px 0 var(--wood-dark);
-  font-weight: 800;
+  font-weight: var(--fw-800);
 }
 button.primary {
   color: #5a3214;
@@ -549,7 +549,7 @@ h2 {
   border-radius: 8px;
   background: rgba(214, 190, 150, 0.55);
   font-size: 20px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
   text-align: center;
   overflow-wrap: anywhere;
   text-wrap: balance;
@@ -610,7 +610,7 @@ h2 {
 .confirmation-body > p {
   margin: 10px 0;
   text-align: center;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .quantity {
   display: flex;
@@ -631,7 +631,7 @@ h2 {
   color: inherit;
   background: var(--paper-hi);
   text-align: center;
-  font-weight: 800;
+  font-weight: var(--fw-800);
 }
 .row {
   display: flex;
@@ -657,7 +657,7 @@ h2 {
   border-radius: 12px;
   background: var(--paper-hi);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .estimate {
   display: grid;
@@ -671,7 +671,7 @@ h2 {
 .error {
   margin-top: 12px;
   color: #be4141;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   text-align: center;
 }
 @media (max-width: 600px) {

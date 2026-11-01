@@ -2,6 +2,9 @@ import type { GlobalThemeOverrides } from 'naive-ui'
 
 /** 深色模式下的通用色，与 style.css 中 .dark 的 --ui-* 变量保持一致。 */
 const DARK_COMMON = {
+  // 深色下字重统一减 40，避免浅色字在深底上发胖。
+  fontWeight: '360',
+  fontWeightStrong: '560',
   primaryColor: '#3f9c6b',
   primaryColorHover: '#4aab78',
   primaryColorPressed: '#358a5d',
@@ -47,6 +50,7 @@ export function createNaiveThemeOverrides(dark = false): GlobalThemeOverrides {
     // Naive 深色主题的实心按钮默认用深色字；填充色已调深，统一用白字，与浅色模式一致。
     Button: {
       ...light.Button,
+      fontWeight: '560',
       colorWarning: '#b9813a',
       colorHoverWarning: '#c58d45',
       colorPressedWarning: '#a67331',

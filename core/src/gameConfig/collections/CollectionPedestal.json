@@ -1,0 +1,58 @@
+[
+  {
+    "pedestal_id": 610100,
+    "is_default": 1,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_1/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/putong/610100/610100"
+  },
+  {
+    "pedestal_id": 610201,
+    "is_default": 0,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_2/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/xiyou/610201/610201"
+  },
+  {
+    "pedestal_id": 610202,
+    "is_default": 0,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_3/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/xiyou/610202/610202"
+  },
+  {
+    "pedestal_id": 610203,
+    "is_default": 0,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_4/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/xiyou/610203/610203"
+  },
+  {
+    "pedestal_id": 610204,
+    "is_default": 0,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_5/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/xiyou/610204/610204"
+  },
+  {
+    "pedestal_id": 610301,
+    "is_default": 0,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_8/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/zhenpin/610301/610301"
+  },
+  {
+    "pedestal_id": 610302,
+    "is_default": 0,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_9/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/zhenpin/610302/610302"
+  },
+  {
+    "pedestal_id": 610303,
+    "is_default": 0,
+    "category": "1",
+    "icon_res": "gui/texture/collectDisplayDetail/img_collect_display_10/spriteFrame",
+    "spine_res": "spine/v2/collection_stand/zhenpin/610303/610303"
+  }
+]

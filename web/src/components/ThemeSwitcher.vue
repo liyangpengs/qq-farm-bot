@@ -36,6 +36,6 @@ const options = computed(() => MODES.map(mode => ({
 <style>
 .theme-switcher__option--active {
   color: var(--ui-primary) !important;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 </style>

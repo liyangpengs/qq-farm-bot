@@ -1,0 +1,65 @@
+[
+  {
+    "series_id": 1001,
+    "group_name": "4小时·普通",
+    "source_rarity": 1,
+    "pool_config_id": 10001,
+    "public_probability": 117,
+    "display_guarantee": 120,
+    "display_order": 1
+  },
+  {
+    "series_id": 1001,
+    "group_name": "8小时·普通",
+    "source_rarity": 1,
+    "pool_config_id": 10002,
+    "public_probability": 230,
+    "display_guarantee": 60,
+    "display_order": 2
+  },
+  {
+    "series_id": 1001,
+    "group_name": "12小时·普通",
+    "source_rarity": 1,
+    "pool_config_id": 10003,
+    "public_probability": 333,
+    "display_guarantee": 40,
+    "display_order": 3
+  },
+  {
+    "series_id": 1001,
+    "group_name": "24小时·普通",
+    "source_rarity": 1,
+    "pool_config_id": 10004,
+    "public_probability": 652,
+    "display_guarantee": 20,
+    "display_order": 4
+  },
+  {
+    "series_id": 2001,
+    "group_name": "稀有",
+    "source_rarity": 2,
+    "pool_config_id": 10005,
+    "public_probability": 333,
+    "display_guarantee": 40,
+    "display_order": 1
+  },
+  {
+    "series_id": 3001,
+    "group_name": "珍品",
+    "source_rarity": 3,
+    "pool_config_id": 10006,
+    "public_probability": 333,
+    "display_guarantee": 40,
+    "display_order": 1
+  },
+  {
+    "series_id": 4001,
+    "group_name": "天工",
+    "source_rarity": 4,
+    "pool_config_id": 10007,
+    "public_probability": 333,
+    "display_guarantee": 40,
+    "display_order": 1
+  }
+]
