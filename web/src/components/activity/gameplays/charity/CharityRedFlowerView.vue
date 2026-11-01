@@ -468,7 +468,7 @@ h2 {
   border: 0;
   border-radius: 6px;
   color: #fff;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   background: #247455;
   cursor: pointer;
 }
@@ -483,7 +483,7 @@ button:disabled {
   flex: none;
   color: #53635b;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .command-grid {
@@ -668,7 +668,7 @@ button:disabled {
 
 .milestone.reached small {
   color: #17835b;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .settlement-band {
@@ -707,7 +707,7 @@ button:disabled {
 
 .rules-section summary {
   cursor: pointer;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .rules-section p {

@@ -143,7 +143,7 @@ function confirm() {
 h2 {
   margin: 0;
   font-size: 18px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
 }
 header,
 .detail-row {
@@ -164,7 +164,7 @@ small {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.6;
-  font-weight: 500;
+  font-weight: var(--fw-500);
 }
 .tag {
   flex-shrink: 0;
@@ -283,7 +283,7 @@ button {
   box-shadow: 0 3px 0 var(--wood-dark);
   color: var(--ink);
   font: inherit;
-  font-weight: 800;
+  font-weight: var(--fw-800);
   cursor: pointer;
 }
 button.primary {

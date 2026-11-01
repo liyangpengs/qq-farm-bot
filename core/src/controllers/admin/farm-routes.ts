@@ -348,6 +348,20 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
         }
     });
 
+    app.get('/api/collections', async (req: Request, res: Response) => {
+        const id = getAccId(ctx, req);
+        if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
+        try {
+            res.json({ ok: true, data: await ctx.provider.getCollectionsSnapshot(id) });
+        } catch (e: any) {
+            handleApiError(res, e);
+        }
+    });
+
+    app.get('/api/illustrated/mutations', (_req: Request, res: Response) => {
+        res.json({ ok: true, data: require('../../services/collections').getMutationCatalog() });
+    });
+
     // API: 批量锁定/解锁果实、超变果实和种子。
     app.post('/api/bag/lock', async (req: Request, res: Response) => {
         const id = getAccId(ctx, req);

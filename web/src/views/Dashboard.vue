@@ -703,7 +703,7 @@ useIntervalFn(updateCountdowns, 1000)
       <div class="min-w-0 flex flex-col gap-6 md:w-1/4 md:self-start">
         <!-- Next Checks -->
         <div class="flex flex-col farm-card rounded-2xl bg-white p-6 shadow-md dark:bg-gray-800">
-          <h3 class="mb-4 flex items-center gap-2 text-lg font-medium font-display">
+          <h3 class="mb-4 flex items-center gap-2 text-lg font-display font-medium">
             <span class="i-carbon-time" /> <span>下次巡查倒计时</span>
           </h3>
           <div class="flex flex-col justify-center gap-4">
@@ -712,7 +712,7 @@ useIntervalFn(updateCountdowns, 1000)
                 <span class="i-carbon-sprout text-lg text-green-500" />
                 <span>农场</span>
               </div>
-              <div class="text-lg font-bold tabular-nums">
+              <div class="text-lg tabular-nums font-bold">
                 {{ nextFarmCheck }}
               </div>
             </div>
@@ -721,7 +721,7 @@ useIntervalFn(updateCountdowns, 1000)
                 <span class="i-carbon-collaborate text-lg text-blue-500" />
                 <span>好友任务</span>
               </div>
-              <div class="text-lg font-bold tabular-nums">
+              <div class="text-lg tabular-nums font-bold">
                 {{ nextFriendCheck }}
               </div>
             </div>
@@ -730,7 +730,7 @@ useIntervalFn(updateCountdowns, 1000)
 
         <!-- Operations Grid -->
         <div class="farm-card rounded-2xl bg-white p-5 shadow-md dark:bg-gray-800">
-          <h3 class="mb-3 flex items-center gap-2 text-lg font-medium font-display">
+          <h3 class="mb-3 flex items-center gap-2 text-lg font-display font-medium">
             <span class="i-carbon-chart-column" /> <span>今日统计</span>
           </h3>
           <EmptyState
@@ -808,7 +808,7 @@ useIntervalFn(updateCountdowns, 1000)
   margin: 0;
   color: var(--ui-muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   line-height: 1.4;
 }
 
@@ -866,7 +866,7 @@ useIntervalFn(updateCountdowns, 1000)
   overflow: hidden;
   color: var(--ui-ink);
   font-size: 18px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -879,7 +879,7 @@ useIntervalFn(updateCountdowns, 1000)
   color: var(--ui-blue);
   background: var(--ui-blue-soft);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 20px;
   font-variant-numeric: tabular-nums;
 }
@@ -900,7 +900,7 @@ useIntervalFn(updateCountdowns, 1000)
   gap: 5px;
   padding: 1px 9px 1px 7px;
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   line-height: 20px;
 }
 
@@ -947,7 +947,7 @@ useIntervalFn(updateCountdowns, 1000)
 .ov-exp__value b {
   margin-left: 6px;
   color: var(--ui-ink);
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .ov-exp__track {
@@ -976,7 +976,7 @@ useIntervalFn(updateCountdowns, 1000)
 
 .ov-account__foot b {
   color: var(--ui-ink);
-  font-weight: 600;
+  font-weight: var(--fw-600);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1022,7 +1022,7 @@ useIntervalFn(updateCountdowns, 1000)
   overflow: hidden;
   color: var(--ui-ink);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
@@ -1124,7 +1124,7 @@ useIntervalFn(updateCountdowns, 1000)
   min-width: 2.5em;
   color: var(--ui-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   white-space: nowrap;
 }
 

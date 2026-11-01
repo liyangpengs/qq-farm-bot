@@ -79,7 +79,7 @@ function handleShowChange(show: boolean) {
 }
 
 .activity-rules-copy p:first-child {
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .activity-rules-empty {

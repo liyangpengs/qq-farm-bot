@@ -537,7 +537,7 @@ watch(currentAccountId, () => {
   margin: 0;
   color: #543b1b;
   font-size: 14px;
-  font-weight: 750;
+  font-weight: var(--fw-750);
 }
 
 .pet-gift__count {
@@ -552,7 +552,7 @@ watch(currentAccountId, () => {
   background: rgba(230, 154, 45, 0.12);
   color: #a8650d;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: var(--fw-800);
 }
 
 .pet-gift__copy p {
@@ -571,7 +571,7 @@ watch(currentAccountId, () => {
 
 .pet-gift__action {
   min-width: 84px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 :deep(.pet-gift__action .n-button__content) {
@@ -593,7 +593,7 @@ watch(currentAccountId, () => {
   margin: 3px 0 0;
   color: var(--ui-ink, #24352a);
   font-size: 18px;
-  font-weight: 750;
+  font-weight: var(--fw-750);
 }
 
 .pet-overview__copy p {
@@ -740,7 +740,7 @@ watch(currentAccountId, () => {
   overflow: hidden;
   color: var(--ui-ink, #24352a);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -760,7 +760,7 @@ watch(currentAccountId, () => {
 
 .pet-tile__status--active {
   color: #2f8950;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .pet-tile__status--activatable {
@@ -794,7 +794,7 @@ watch(currentAccountId, () => {
 .pet-detail-label {
   color: var(--ui-muted, #718477);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -828,13 +828,13 @@ watch(currentAccountId, () => {
   background: rgba(241, 169, 67, 0.1);
   color: #a96920;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1.45;
 }
 
 .pet-action {
   margin-top: auto;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 :deep(.pet-action--deploy .n-button__border) {

@@ -680,8 +680,9 @@ function summarizeLandDetails(lands: any[]): {
     return summary;
 }
 
-const ALL_FERTILIZER_LAND_TYPES: string[] = ['purple-gold', 'gold', 'black', 'red', 'normal'];
+const ALL_FERTILIZER_LAND_TYPES: string[] = ['blue-crystal', 'purple-gold', 'gold', 'black', 'red', 'normal'];
 const FERTILIZER_LAND_TYPE_LABELS: Record<string, string> = {
+    'blue-crystal': '蓝晶土地',
     'purple-gold': '紫金土地',
     gold: '金土地',
     black: '黑土地',
@@ -691,6 +692,7 @@ const FERTILIZER_LAND_TYPE_LABELS: Record<string, string> = {
 
 function getLandTypeByLevel(level: number | any): string {
     const lv = toNum(level);
+    if (lv === 6) return 'blue-crystal';
     if (lv >= 5) return 'purple-gold';
     if (lv === 4) return 'gold';
     if (lv === 3) return 'black';

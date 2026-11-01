@@ -71,7 +71,7 @@ withDefaults(defineProps<{
 .empty-state__title {
   color: var(--ui-ink);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .empty-state__description {

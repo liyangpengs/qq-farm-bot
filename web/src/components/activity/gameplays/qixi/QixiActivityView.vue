@@ -399,7 +399,7 @@ function stageState(stage: QixiActivityDto['bridge']['stages'][number]) {
 .section-heading small {
   color: #6c887a;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .section-heading h2 {
   margin: 2px 0 0;
@@ -419,7 +419,7 @@ function stageState(stage: QixiActivityDto['bridge']['stages'][number]) {
   border-radius: 10px;
   color: #fff;
   background: #2e8a66;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .primary-command:disabled,
@@ -479,7 +479,7 @@ function stageState(stage: QixiActivityDto['bridge']['stages'][number]) {
 }
 .stage-card header span {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .stage-card header strong {
   color: #6c887a;
@@ -736,7 +736,7 @@ function stageState(stage: QixiActivityDto['bridge']['stages'][number]) {
 .rules-section summary {
   color: #2b493f;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .rules-section p {

@@ -912,7 +912,7 @@ onUnmounted(() => {
   color: var(--ui-primary);
   background: var(--ui-surface-strong);
   box-shadow: 0 1px 4px rgba(32, 58, 43, 0.08);
-  font-weight: 650;
+  font-weight: var(--fw-650);
 }
 
 .farm-mode-switch button:focus-visible,
@@ -970,7 +970,7 @@ onUnmounted(() => {
 
 .farm-selectbar__info b {
   color: var(--ui-ink);
-  font-weight: 700;
+  font-weight: var(--fw-700);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1079,7 +1079,7 @@ onUnmounted(() => {
 .farm-state b {
   margin-left: 2px;
   color: var(--ui-ink);
-  font-weight: 650;
+  font-weight: var(--fw-650);
 }
 
 .farm-state.is-zero {

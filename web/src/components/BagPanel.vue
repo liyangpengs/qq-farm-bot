@@ -983,7 +983,7 @@ useIntervalFn(loadBag, 60000)
 .bag-item__fallback {
   color: var(--ui-subtle);
   font-size: 24px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .bag-item__foot {
@@ -1003,7 +1003,7 @@ useIntervalFn(loadBag, 60000)
   overflow: hidden;
   color: var(--ui-ink);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1014,7 +1014,7 @@ useIntervalFn(loadBag, 60000)
   margin-right: 1px;
   color: var(--ui-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .bag-item__qty.is-hours {
@@ -1049,7 +1049,7 @@ useIntervalFn(loadBag, 60000)
   overflow: hidden;
   color: var(--ui-ink);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--fw-650);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1072,13 +1072,13 @@ useIntervalFn(loadBag, 60000)
 
 .bag-item__meta .is-locked {
   color: var(--ui-warning);
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .bag-type {
   padding: 0 6px;
   border-radius: 5px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .bag-type--fruit {
@@ -1233,7 +1233,7 @@ useIntervalFn(loadBag, 60000)
 .thumb-wrap.fallback::after {
   content: attr(data-fallback);
   font-size: 1.5rem;
-  font-weight: bold;
+  font-weight: var(--fw-700);
   color: #9ca3af;
   text-transform: uppercase;
 }
@@ -1268,7 +1268,7 @@ useIntervalFn(loadBag, 60000)
   display: block;
   margin-bottom: 8px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .use-stepper {
@@ -1297,7 +1297,7 @@ useIntervalFn(loadBag, 60000)
 .sachet-detail__message span {
   color: var(--n-text-color-3);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 
 .sachet-detail__row strong {

@@ -1,0 +1,46 @@
+syntax = "proto3";
+package gamepb.collectionpb;
+
+// Verified against the official 2026-11-01 encoders and GetCollections capture.
+message GetCollectionsRequest {
+    repeated int32 categories = 1;
+}
+message CollectionInfo {
+    int64 collection_id = 1;
+    int32 star_level = 2;
+    bool is_new = 3;
+    int64 first_obtained_time = 4;
+    int64 own_count = 5;
+}
+message PedestalInfo {
+    int64 pedestal_id = 1;
+    bool is_new = 2;
+}
+message WishInfo {
+    int32 series_id = 1;
+    int64 collection_id = 2;
+    int64 cooldown_until = 3;
+}
+message CategoryDetail {
+    int32 category = 1;
+    repeated CollectionInfo collections = 2;
+    repeated PedestalInfo pedestals = 3;
+    repeated WishInfo wished = 4;
+    int32 claimed_reward_score = 5;
+    int32 current_score = 6;
+    int64 collection_like_count = 7;
+    int64 pedestal_like_count = 8;
+}
+message DisplayInfo {
+    int32 category = 1;
+    int64 item_id = 2;
+    int64 pedestal_id = 3;
+}
+message DisplaySlot {
+    int32 slot_type = 1;
+    DisplayInfo display = 2;
+}
+message GetCollectionsReply {
+    repeated CategoryDetail details = 1;
+    repeated DisplaySlot display_slots = 2;
+}

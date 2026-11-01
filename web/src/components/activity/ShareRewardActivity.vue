@@ -295,7 +295,7 @@ onUnmounted(() => sequence++)
     inset 0 2px 0 rgba(255, 255, 255, 0.5),
     inset 0 -3px 0 rgba(200, 100, 20, 0.35);
   font-size: 17px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
 }
 .score-pill img {
   width: 32px;
@@ -338,7 +338,7 @@ onUnmounted(() => sequence++)
   color: #fff;
   background: #e8731f;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
 }
 .item {
   min-width: 0;
@@ -380,7 +380,7 @@ onUnmounted(() => sequence++)
   bottom: 1px;
   color: #fff;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
   text-shadow:
     1.5px 0 0 var(--wood-dark),
     -1.5px 0 0 var(--wood-dark),
@@ -440,7 +440,7 @@ onUnmounted(() => sequence++)
 .ladder__value {
   margin-top: 6px;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -463,7 +463,7 @@ onUnmounted(() => sequence++)
     0 4px 0 var(--wood-dark);
   font: inherit;
   font-size: 17px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
   white-space: nowrap;
   cursor: pointer;
   transition: transform 0.08s ease;
@@ -530,7 +530,7 @@ summary:focus-visible {
   border-radius: 999px;
   background: var(--paper-hi);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   font-variant-numeric: tabular-nums;
 }
 .bubble::after {
@@ -554,7 +554,7 @@ summary:focus-visible {
   gap: 12px;
   padding: 16px 22px;
   font-size: 16px;
-  font-weight: 900;
+  font-weight: var(--fw-900);
   list-style: none;
   cursor: pointer;
 }
@@ -581,7 +581,7 @@ summary:focus-visible {
   background: var(--paper-hi);
   font: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .log-tabs button[aria-selected='true'] {

@@ -405,7 +405,7 @@ onUnmounted(() => {
   color: var(--ui-danger);
   background: var(--ui-danger-soft);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 18px;
   white-space: nowrap;
 }
@@ -423,7 +423,7 @@ onUnmounted(() => {
   overflow: hidden;
   color: var(--ui-ink);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--fw-650);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -439,7 +439,7 @@ onUnmounted(() => {
 
 .goods-card__single b {
   color: var(--ui-ink);
-  font-weight: 600;
+  font-weight: var(--fw-600);
   font-variant-numeric: tabular-nums;
 }
 
@@ -455,7 +455,7 @@ onUnmounted(() => {
   flex: none;
   color: var(--ui-muted);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 /* 一行放不下的物品在右侧淡出，不会被截成半个。 */
@@ -491,7 +491,7 @@ onUnmounted(() => {
 }
 
 .reward-chip b {
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .goods-card__meta {

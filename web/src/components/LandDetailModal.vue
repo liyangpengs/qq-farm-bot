@@ -149,7 +149,7 @@ function format(value: unknown) {
 }
 .land-detail-metrics th:first-child {
   text-align: left;
-  font-weight: 500;
+  font-weight: var(--fw-500);
   opacity: 0.7;
 }
 .land-detail-metrics thead {
@@ -164,7 +164,7 @@ function format(value: unknown) {
 }
 .land-detail-requirements h3 {
   margin: 0 0 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .land-detail-condition {
   display: flex;
@@ -211,7 +211,7 @@ function format(value: unknown) {
   border-radius: 12px;
   background: rgba(69, 155, 93, 0.12);
   color: #278452;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 @media (max-width: 360px) {
   .land-detail-metrics th,

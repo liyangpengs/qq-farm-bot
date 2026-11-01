@@ -113,6 +113,9 @@ function getLandStatusClass(land: any) {
     case 5: // 紫金土地
       baseClass = 'soil-level-5'
       break
+    case 6: // 蓝晶土地
+      baseClass = 'soil-level-6'
+      break
   }
 
   // 状态叠加
@@ -156,6 +159,7 @@ function getLandTypeName(level: number) {
     3: '黑土地',
     4: '金土地',
     5: '紫金土地',
+    6: '蓝晶土地',
   }
   return typeMap[Number(level) || 0] || ''
 }
@@ -325,7 +329,7 @@ function markMutantIconFailed(effect: { id?: number }) {
     <!-- Plant size badge (joint planting) -->
     <div
       v-if="land.plantSize > 1"
-      class="absolute right-2 rounded-full bg-pink-100 px-1.5 py-0.5 text-[10px] text-pink-700 font-bold shadow-sm dark:bg-pink-900/30 dark:text-pink-300"
+      class="absolute right-2 rounded-full bg-pink-100 px-1.5 py-0.5 text-[10px] text-pink-700 shadow-sm font-bold dark:bg-pink-900/30 dark:text-pink-300"
       :class="selectable ? 'top-8' : 'top-2'"
     >
       合种 {{ getPlantSizeText(land) }}
@@ -584,7 +588,7 @@ function markMutantIconFailed(effect: { id?: number }) {
   color: #245f4b;
   background: rgba(244, 252, 247, 0.96);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   white-space: nowrap;
   box-shadow: 0 2px 7px rgba(40, 62, 53, 0.1);
 }
@@ -643,6 +647,11 @@ function markMutantIconFailed(effect: { id?: number }) {
     radial-gradient(ellipse at 70% 30%, rgba(255, 215, 0, 0.3) 0%, transparent 45%),
     linear-gradient(180deg, #f0e0ff 0%, #d4a8f0 30%, #c084fc 60%, #a855f7 100%);
   border-color: #9333ea;
+}
+
+.soil-level-6 {
+  background: linear-gradient(180deg, #e8f8ff 0%, #b5d9eb 60%, #82bddf 100%);
+  border-color: #367caa;
 }
 
 .land-locked {
@@ -1058,7 +1067,7 @@ function markMutantIconFailed(effect: { id?: number }) {
   color: #245f4b;
   background: #eaf8ed;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 
@@ -1083,7 +1092,7 @@ function markMutantIconFailed(effect: { id?: number }) {
   border: 1px solid transparent;
   border-radius: 8px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;

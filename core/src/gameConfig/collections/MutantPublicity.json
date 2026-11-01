@@ -1,0 +1,116 @@
+[
+  {
+    "mutant_id": 1,
+    "rarity": null,
+    "public_probability": 320,
+    "order": 1003
+  },
+  {
+    "mutant_id": 2,
+    "rarity": null,
+    "public_probability": 320,
+    "order": 1004
+  },
+  {
+    "mutant_id": 3,
+    "rarity": null,
+    "public_probability": 480,
+    "order": 1005
+  },
+  {
+    "mutant_id": 4,
+    "rarity": null,
+    "public_probability": 480,
+    "order": 1006
+  },
+  {
+    "mutant_id": 5,
+    "rarity": 4,
+    "public_probability": 926,
+    "order": 1000
+  },
+  {
+    "mutant_id": 5,
+    "rarity": 3,
+    "public_probability": 851,
+    "order": 1000
+  },
+  {
+    "mutant_id": 5,
+    "rarity": 2,
+    "public_probability": 760,
+    "order": 1000
+  },
+  {
+    "mutant_id": 6,
+    "rarity": 3,
+    "public_probability": 1328,
+    "order": 999
+  },
+  {
+    "mutant_id": 6,
+    "rarity": 2,
+    "public_probability": 963,
+    "order": 999
+  },
+  {
+    "mutant_id": 7,
+    "rarity": 4,
+    "public_probability": 660,
+    "order": 899
+  },
+  {
+    "mutant_id": 8,
+    "rarity": 3,
+    "public_probability": 1328,
+    "order": 998
+  },
+  {
+    "mutant_id": 8,
+    "rarity": 2,
+    "public_probability": 963,
+    "order": 998
+  },
+  {
+    "mutant_id": 9,
+    "rarity": 4,
+    "public_probability": 660,
+    "order": 898
+  },
+  {
+    "mutant_id": 10,
+    "rarity": 2,
+    "public_probability": 905,
+    "order": 997
+  },
+  {
+    "mutant_id": 11,
+    "rarity": 4,
+    "public_probability": 770,
+    "order": 897
+  },
+  {
+    "mutant_id": 12,
+    "rarity": null,
+    "public_probability": 1800,
+    "order": 1002
+  },
+  {
+    "mutant_id": 15,
+    "rarity": null,
+    "public_probability": 400,
+    "order": 1001
+  },
+  {
+    "mutant_id": 16,
+    "rarity": 4,
+    "public_probability": 770,
+    "order": 896
+  },
+  {
+    "mutant_id": 17,
+    "rarity": 4,
+    "public_probability": 770,
+    "order": 895
+  }
+]

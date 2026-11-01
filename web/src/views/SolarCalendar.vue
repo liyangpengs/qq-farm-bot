@@ -319,7 +319,7 @@ onUnmounted(() => sequence++)
   margin: 0 0 4px;
   color: var(--ui-primary);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 .solar-head h1 {
   margin: 0;
@@ -382,7 +382,7 @@ onUnmounted(() => sequence++)
   border-color: color-mix(in srgb, var(--ui-primary) 30%, transparent);
   color: var(--ui-primary);
   background: var(--ui-primary-soft);
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 .season-tabs button.selected small {
   color: var(--ui-primary);
@@ -493,7 +493,7 @@ onUnmounted(() => sequence++)
   color: #fff;
   background: var(--seal);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   text-align: center;
 }
 .leaf__day {
@@ -550,7 +550,7 @@ onUnmounted(() => sequence++)
   margin: 0;
   font-family: var(--serif);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   letter-spacing: 0.08em;
 }
 .term__lunar {
@@ -570,7 +570,7 @@ onUnmounted(() => sequence++)
 .term--open .term__badge {
   color: var(--seal);
   background: var(--seal-soft);
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 .term--upcoming .term__badge {
   color: var(--ui-warning);
@@ -693,7 +693,7 @@ onUnmounted(() => sequence++)
   margin: 0;
   color: var(--ui-ink);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   line-height: 1.7;
 }
 .answer-options {
@@ -770,7 +770,7 @@ onUnmounted(() => sequence++)
   border-radius: 4px;
   color: color-mix(in srgb, var(--ui-primary) 60%, var(--ui-ink));
   background: var(--ui-primary-soft);
-  font-weight: 600;
+  font-weight: var(--fw-600);
   white-space: nowrap;
 }
 

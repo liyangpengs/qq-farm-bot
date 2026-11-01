@@ -2,7 +2,7 @@
 input,
 textarea,
 select,
-[contenteditable="true"] {
+[contenteditable='true'] {
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
   -ms-user-select: text !important;
@@ -98,9 +98,121 @@ textarea * {
   --glass-highlight: rgba(255, 255, 255, 0.9);
   --glass-muted: var(--ui-muted);
   --glass-shadow: var(--ui-shadow-lg);
+
+  /* 字重令牌：组件统一写 var(--fw-600) 这类形式，深色主题整体减 40。 */
+  --fw-300: 300;
+  --fw-400: 400;
+  --fw-500: 500;
+  --fw-600: 600;
+  --fw-650: 650;
+  --fw-700: 700;
+  --fw-750: 750;
+  --fw-800: 800;
+  --fw-900: 900;
+
+  /* 弹簧缓动（质量 1）。拖拽类用过阻尼 k1200/c80：零回弹、咬死目标；
+     点赞、对勾类用欠阻尼 k380/c18：约 19% 微弹。时长取收敛到 ±0.2% 的时间。 */
+  --spring-drag: linear(
+    0,
+    0.033,
+    0.108,
+    0.201,
+    0.296,
+    0.387,
+    0.471,
+    0.546,
+    0.612,
+    0.669,
+    0.718,
+    0.761,
+    0.797,
+    0.827,
+    0.854,
+    0.876,
+    0.895,
+    0.911,
+    0.924,
+    0.936,
+    0.946,
+    0.954,
+    0.961,
+    0.967,
+    0.972,
+    0.976,
+    0.98,
+    0.983,
+    0.986,
+    0.988,
+    0.99,
+    0.991,
+    0.993,
+    0.994,
+    0.995,
+    0.996,
+    0.996,
+    0.997,
+    0.997,
+    0.998,
+    1
+  );
+  --spring-drag-duration: 332ms;
+  --spring-pop: linear(
+    0,
+    0.043,
+    0.154,
+    0.306,
+    0.478,
+    0.65,
+    0.808,
+    0.943,
+    1.049,
+    1.124,
+    1.171,
+    1.193,
+    1.193,
+    1.177,
+    1.151,
+    1.119,
+    1.085,
+    1.052,
+    1.024,
+    1,
+    0.982,
+    0.97,
+    0.964,
+    0.962,
+    0.964,
+    0.968,
+    0.974,
+    0.98,
+    0.987,
+    0.993,
+    0.998,
+    1.002,
+    1.005,
+    1.007,
+    1.007,
+    1.007,
+    1.007,
+    1.006,
+    1.005,
+    1.003,
+    1
+  );
+  --spring-pop-duration: 632ms;
 }
 
 .dark {
+  --fw-300: 260;
+  --fw-400: 360;
+  --fw-500: 460;
+  --fw-600: 560;
+  --fw-650: 610;
+  --fw-700: 660;
+  --fw-750: 710;
+  --fw-800: 760;
+  --fw-900: 860;
+
   color-scheme: dark;
   /* 中性偏冷的深灰底，绿色只作为品牌点缀；层级靠明度区分，不靠饱和度。 */
   --ui-bg: #111418;
@@ -224,15 +336,61 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden; /* App handles scrolling */
-  font-family: Inter, "Microsoft YaHei", "PingFang SC", ui-sans-serif, system-ui, sans-serif;
+  font-family: Inter, 'Microsoft YaHei', 'PingFang SC', ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
   color: var(--ui-ink);
   background:
     radial-gradient(1100px 520px at 0% 0%, var(--ui-bg-glow), transparent 70%),
-    radial-gradient(900px 480px at 100% 100%, var(--ui-bg-glow-2), transparent 70%),
-    var(--ui-bg);
+    radial-gradient(900px 480px at 100% 100%, var(--ui-bg-glow-2), transparent 70%), var(--ui-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-weight: var(--fw-400);
+}
+
+/* 未单独设置字重的强调文字跟随令牌，深色下同样减 40。 */
+b,
+strong,
+th {
+  font-weight: var(--fw-700);
+}
+
+/* 弹簧动效的通用落点：对勾、点赞类图标出现时微弹一下。 */
+@keyframes spring-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.spring-pop-in {
+  animation: spring-pop-in var(--spring-pop-duration) var(--spring-pop) both;
+}
+
+/* 复制反馈：对勾微弹出现，2.5 秒后由 useCopyFeedback 熄灭，淡出恢复原图标。 */
+.copy-feedback-enter-active {
+  transition:
+    opacity 0.16s ease,
+    transform var(--spring-pop-duration) var(--spring-pop);
+}
+
+.copy-feedback-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.copy-feedback-enter-from {
+  opacity: 0;
+}
+
+.copy-feedback-enter-from[data-copied='true'] {
+  transform: scale(0.5);
+}
+
+.copy-feedback-leave-to {
+  opacity: 0;
 }
 
 .app-shell {
@@ -260,7 +418,7 @@ body {
 .base-field__label {
   color: var(--theme-text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: var(--fw-500);
   line-height: 1.4;
 }
 
@@ -305,17 +463,22 @@ body {
   border: 1px solid var(--glass-border) !important;
   border-radius: var(--ui-radius-card) !important;
   background: var(--glass-card) !important;
-  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--ui-shadow-sm) !important;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--ui-shadow-sm) !important;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
-
 
 .farm-card,
 .farm-panel {
   border: 1px solid var(--glass-border) !important;
   border-radius: var(--ui-radius-card) !important;
   background: var(--glass-card) !important;
-  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--ui-shadow-sm) !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--ui-shadow-sm) !important;
 }
 
 .farm-input {
@@ -326,7 +489,9 @@ body {
 .n-card {
   border-color: var(--glass-border) !important;
   background-color: var(--glass-card) !important;
-  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--ui-shadow-sm);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--ui-shadow-sm);
 }
 
 .n-modal,
@@ -336,7 +501,9 @@ body {
 .n-dropdown-menu {
   border: 1px solid var(--glass-border) !important;
   background-color: var(--glass-elevated) !important;
-  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow) !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-shadow) !important;
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   backdrop-filter: blur(22px) saturate(150%);
 }
@@ -515,7 +682,8 @@ select:focus-visible {
 
 /* Farm background gradient — 天空+草地渐变 */
 .farm-bg {
-  background: linear-gradient(180deg,
+  background: linear-gradient(
+    180deg,
     var(--theme-sky-light, #b8e4f7) 0%,
     var(--theme-sky, #87ceeb) 35%,
     var(--theme-grass-light, #6dbf5b) 35%,
@@ -527,92 +695,186 @@ select:focus-visible {
 /* Soil texture background — 泥土纹理 */
 .soil-bg {
   background:
-    radial-gradient(circle at 15% 85%, rgba(240,192,64,0.15) 0%, transparent 40%),
-    radial-gradient(circle at 85% 15%, rgba(139,105,20,0.2) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(107,79,14,0.1) 0%, transparent 60%),
+    radial-gradient(circle at 15% 85%, rgba(240, 192, 64, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 85% 15%, rgba(139, 105, 20, 0.2) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(107, 79, 14, 0.1) 0%, transparent 60%),
     linear-gradient(180deg, var(--theme-soil, #8b6914) 0%, #6b4f0e 100%);
 }
 
 /* Grass background — 草地纹理 */
 .grass-bg {
   background:
-    radial-gradient(circle at 25% 75%, rgba(109,191,91,0.3) 0%, transparent 45%),
-    radial-gradient(circle at 75% 25%, rgba(74,140,63,0.2) 0%, transparent 45%),
+    radial-gradient(circle at 25% 75%, rgba(109, 191, 91, 0.3) 0%, transparent 45%),
+    radial-gradient(circle at 75% 25%, rgba(74, 140, 63, 0.2) 0%, transparent 45%),
     linear-gradient(180deg, var(--theme-grass-light, #6dbf5b) 0%, var(--theme-grass, #4a8c3f) 100%);
 }
 
 /* Cartoon animations — QQ农场风格弹性动画 */
 @keyframes cartoon-bounce {
-  0%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-12px); }
-  50% { transform: translateY(-6px); }
-  70% { transform: translateY(-9px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-12px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  70% {
+    transform: translateY(-9px);
+  }
 }
 
 @keyframes bounce-in {
-  0% { transform: scale(0.3); opacity: 0; }
-  50% { transform: scale(1.08); }
-  70% { transform: scale(0.95); }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes bounce-hover {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 @keyframes plant-grow {
-  0% { transform: scale(0.3) translateY(20px); opacity: 0; }
-  60% { transform: scale(1.15) translateY(-6px); opacity: 1; }
-  80% { transform: scale(0.95) translateY(2px); }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
+  0% {
+    transform: scale(0.3) translateY(20px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15) translateY(-6px);
+    opacity: 1;
+  }
+  80% {
+    transform: scale(0.95) translateY(2px);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 
 @keyframes cartoon-wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  15% { transform: rotate(-6deg); }
-  30% { transform: rotate(5deg); }
-  45% { transform: rotate(-4deg); }
-  60% { transform: rotate(3deg); }
-  75% { transform: rotate(-2deg); }
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(-6deg);
+  }
+  30% {
+    transform: rotate(5deg);
+  }
+  45% {
+    transform: rotate(-4deg);
+  }
+  60% {
+    transform: rotate(3deg);
+  }
+  75% {
+    transform: rotate(-2deg);
+  }
 }
 
 @keyframes sparkle {
-  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
-  50% { opacity: 1; transform: scale(1) rotate(180deg); }
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
 }
 
 @keyframes water-drop {
-  0% { transform: translateY(-12px); opacity: 0; }
-  40% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(14px); opacity: 0; }
+  0% {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  40% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(14px);
+    opacity: 0;
+  }
 }
 
 @keyframes float-up {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-30px); opacity: 0; }
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
 }
 
 @keyframes sway {
-  0%, 100% { transform: rotate(-3deg); }
-  50% { transform: rotate(3deg); }
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 140, 63, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(74, 140, 63, 0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 140, 63, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(74, 140, 63, 0);
+  }
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
-  20%, 40%, 60%, 80% { transform: translateX(3px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-3px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(3px);
+  }
 }
 
 /* Cartoon font classes */
 .font-display {
   font-family: inherit;
-  font-weight: 600;
+  font-weight: var(--fw-600);
   letter-spacing: 0;
 }
 
@@ -689,10 +951,10 @@ select:focus-visible {
   border-radius: 9999px;
   overflow: hidden;
   height: 14px;
-  background: rgba(0,0,0,0.12);
-  border: 2px solid rgba(0,0,0,0.1);
+  background: rgba(0, 0, 0, 0.12);
+  border: 2px solid rgba(0, 0, 0, 0.1);
   position: relative;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .farm-progress::after {
@@ -703,14 +965,18 @@ select:focus-visible {
     -45deg,
     transparent,
     transparent 4px,
-    rgba(255,255,255,0.2) 4px,
-    rgba(255,255,255,0.2) 8px
+    rgba(255, 255, 255, 0.2) 4px,
+    rgba(255, 255, 255, 0.2) 8px
   );
 }
 
 @keyframes barberpole {
-  0% { background-position: 0 0; }
-  100% { background-position: 11.31px 0; }
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 11.31px 0;
+  }
 }
 
 /* Utility animation classes */
@@ -786,219 +1052,219 @@ select:focus-visible {
 
 /* 深色兜底：只写了浅色主题工具类（如 bg-purple-100、text-green-700）的元素，
    在深色下映射到对应的半透明淡色与提亮后的状态色。已写 dark: 变体的元素不受影响。 */
-.dark .bg-green-50:not([class*="dark:bg-"]),
-.dark .bg-green-100:not([class*="dark:bg-"]),
-.dark .bg-emerald-50:not([class*="dark:bg-"]),
-.dark .bg-emerald-100:not([class*="dark:bg-"]),
-.dark .bg-lime-50:not([class*="dark:bg-"]),
-.dark .bg-lime-100:not([class*="dark:bg-"]),
-.dark .bg-teal-50:not([class*="dark:bg-"]),
-.dark .bg-teal-100:not([class*="dark:bg-"]) {
+.dark .bg-green-50:not([class*='dark:bg-']),
+.dark .bg-green-100:not([class*='dark:bg-']),
+.dark .bg-emerald-50:not([class*='dark:bg-']),
+.dark .bg-emerald-100:not([class*='dark:bg-']),
+.dark .bg-lime-50:not([class*='dark:bg-']),
+.dark .bg-lime-100:not([class*='dark:bg-']),
+.dark .bg-teal-50:not([class*='dark:bg-']),
+.dark .bg-teal-100:not([class*='dark:bg-']) {
   background-color: var(--ui-primary-soft) !important;
 }
 
-.dark .text-green-600:not([class*="dark:text-"]),
-.dark .text-green-700:not([class*="dark:text-"]),
-.dark .text-green-800:not([class*="dark:text-"]),
-.dark .text-green-900:not([class*="dark:text-"]),
-.dark .text-emerald-600:not([class*="dark:text-"]),
-.dark .text-emerald-700:not([class*="dark:text-"]),
-.dark .text-emerald-800:not([class*="dark:text-"]),
-.dark .text-emerald-900:not([class*="dark:text-"]),
-.dark .text-lime-600:not([class*="dark:text-"]),
-.dark .text-lime-700:not([class*="dark:text-"]),
-.dark .text-lime-800:not([class*="dark:text-"]),
-.dark .text-lime-900:not([class*="dark:text-"]),
-.dark .text-teal-600:not([class*="dark:text-"]),
-.dark .text-teal-700:not([class*="dark:text-"]),
-.dark .text-teal-800:not([class*="dark:text-"]),
-.dark .text-teal-900:not([class*="dark:text-"]) {
+.dark .text-green-600:not([class*='dark:text-']),
+.dark .text-green-700:not([class*='dark:text-']),
+.dark .text-green-800:not([class*='dark:text-']),
+.dark .text-green-900:not([class*='dark:text-']),
+.dark .text-emerald-600:not([class*='dark:text-']),
+.dark .text-emerald-700:not([class*='dark:text-']),
+.dark .text-emerald-800:not([class*='dark:text-']),
+.dark .text-emerald-900:not([class*='dark:text-']),
+.dark .text-lime-600:not([class*='dark:text-']),
+.dark .text-lime-700:not([class*='dark:text-']),
+.dark .text-lime-800:not([class*='dark:text-']),
+.dark .text-lime-900:not([class*='dark:text-']),
+.dark .text-teal-600:not([class*='dark:text-']),
+.dark .text-teal-700:not([class*='dark:text-']),
+.dark .text-teal-800:not([class*='dark:text-']),
+.dark .text-teal-900:not([class*='dark:text-']) {
   color: var(--ui-primary) !important;
 }
 
-.dark .border-green-100:not([class*="dark:border-"]),
-.dark .border-green-200:not([class*="dark:border-"]),
-.dark .border-green-300:not([class*="dark:border-"]),
-.dark .border-emerald-100:not([class*="dark:border-"]),
-.dark .border-emerald-200:not([class*="dark:border-"]),
-.dark .border-emerald-300:not([class*="dark:border-"]),
-.dark .border-lime-100:not([class*="dark:border-"]),
-.dark .border-lime-200:not([class*="dark:border-"]),
-.dark .border-lime-300:not([class*="dark:border-"]),
-.dark .border-teal-100:not([class*="dark:border-"]),
-.dark .border-teal-200:not([class*="dark:border-"]),
-.dark .border-teal-300:not([class*="dark:border-"]) {
+.dark .border-green-100:not([class*='dark:border-']),
+.dark .border-green-200:not([class*='dark:border-']),
+.dark .border-green-300:not([class*='dark:border-']),
+.dark .border-emerald-100:not([class*='dark:border-']),
+.dark .border-emerald-200:not([class*='dark:border-']),
+.dark .border-emerald-300:not([class*='dark:border-']),
+.dark .border-lime-100:not([class*='dark:border-']),
+.dark .border-lime-200:not([class*='dark:border-']),
+.dark .border-lime-300:not([class*='dark:border-']),
+.dark .border-teal-100:not([class*='dark:border-']),
+.dark .border-teal-200:not([class*='dark:border-']),
+.dark .border-teal-300:not([class*='dark:border-']) {
   border-color: color-mix(in srgb, var(--ui-primary) 32%, transparent) !important;
 }
 
-.dark .bg-amber-50:not([class*="dark:bg-"]),
-.dark .bg-amber-100:not([class*="dark:bg-"]),
-.dark .bg-yellow-50:not([class*="dark:bg-"]),
-.dark .bg-yellow-100:not([class*="dark:bg-"]),
-.dark .bg-orange-50:not([class*="dark:bg-"]),
-.dark .bg-orange-100:not([class*="dark:bg-"]) {
+.dark .bg-amber-50:not([class*='dark:bg-']),
+.dark .bg-amber-100:not([class*='dark:bg-']),
+.dark .bg-yellow-50:not([class*='dark:bg-']),
+.dark .bg-yellow-100:not([class*='dark:bg-']),
+.dark .bg-orange-50:not([class*='dark:bg-']),
+.dark .bg-orange-100:not([class*='dark:bg-']) {
   background-color: var(--ui-warning-soft) !important;
 }
 
-.dark .text-amber-600:not([class*="dark:text-"]),
-.dark .text-amber-700:not([class*="dark:text-"]),
-.dark .text-amber-800:not([class*="dark:text-"]),
-.dark .text-amber-900:not([class*="dark:text-"]),
-.dark .text-yellow-600:not([class*="dark:text-"]),
-.dark .text-yellow-700:not([class*="dark:text-"]),
-.dark .text-yellow-800:not([class*="dark:text-"]),
-.dark .text-yellow-900:not([class*="dark:text-"]),
-.dark .text-orange-600:not([class*="dark:text-"]),
-.dark .text-orange-700:not([class*="dark:text-"]),
-.dark .text-orange-800:not([class*="dark:text-"]),
-.dark .text-orange-900:not([class*="dark:text-"]) {
+.dark .text-amber-600:not([class*='dark:text-']),
+.dark .text-amber-700:not([class*='dark:text-']),
+.dark .text-amber-800:not([class*='dark:text-']),
+.dark .text-amber-900:not([class*='dark:text-']),
+.dark .text-yellow-600:not([class*='dark:text-']),
+.dark .text-yellow-700:not([class*='dark:text-']),
+.dark .text-yellow-800:not([class*='dark:text-']),
+.dark .text-yellow-900:not([class*='dark:text-']),
+.dark .text-orange-600:not([class*='dark:text-']),
+.dark .text-orange-700:not([class*='dark:text-']),
+.dark .text-orange-800:not([class*='dark:text-']),
+.dark .text-orange-900:not([class*='dark:text-']) {
   color: var(--ui-warning) !important;
 }
 
-.dark .border-amber-100:not([class*="dark:border-"]),
-.dark .border-amber-200:not([class*="dark:border-"]),
-.dark .border-amber-300:not([class*="dark:border-"]),
-.dark .border-yellow-100:not([class*="dark:border-"]),
-.dark .border-yellow-200:not([class*="dark:border-"]),
-.dark .border-yellow-300:not([class*="dark:border-"]),
-.dark .border-orange-100:not([class*="dark:border-"]),
-.dark .border-orange-200:not([class*="dark:border-"]),
-.dark .border-orange-300:not([class*="dark:border-"]) {
+.dark .border-amber-100:not([class*='dark:border-']),
+.dark .border-amber-200:not([class*='dark:border-']),
+.dark .border-amber-300:not([class*='dark:border-']),
+.dark .border-yellow-100:not([class*='dark:border-']),
+.dark .border-yellow-200:not([class*='dark:border-']),
+.dark .border-yellow-300:not([class*='dark:border-']),
+.dark .border-orange-100:not([class*='dark:border-']),
+.dark .border-orange-200:not([class*='dark:border-']),
+.dark .border-orange-300:not([class*='dark:border-']) {
   border-color: color-mix(in srgb, var(--ui-warning) 32%, transparent) !important;
 }
 
-.dark .bg-red-50:not([class*="dark:bg-"]),
-.dark .bg-red-100:not([class*="dark:bg-"]),
-.dark .bg-rose-50:not([class*="dark:bg-"]),
-.dark .bg-rose-100:not([class*="dark:bg-"]),
-.dark .bg-pink-50:not([class*="dark:bg-"]),
-.dark .bg-pink-100:not([class*="dark:bg-"]) {
+.dark .bg-red-50:not([class*='dark:bg-']),
+.dark .bg-red-100:not([class*='dark:bg-']),
+.dark .bg-rose-50:not([class*='dark:bg-']),
+.dark .bg-rose-100:not([class*='dark:bg-']),
+.dark .bg-pink-50:not([class*='dark:bg-']),
+.dark .bg-pink-100:not([class*='dark:bg-']) {
   background-color: var(--ui-danger-soft) !important;
 }
 
-.dark .text-red-600:not([class*="dark:text-"]),
-.dark .text-red-700:not([class*="dark:text-"]),
-.dark .text-red-800:not([class*="dark:text-"]),
-.dark .text-red-900:not([class*="dark:text-"]),
-.dark .text-rose-600:not([class*="dark:text-"]),
-.dark .text-rose-700:not([class*="dark:text-"]),
-.dark .text-rose-800:not([class*="dark:text-"]),
-.dark .text-rose-900:not([class*="dark:text-"]),
-.dark .text-pink-600:not([class*="dark:text-"]),
-.dark .text-pink-700:not([class*="dark:text-"]),
-.dark .text-pink-800:not([class*="dark:text-"]),
-.dark .text-pink-900:not([class*="dark:text-"]) {
+.dark .text-red-600:not([class*='dark:text-']),
+.dark .text-red-700:not([class*='dark:text-']),
+.dark .text-red-800:not([class*='dark:text-']),
+.dark .text-red-900:not([class*='dark:text-']),
+.dark .text-rose-600:not([class*='dark:text-']),
+.dark .text-rose-700:not([class*='dark:text-']),
+.dark .text-rose-800:not([class*='dark:text-']),
+.dark .text-rose-900:not([class*='dark:text-']),
+.dark .text-pink-600:not([class*='dark:text-']),
+.dark .text-pink-700:not([class*='dark:text-']),
+.dark .text-pink-800:not([class*='dark:text-']),
+.dark .text-pink-900:not([class*='dark:text-']) {
   color: var(--ui-danger) !important;
 }
 
-.dark .border-red-100:not([class*="dark:border-"]),
-.dark .border-red-200:not([class*="dark:border-"]),
-.dark .border-red-300:not([class*="dark:border-"]),
-.dark .border-rose-100:not([class*="dark:border-"]),
-.dark .border-rose-200:not([class*="dark:border-"]),
-.dark .border-rose-300:not([class*="dark:border-"]),
-.dark .border-pink-100:not([class*="dark:border-"]),
-.dark .border-pink-200:not([class*="dark:border-"]),
-.dark .border-pink-300:not([class*="dark:border-"]) {
+.dark .border-red-100:not([class*='dark:border-']),
+.dark .border-red-200:not([class*='dark:border-']),
+.dark .border-red-300:not([class*='dark:border-']),
+.dark .border-rose-100:not([class*='dark:border-']),
+.dark .border-rose-200:not([class*='dark:border-']),
+.dark .border-rose-300:not([class*='dark:border-']),
+.dark .border-pink-100:not([class*='dark:border-']),
+.dark .border-pink-200:not([class*='dark:border-']),
+.dark .border-pink-300:not([class*='dark:border-']) {
   border-color: color-mix(in srgb, var(--ui-danger) 32%, transparent) !important;
 }
 
-.dark .bg-purple-50:not([class*="dark:bg-"]),
-.dark .bg-purple-100:not([class*="dark:bg-"]),
-.dark .bg-violet-50:not([class*="dark:bg-"]),
-.dark .bg-violet-100:not([class*="dark:bg-"]),
-.dark .bg-indigo-50:not([class*="dark:bg-"]),
-.dark .bg-indigo-100:not([class*="dark:bg-"]),
-.dark .bg-fuchsia-50:not([class*="dark:bg-"]),
-.dark .bg-fuchsia-100:not([class*="dark:bg-"]) {
+.dark .bg-purple-50:not([class*='dark:bg-']),
+.dark .bg-purple-100:not([class*='dark:bg-']),
+.dark .bg-violet-50:not([class*='dark:bg-']),
+.dark .bg-violet-100:not([class*='dark:bg-']),
+.dark .bg-indigo-50:not([class*='dark:bg-']),
+.dark .bg-indigo-100:not([class*='dark:bg-']),
+.dark .bg-fuchsia-50:not([class*='dark:bg-']),
+.dark .bg-fuchsia-100:not([class*='dark:bg-']) {
   background-color: var(--ui-violet-soft) !important;
 }
 
-.dark .text-purple-600:not([class*="dark:text-"]),
-.dark .text-purple-700:not([class*="dark:text-"]),
-.dark .text-purple-800:not([class*="dark:text-"]),
-.dark .text-purple-900:not([class*="dark:text-"]),
-.dark .text-violet-600:not([class*="dark:text-"]),
-.dark .text-violet-700:not([class*="dark:text-"]),
-.dark .text-violet-800:not([class*="dark:text-"]),
-.dark .text-violet-900:not([class*="dark:text-"]),
-.dark .text-indigo-600:not([class*="dark:text-"]),
-.dark .text-indigo-700:not([class*="dark:text-"]),
-.dark .text-indigo-800:not([class*="dark:text-"]),
-.dark .text-indigo-900:not([class*="dark:text-"]),
-.dark .text-fuchsia-600:not([class*="dark:text-"]),
-.dark .text-fuchsia-700:not([class*="dark:text-"]),
-.dark .text-fuchsia-800:not([class*="dark:text-"]),
-.dark .text-fuchsia-900:not([class*="dark:text-"]) {
+.dark .text-purple-600:not([class*='dark:text-']),
+.dark .text-purple-700:not([class*='dark:text-']),
+.dark .text-purple-800:not([class*='dark:text-']),
+.dark .text-purple-900:not([class*='dark:text-']),
+.dark .text-violet-600:not([class*='dark:text-']),
+.dark .text-violet-700:not([class*='dark:text-']),
+.dark .text-violet-800:not([class*='dark:text-']),
+.dark .text-violet-900:not([class*='dark:text-']),
+.dark .text-indigo-600:not([class*='dark:text-']),
+.dark .text-indigo-700:not([class*='dark:text-']),
+.dark .text-indigo-800:not([class*='dark:text-']),
+.dark .text-indigo-900:not([class*='dark:text-']),
+.dark .text-fuchsia-600:not([class*='dark:text-']),
+.dark .text-fuchsia-700:not([class*='dark:text-']),
+.dark .text-fuchsia-800:not([class*='dark:text-']),
+.dark .text-fuchsia-900:not([class*='dark:text-']) {
   color: var(--ui-violet) !important;
 }
 
-.dark .border-purple-100:not([class*="dark:border-"]),
-.dark .border-purple-200:not([class*="dark:border-"]),
-.dark .border-purple-300:not([class*="dark:border-"]),
-.dark .border-violet-100:not([class*="dark:border-"]),
-.dark .border-violet-200:not([class*="dark:border-"]),
-.dark .border-violet-300:not([class*="dark:border-"]),
-.dark .border-indigo-100:not([class*="dark:border-"]),
-.dark .border-indigo-200:not([class*="dark:border-"]),
-.dark .border-indigo-300:not([class*="dark:border-"]),
-.dark .border-fuchsia-100:not([class*="dark:border-"]),
-.dark .border-fuchsia-200:not([class*="dark:border-"]),
-.dark .border-fuchsia-300:not([class*="dark:border-"]) {
+.dark .border-purple-100:not([class*='dark:border-']),
+.dark .border-purple-200:not([class*='dark:border-']),
+.dark .border-purple-300:not([class*='dark:border-']),
+.dark .border-violet-100:not([class*='dark:border-']),
+.dark .border-violet-200:not([class*='dark:border-']),
+.dark .border-violet-300:not([class*='dark:border-']),
+.dark .border-indigo-100:not([class*='dark:border-']),
+.dark .border-indigo-200:not([class*='dark:border-']),
+.dark .border-indigo-300:not([class*='dark:border-']),
+.dark .border-fuchsia-100:not([class*='dark:border-']),
+.dark .border-fuchsia-200:not([class*='dark:border-']),
+.dark .border-fuchsia-300:not([class*='dark:border-']) {
   border-color: color-mix(in srgb, var(--ui-violet) 32%, transparent) !important;
 }
 
-.dark .bg-blue-50:not([class*="dark:bg-"]),
-.dark .bg-blue-100:not([class*="dark:bg-"]),
-.dark .bg-sky-50:not([class*="dark:bg-"]),
-.dark .bg-sky-100:not([class*="dark:bg-"]),
-.dark .bg-cyan-50:not([class*="dark:bg-"]),
-.dark .bg-cyan-100:not([class*="dark:bg-"]) {
+.dark .bg-blue-50:not([class*='dark:bg-']),
+.dark .bg-blue-100:not([class*='dark:bg-']),
+.dark .bg-sky-50:not([class*='dark:bg-']),
+.dark .bg-sky-100:not([class*='dark:bg-']),
+.dark .bg-cyan-50:not([class*='dark:bg-']),
+.dark .bg-cyan-100:not([class*='dark:bg-']) {
   background-color: var(--ui-blue-soft) !important;
 }
 
-.dark .text-blue-600:not([class*="dark:text-"]),
-.dark .text-blue-700:not([class*="dark:text-"]),
-.dark .text-blue-800:not([class*="dark:text-"]),
-.dark .text-blue-900:not([class*="dark:text-"]),
-.dark .text-sky-600:not([class*="dark:text-"]),
-.dark .text-sky-700:not([class*="dark:text-"]),
-.dark .text-sky-800:not([class*="dark:text-"]),
-.dark .text-sky-900:not([class*="dark:text-"]),
-.dark .text-cyan-600:not([class*="dark:text-"]),
-.dark .text-cyan-700:not([class*="dark:text-"]),
-.dark .text-cyan-800:not([class*="dark:text-"]),
-.dark .text-cyan-900:not([class*="dark:text-"]) {
+.dark .text-blue-600:not([class*='dark:text-']),
+.dark .text-blue-700:not([class*='dark:text-']),
+.dark .text-blue-800:not([class*='dark:text-']),
+.dark .text-blue-900:not([class*='dark:text-']),
+.dark .text-sky-600:not([class*='dark:text-']),
+.dark .text-sky-700:not([class*='dark:text-']),
+.dark .text-sky-800:not([class*='dark:text-']),
+.dark .text-sky-900:not([class*='dark:text-']),
+.dark .text-cyan-600:not([class*='dark:text-']),
+.dark .text-cyan-700:not([class*='dark:text-']),
+.dark .text-cyan-800:not([class*='dark:text-']),
+.dark .text-cyan-900:not([class*='dark:text-']) {
   color: var(--ui-blue) !important;
 }
 
-.dark .border-blue-100:not([class*="dark:border-"]),
-.dark .border-blue-200:not([class*="dark:border-"]),
-.dark .border-blue-300:not([class*="dark:border-"]),
-.dark .border-sky-100:not([class*="dark:border-"]),
-.dark .border-sky-200:not([class*="dark:border-"]),
-.dark .border-sky-300:not([class*="dark:border-"]),
-.dark .border-cyan-100:not([class*="dark:border-"]),
-.dark .border-cyan-200:not([class*="dark:border-"]),
-.dark .border-cyan-300:not([class*="dark:border-"]) {
+.dark .border-blue-100:not([class*='dark:border-']),
+.dark .border-blue-200:not([class*='dark:border-']),
+.dark .border-blue-300:not([class*='dark:border-']),
+.dark .border-sky-100:not([class*='dark:border-']),
+.dark .border-sky-200:not([class*='dark:border-']),
+.dark .border-sky-300:not([class*='dark:border-']),
+.dark .border-cyan-100:not([class*='dark:border-']),
+.dark .border-cyan-200:not([class*='dark:border-']),
+.dark .border-cyan-300:not([class*='dark:border-']) {
   border-color: color-mix(in srgb, var(--ui-blue) 32%, transparent) !important;
 }
 
-.dark .bg-gray-50:not([class*="dark:bg-"]),
-.dark .bg-gray-100:not([class*="dark:bg-"]),
-.dark .bg-gray-200:not([class*="dark:bg-"]),
-.dark .bg-slate-50:not([class*="dark:bg-"]),
-.dark .bg-slate-100:not([class*="dark:bg-"]),
-.dark .bg-slate-200:not([class*="dark:bg-"]),
-.dark .bg-zinc-50:not([class*="dark:bg-"]),
-.dark .bg-zinc-100:not([class*="dark:bg-"]),
-.dark .bg-zinc-200:not([class*="dark:bg-"]),
-.dark .bg-neutral-50:not([class*="dark:bg-"]),
-.dark .bg-neutral-100:not([class*="dark:bg-"]),
-.dark .bg-neutral-200:not([class*="dark:bg-"]),
-.dark .bg-stone-50:not([class*="dark:bg-"]),
-.dark .bg-stone-100:not([class*="dark:bg-"]),
-.dark .bg-stone-200:not([class*="dark:bg-"]) {
+.dark .bg-gray-50:not([class*='dark:bg-']),
+.dark .bg-gray-100:not([class*='dark:bg-']),
+.dark .bg-gray-200:not([class*='dark:bg-']),
+.dark .bg-slate-50:not([class*='dark:bg-']),
+.dark .bg-slate-100:not([class*='dark:bg-']),
+.dark .bg-slate-200:not([class*='dark:bg-']),
+.dark .bg-zinc-50:not([class*='dark:bg-']),
+.dark .bg-zinc-100:not([class*='dark:bg-']),
+.dark .bg-zinc-200:not([class*='dark:bg-']),
+.dark .bg-neutral-50:not([class*='dark:bg-']),
+.dark .bg-neutral-100:not([class*='dark:bg-']),
+.dark .bg-neutral-200:not([class*='dark:bg-']),
+.dark .bg-stone-50:not([class*='dark:bg-']),
+.dark .bg-stone-100:not([class*='dark:bg-']),
+.dark .bg-stone-200:not([class*='dark:bg-']) {
   background-color: var(--ui-surface-soft) !important;
 }
 

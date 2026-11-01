@@ -243,5 +243,152 @@
     "source_param": 2026092201,
     "attr_id": "活动收获经验加成",
     "attr_value": 10000
+  },
+  {
+    "id": 10001,
+    "source_type": "藏品属性",
+    "source_param": 1,
+    "attr_id": "节省10%肥料",
+    "attr_value": 100
+  },
+  {
+    "id": 10002,
+    "source_type": "藏品属性",
+    "source_param": 2,
+    "attr_id": "蓝晶土地藏品变异概率提升",
+    "attr_value": 200
+  },
+  {
+    "id": 10003,
+    "source_type": "藏品属性",
+    "source_param": 3,
+    "attr_id": "蓝晶土地藏品额外产出概率提升",
+    "attr_value": 100
+  },
+  {
+    "id": 10004,
+    "source_type": "藏品属性",
+    "source_param": 4,
+    "attr_id": "节省10%肥料",
+    "attr_value": 150
+  },
+  {
+    "id": 10005,
+    "source_type": "藏品属性",
+    "source_param": 5,
+    "attr_id": "蓝晶土地藏品变异概率提升",
+    "attr_value": 400
+  },
+  {
+    "id": 10006,
+    "source_type": "藏品属性",
+    "source_param": 6,
+    "attr_id": "蓝晶土地藏品额外产出概率提升",
+    "attr_value": 150
+  },
+  {
+    "id": 10007,
+    "source_type": "藏品属性",
+    "source_param": 7,
+    "attr_id": "节省10%肥料",
+    "attr_value": 200
+  },
+  {
+    "id": 10008,
+    "source_type": "藏品属性",
+    "source_param": 8,
+    "attr_id": "蓝晶土地藏品变异概率提升",
+    "attr_value": 600
+  },
+  {
+    "id": 10009,
+    "source_type": "藏品属性",
+    "source_param": 9,
+    "attr_id": "蓝晶土地藏品额外产出概率提升",
+    "attr_value": 200
+  },
+  {
+    "id": 10010,
+    "source_type": "藏品属性",
+    "source_param": 10,
+    "attr_id": "蓝晶土地经验提升",
+    "attr_value": 100
+  },
+  {
+    "id": 10011,
+    "source_type": "藏品属性",
+    "source_param": 11,
+    "attr_id": "节省10%肥料",
+    "attr_value": 250
+  },
+  {
+    "id": 10012,
+    "source_type": "藏品属性",
+    "source_param": 12,
+    "attr_id": "蓝晶土地藏品变异概率提升",
+    "attr_value": 800
+  },
+  {
+    "id": 10013,
+    "source_type": "藏品属性",
+    "source_param": 13,
+    "attr_id": "蓝晶土地藏品额外产出概率提升",
+    "attr_value": 250
+  },
+  {
+    "id": 10014,
+    "source_type": "藏品属性",
+    "source_param": 14,
+    "attr_id": "蓝晶土地经验提升",
+    "attr_value": 150
+  },
+  {
+    "id": 10015,
+    "source_type": "藏品属性",
+    "source_param": 15,
+    "attr_id": "节省10%肥料",
+    "attr_value": 300
+  },
+  {
+    "id": 10017,
+    "source_type": "藏品属性",
+    "source_param": 17,
+    "attr_id": "蓝晶土地藏品变异概率提升",
+    "attr_value": 1000
+  },
+  {
+    "id": 10018,
+    "source_type": "藏品属性",
+    "source_param": 18,
+    "attr_id": "蓝晶土地藏品额外产出概率提升",
+    "attr_value": 300
+  },
+  {
+    "id": 10019,
+    "source_type": "藏品属性",
+    "source_param": 19,
+    "attr_id": "蓝晶土地经验提升",
+    "attr_value": 200
+  },
+  {
+    "id": 10020,
+    "source_type": "藏品属性",
+    "source_param": 20,
+    "attr_id": "节省10%肥料",
+    "attr_value": 350
+  },
+  {
+    "id": 10021,
+    "source_type": "藏品属性",
+    "source_param": 21,
+    "attr_id": "蓝晶土地藏品变异概率提升",
+    "attr_value": 1200
+  },
+  {
+    "id": 10022,
+    "source_type": "藏品属性",
+    "source_param": 22,
+    "attr_id": "蓝晶土地藏品额外产出概率提升",
+    "attr_value": 350
   }
 ]

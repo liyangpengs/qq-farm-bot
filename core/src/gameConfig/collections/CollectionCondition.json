@@ -1,0 +1,82 @@
+[
+  {
+    "condition_id": 20001,
+    "condition_type": 3,
+    "target_series_id": 1001,
+    "target_item_ids": null,
+    "required_count": 3,
+    "required_star_level": 2,
+    "required_plant_level": null,
+    "required_total_score": null
+  },
+  {
+    "condition_id": 20002,
+    "condition_type": 3,
+    "target_series_id": 1001,
+    "target_item_ids": null,
+    "required_count": 6,
+    "required_star_level": 5,
+    "required_plant_level": null,
+    "required_total_score": null
+  },
+  {
+    "condition_id": 20003,
+    "condition_type": 3,
+    "target_series_id": 2001,
+    "target_item_ids": null,
+    "required_count": 3,
+    "required_star_level": 2,
+    "required_plant_level": null,
+    "required_total_score": null
+  },
+  {
+    "condition_id": 20004,
+    "condition_type": 3,
+    "target_series_id": 2001,
+    "target_item_ids": null,
+    "required_count": 6,
+    "required_star_level": 5,
+    "required_plant_level": null,
+    "required_total_score": null
+  },
+  {
+    "condition_id": 20005,
+    "condition_type": 3,
+    "target_series_id": 3001,
+    "target_item_ids": null,
+    "required_count": 3,
+    "required_star_level": 2,
+    "required_plant_level": null,
+    "required_total_score": null
+  },
+  {
+    "condition_id": 20006,
+    "condition_type": 3,
+    "target_series_id": 3001,
+    "target_item_ids": null,
+    "required_count": 6,
+    "required_star_level": 5,
+    "required_plant_level": null,
+    "required_total_score": null
+  },
+  {
+    "condition_id": 20007,
+    "condition_type": 3,
+    "target_series_id": 4001,
+    "target_item_ids": null,
+    "required_count": 3,
+    "required_star_level": 2,
+    "required_plant_level": null,
+    "required_total_score": null
+  },
+  {
+    "condition_id": 20008,
+    "condition_type": 3,
+    "target_series_id": 4001,
+    "target_item_ids": null,
+    "required_count": 6,
+    "required_star_level": 5,
+    "required_plant_level": null,
+    "required_total_score": null
+  }
+]

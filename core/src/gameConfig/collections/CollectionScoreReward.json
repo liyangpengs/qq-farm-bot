@@ -1,0 +1,134 @@
+[
+  {
+    "level": 1,
+    "score": 400,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 2,
+    "score": 1000,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 3,
+    "score": 2000,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 4,
+    "score": 3100,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 5,
+    "score": 4300,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 6,
+    "score": 5800,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 7,
+    "score": 7800,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 8,
+    "score": 10500,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 9,
+    "score": 14200,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 10,
+    "score": 19300,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 11,
+    "score": 26100,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 12,
+    "score": 35100,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 13,
+    "score": 46700,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 14,
+    "score": 61500,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 15,
+    "score": 80100,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 16,
+    "score": 103100,
+    "rewards": "5013:1;5014:1",
+    "category": "1"
+  },
+  {
+    "level": 17,
+    "score": 131100,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 18,
+    "score": 164900,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 19,
+    "score": 205200,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 20,
+    "score": 252900,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 21,
+    "score": 308800,
+    "rewards": null,
+    "category": "1"
+  },
+  {
+    "level": 22,
+    "score": 373800,
+    "rewards": null,
+    "category": "1"
+  }
+]

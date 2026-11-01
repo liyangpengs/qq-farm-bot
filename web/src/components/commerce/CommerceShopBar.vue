@@ -79,12 +79,12 @@ defineEmits<{ refresh: [] }>()
 
 .shop-bar__status.is-violet {
   color: var(--ui-violet);
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .shop-bar__status.is-warning {
   color: var(--ui-warning);
-  font-weight: 600;
+  font-weight: var(--fw-600);
 }
 
 .shop-bar__end {
@@ -118,7 +118,7 @@ defineEmits<{ refresh: [] }>()
 }
 
 .shop-currency b {
-  font-weight: 650;
+  font-weight: var(--fw-650);
 }
 
 @media (max-width: 520px) {

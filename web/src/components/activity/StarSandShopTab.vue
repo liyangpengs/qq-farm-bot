@@ -125,7 +125,7 @@ function selectGoods(item: ShopGoodsDto) {
   color: #fff6c7;
   border-bottom: 2px solid #fff1a2;
   background: linear-gradient(180deg, transparent, rgba(255, 235, 145, 0.16));
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .goods-grid {
   display: grid;
@@ -246,7 +246,7 @@ article.disabled {
   border-color: #ffe997;
   color: #704a14;
   background: linear-gradient(#fff5b0, #e7b94f);
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .shop-empty {
   min-height: 300px;

@@ -77,6 +77,6 @@ const ratioText = computed(() => {
 
 .career-stat b {
   color: var(--ui-ink);
-  font-weight: 650;
+  font-weight: var(--fw-650);
 }
 </style>

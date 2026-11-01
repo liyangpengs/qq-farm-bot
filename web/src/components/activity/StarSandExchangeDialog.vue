@@ -369,7 +369,7 @@ onBeforeUnmount(() => unlockPage(false))
   display: block;
   margin-bottom: 7px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
 }
 .quantity-control {
   display: grid;
@@ -386,7 +386,7 @@ onBeforeUnmount(() => unlockPage(false))
   color: white;
   background: #286ea9;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .quantity-control button:disabled {
@@ -399,7 +399,7 @@ onBeforeUnmount(() => unlockPage(false))
   color: #42310e;
   background: #fff9d8;
   font-size: 17px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   text-align: center;
   outline: none;
 }
@@ -456,7 +456,7 @@ onBeforeUnmount(() => unlockPage(false))
 .dialog-actions button {
   min-height: 44px;
   border-radius: 12px;
-  font-weight: 700;
+  font-weight: var(--fw-700);
   cursor: pointer;
 }
 .dialog-actions button:disabled {
