@@ -43,18 +43,18 @@ const emit = defineEmits<{
 const land = computed(() => props.land)
 
 // 上游资源已统一按变异 ID 命名；仍保留加载失败回退，兼容尚无 PNG 的变异。
-const failedMutantIcons = ref(new Set<number>())
+const failedMutantIcons = ref(new Set<string>())
 
 const mutantEffects = computed(() => {
   const effects = Array.isArray(land.value?.mutantEffects) ? land.value.mutantEffects : []
   if (effects.length > 0) {
     return effects
-      .map((effect: any) => ({
-        id: Number(effect?.id) || 0,
-        name: String(effect?.name || effect?.effect_name || '').trim(),
-        icon: String(effect?.icon || '').trim(),
-        description: String(effect?.description || effect?.desc || effect?.tips || '').trim(),
-      }))
+      .flatMap((effect: any) => {
+        const normalized = { id: Number(effect?.id) || 0, name: String(effect?.name || effect?.effect_name || '').trim(), icon: String(effect?.icon || '').trim(), description: String(effect?.description || effect?.desc || effect?.tips || '').trim(), key: String(effect.id), image: '' }
+        return normalized.id === 18 && Array.isArray(effect.collections) && effect.collections.length
+          ? effect.collections.map((item: any) => ({ ...normalized, key: `18:${item.seriesId}:${item.itemId}`, name: `藏品 · ${item.name}`, image: item.image || '' }))
+          : [normalized]
+      })
       .filter((effect: { name: string }) => !!effect.name)
   }
   const ids = Array.isArray(land.value?.mutantConfigIds) ? land.value.mutantConfigIds : []
@@ -268,24 +268,21 @@ function mutantBadgeClass(effect: { icon?: string }) {
   return map[icon] || 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
 }
 
-function mutantIconUrl(id: number) {
-  const numericId = Number(id) || 0
-  return numericId > 0 ? `/game-config/seed_images_named/mutant/${numericId}.png` : ''
+function mutantIconUrl(effect: any) {
+  const id = Number(effect?.id) || 0
+  return id === 18 ? String(effect.image || '') : id > 0 ? `/game-config/seed_images_named/mutant/${id}.png` : ''
 }
 
 function mutantIconName(effect: { icon?: string }) {
   return String(effect?.icon || '').trim().toLowerCase()
 }
 
-function showMutantImage(effect: { id?: number }) {
-  const id = Number(effect?.id) || 0
-  return id > 0 && !failedMutantIcons.value.has(id)
+function showMutantImage(effect: any) {
+  return !!mutantIconUrl(effect) && !failedMutantIcons.value.has(String(effect.key || effect.id))
 }
 
-function markMutantIconFailed(effect: { id?: number }) {
-  const id = Number(effect?.id) || 0
-  if (id > 0)
-    failedMutantIcons.value = new Set(failedMutantIcons.value).add(id)
+function markMutantIconFailed(effect: any) {
+  failedMutantIcons.value = new Set(failedMutantIcons.value).add(String(effect.key || effect.id))
 }
 </script>
 
@@ -399,18 +396,19 @@ function markMutantIconFailed(effect: { id?: number }) {
       </span>
       <span
         v-for="effect in mutantEffects"
-        :key="effect.id || effect.name"
+        :key="effect.key || effect.id || effect.name"
         class="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
         :class="mutantBadgeClass(effect)"
         :title="effect.description || effect.name"
       >
         <img
           v-if="showMutantImage(effect)"
-          :src="mutantIconUrl(effect.id)"
+          :src="mutantIconUrl(effect)"
           :alt="effect.name"
           class="h-3 w-3 object-contain"
           @error="markMutantIconFailed(effect)"
         >
+        <span v-else-if="Number(effect.id) === 18" class="i-carbon-trophy" />
         <span v-else-if="mutantIconName(effect) === 'lightning'" class="i-carbon-lightning" />
         <span v-else-if="mutantIconName(effect) === 'butterfly'" class="i-carbon-bee" />
         <span v-else class="i-carbon-star" />

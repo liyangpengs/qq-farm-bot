@@ -8,7 +8,7 @@ import MysteryShopPanel from '@/components/commerce/MysteryShopPanel.vue'
 import PageTabs from '@/components/PageTabs.vue'
 import { useCommerceStore } from '@/stores/commerce'
 
-type MallTab = 'mall' | 'svip' | 'mystery' | 'limited'
+type MallTab = 'mall' | 'svip' | 'mystery' | 'limited' | 'props'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,10 +16,11 @@ const { purchasingGoodsId, mysteryPurchasing } = storeToRefs(useCommerceStore())
 const tabs: Array<{ key: MallTab, label: string, icon: string }> = [
   { key: 'mall', label: '游戏商城', icon: 'i-carbon-shopping-bag' },
   { key: 'limited', label: '限时商店', icon: 'i-carbon-timer' },
+  { key: 'props', label: '道具商店', icon: 'i-carbon-store' },
   { key: 'svip', label: 'SVIP 专属商城', icon: 'i-carbon-diamond-outline' },
   { key: 'mystery', label: '神秘商人', icon: 'i-carbon-store' },
 ]
-const activeTab = computed<MallTab>(() => route.query.tab === 'limited' || route.query.tab === 'mystery' || route.query.tab === 'svip' ? route.query.tab : 'mall')
+const activeTab = computed<MallTab>(() => route.query.tab === 'limited' || route.query.tab === 'mystery' || route.query.tab === 'svip' || route.query.tab === 'props' ? route.query.tab : 'mall')
 const purchasing = computed(() => purchasingGoodsId.value !== null || mysteryPurchasing.value)
 
 function selectTab(tab: MallTab) {
@@ -41,7 +42,7 @@ function selectTab(tab: MallTab) {
     </PageTabs>
 
     <MysteryShopPanel v-if="activeTab === 'mystery'" />
-    <MallCatalogPanel v-else :slot-type="activeTab === 'svip' ? 4 : activeTab === 'limited' ? 5 : 1" />
+    <MallCatalogPanel v-else :slot-type="activeTab === 'svip' ? 4 : activeTab === 'limited' ? 5 : 1" :props-shop="activeTab === 'props'" />
   </div>
 </template>
 

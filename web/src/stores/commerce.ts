@@ -37,6 +37,7 @@ export interface MallGoodsDto {
 }
 
 export interface MallCatalogDto {
+  shopId?: number
   membership?: { isSvip: boolean, remainingDays: number } | null
   slotType: number
   subSlotType: number
@@ -125,22 +126,23 @@ export const useCommerceStore = defineStore('commerce', () => {
     }
   }
 
-  async function fetchMall(accountId: string, slotType = 1) {
+  async function fetchMall(accountId: string, slotType = 1, propsShop = false) {
     const id = String(accountId || '').trim()
     if (!id) {
       reset()
       return
     }
     const version = ++requestVersion
-    if (mallAccountId !== id || mall.value?.slotType !== slotType) mall.value = null
+    if (mallAccountId !== id || mall.value?.slotType !== slotType || !!mall.value?.shopId !== propsShop)
+      mall.value = null
     mallAccountId = id
     mallLoading.value = true
     mysteryLoading.value = false
     clearMessages()
     try {
-      const response = await api.get('/api/game-mall', {
+      const response = await api.get(propsShop ? '/api/props-shop' : '/api/game-mall', {
         headers: { 'x-account-id': id },
-        params: { slotType, subSlotType: 1 },
+        params: propsShop ? undefined : { slotType, subSlotType: 1 },
         skipErrorToast: true,
       } as any)
       if (!isCurrent(version, id))
@@ -169,13 +171,15 @@ export const useCommerceStore = defineStore('commerce', () => {
     if (!id || purchasingGoodsId.value !== null)
       return false
     const slotType = mall.value?.slotType || 1
+    const propsShop = mall.value?.shopId === 4
     const version = requestVersion
     purchasingGoodsId.value = goods.id
     clearMessages()
     try {
-      const response = await api.post('/api/game-mall/purchase', {
+      const response = await api.post(propsShop ? '/api/props-shop/purchase' : '/api/game-mall/purchase', {
         goodsId: goods.id,
-        expectedPrice: { id: goods.price.id, count: goods.price.count },
+        expectedPrice: { id: goods.price.id, count: goods.price.count, rewards: goods.rewards.map(item => ({ id: item.id, count: item.count })) },
+        ...(propsShop ? { expectedOffer: { price: { id: goods.price.id, count: goods.price.count }, rewards: goods.rewards.map(item => ({ id: item.id, count: item.count })) } } : {}),
         slotType,
         count,
       }, {
@@ -187,10 +191,12 @@ export const useCommerceStore = defineStore('commerce', () => {
       if (String(localStorage.getItem('current_account_id') || '') !== id)
         return false
       const catalog = response.data.data.catalog as MallCatalogDto | null
-      if (catalog) await mergeDiamondBalance(id, catalog)
+      if (catalog)
+        await mergeDiamondBalance(id, catalog)
       if (String(localStorage.getItem('current_account_id') || '') !== id)
         return false
-      if (version === requestVersion) mall.value = catalog
+      if (version === requestVersion)
+        mall.value = catalog
       const rewards = (response.data.data.purchase?.rewards || [])
         .map((item: CommerceItemDto) => `${item.name} x${item.count}`)
         .join('、')
@@ -214,7 +220,8 @@ export const useCommerceStore = defineStore('commerce', () => {
       return
     }
     const version = ++requestVersion
-    if (mysteryAccountId !== id) mystery.value = null
+    if (mysteryAccountId !== id)
+      mystery.value = null
     mysteryAccountId = id
     mysteryLoading.value = true
     mallLoading.value = false

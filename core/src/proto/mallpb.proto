@@ -15,6 +15,7 @@ service MallService {
 message GetMallListBySlotTypeRequest {
   int32 slot_type = 1;
   bool is_manual_open = 2;
+  int32 global_scene_id = 3; // 1=农场
 }
 
 // Purchase limits are returned both with a product and after a purchase.
@@ -45,6 +46,8 @@ message MallGoods {
   bool ad_only = 18;
   MallShareInfo share = 19;
   bool is_owned = 20;
+  string bg_pic = 21;
+  string color = 22;
 }
 
 message MallShareInfo {

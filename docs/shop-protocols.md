@@ -34,6 +34,23 @@
 `refresh_countdown` 是刷新倒计时秒数；抓包值 27076 与 16:28:43 到当天 24:00
 的剩余时间一致。
 
+2026-11-02 官方请求同时携带 field 3 `global_scene_id=1`（农场）；限时商店 slot 为 5。新增藏品礼包 1047（金豆豆 300，奖励物品 101619）和 1048（钻石 40，奖励物品 101618）均由实时目录读取，不静态推断售价或限购。商品 field 21/22 为 `bg_pic` / `color`，已保留；购买请求仍为商品 ID 与数量。
+
+两种藏品礼包各实购一次：`Purchase` 的数量均为 1、成功标志为 true、每周限购已购数为 1/50。金豆豆通过 `ItemNotify` 确认扣除 300；钻石通过 `RechargeInfoNotify.info.balance` 确认 302→262。该通知的 field 1 是嵌套的 `RechargeInfo`，已纠正原先按交易号字符串解码的定义。
+
+“立即使用”在购买后另发 `ItemService.Use`。本次钻石礼包实际产出 101622 ×1、桃米 700005 ×1、金币 100000，结果取使用回包，不从礼包描述推算。`UseReply` field 100 的 `random_pack` 返回各奖池剩余数量，已补齐协议；既有 `used_items` / `items` 字段名保留兼容调用方。
+
+## 道具商店
+
+游戏“商店 → 道具”使用 `gamepb.shoppb.ShopService.ShopInfo(shop_id=4)`，与 MallService 的 SVIP slot 4 是两套接口。`BuyGoodsRequest` 为商品 ID、购买数量及实际单价；回复包含 `goods`、`get_items` 和 `cost_items`。
+
+`GoodsInfo` field 9–14 分别为 `is_display_countdown`、`end_time`、`discount_price`、`discount_start_time`、`discount_end_time`、`show_conds`（字符串 `type` / `params`）。有效促销期内 `discount_price=0` 会被 proto3 省略，不能因此回退为基础价格。日期为空或为负的默认时间值不构成促销。
+
+11 月 2 日真实交易确认：商品 20001 青野农家小屋的基础价格是 5400，促销成交价为 0，获得 201007 ×1、无扣费；商品 20003 青野农家街道成交价为 2250，获得 207007 ×1，扣除金豆豆 1005 ×2250。两笔购买均更新已拥有与限购状态。
+
+
+“开启新田园”是官方 `NEWBIE_OPEN` 新手开园福利（client ID 171），含签到、开园特权、引导奖励，与新地图或蓝晶土地无关。全局活动目录中的 2026092200/2026092201 时间窗不代表当前账号获准参与；官方客户端还检查活动组、个人参与期限和特权期限。此次账号的列表只有全局记录，没有下发该活动组，不能据此构造可领取奖励或写入请求。本工具暂未接入其详情操作。小屋、仓库的来源说明指向该活动，相关商品还带有“2026092201_未参与”的展示条件。
+
 `MallGoods` 中 `reward_items` 是购买得到的物品列表，`price` 是一个 `corepb.Item`
 （`id` 为货币 ID、`count` 为单价），`purchase_limit` 保存限购类型/已购数量/上限，
 是否限购由 `purchase_limit` 的存在及 `limit_type` 判断；不存在或类型为 0 表示不限购。

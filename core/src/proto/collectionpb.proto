@@ -1,6 +1,8 @@
 syntax = "proto3";
 package gamepb.collectionpb;
 
+import "corepb.proto";
+
 // Verified against the official 2026-11-01 encoders and GetCollections capture.
 message GetCollectionsRequest {
     repeated int32 categories = 1;
@@ -43,4 +45,28 @@ message DisplaySlot {
 message GetCollectionsReply {
     repeated CategoryDetail details = 1;
     repeated DisplaySlot display_slots = 2;
+}
+
+// Official activation and star-up share this method. No write API is exposed
+// by the illustrated page; the definitions retain the verified wire format.
+message UpgradeCollectionRequest {
+    int32 category = 1;
+    int64 collection_id = 2;
+}
+message UpgradeCollectionReply {
+    int32 category = 1;
+    int64 collection_id = 2;
+    int32 star_level = 3;
+    int32 current_score = 4;
+    bool is_max_star = 5;
+    int64 own_count = 6;
+}
+message ClaimCollectionRewardRequest {
+    int32 category = 1;
+}
+message ClaimCollectionRewardReply {
+    repeated corepb.Item total_rewards = 1;
+    int32 current_score = 2;
+    int32 claimed_reward_score = 3;
+    repeated int32 claimed_scores = 4 [packed = true];
 }

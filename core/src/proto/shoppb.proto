@@ -26,13 +26,24 @@ message ShopProfile {
 message GoodsInfo {
     int64 id = 1;              // 商品ID (用于购买)
     int64 bought_num = 2;      // 已购买数量
-    int64 price = 3;           // 价格 (金币)
+    int64 price = 3;           // 基础单价；币种由商店类型决定
     int64 limit_count = 4;     // 限购数量 (0=不限购)
     bool unlocked = 5;         // 是否已解锁
-    int64 item_id = 6;         // 物品ID (即种子ID)
+    int64 item_id = 6;         // 物品ID
     int64 item_count = 7;      // 每次购买获得数量
     repeated Cond conds = 8;   // 解锁条件
+    bool is_display_countdown = 9;
+    int64 end_time = 10;
+    int64 discount_price = 11; // 有效促销期内可为 0（免费）
+    int64 discount_start_time = 12;
+    int64 discount_end_time = 13;
+    repeated ShowCond show_conds = 14;
     bool owned = 15;           // 是否已拥有（如装扮）
+}
+
+message ShowCond {
+    string type = 1;
+    string params = 2;
 }
 
 // ============ 解锁条件 ============

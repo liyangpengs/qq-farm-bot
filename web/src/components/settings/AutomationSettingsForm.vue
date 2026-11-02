@@ -58,6 +58,9 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
               <BaseSwitch v-model="settings.automation.farm" class="automation-setting-item" label="自动种植收获" />
             </div>
             <div class="automation-setting-item">
+              <BaseSwitch v-model="settings.automation.farm_harvest_tiangong" label="自动收获天工作物" />
+            </div>
+            <div class="automation-setting-item">
               <BaseSwitch v-model="settings.automation.farm_push" class="automation-setting-item" label="推送触发巡田" />
             </div>
             <div class="automation-setting-item">

@@ -12,6 +12,7 @@ const {
     getPlantGrowTime,
     getPlantGrowPhases,
     getItemById,
+    getItemImageById,
     getMutantEffectsByIds,
     getMutantDisplayPlantId,
 } = require('../../config/gameConfig');
@@ -71,22 +72,43 @@ function getPlantStatusFlags(
     };
 }
 
-function getPlantMutantConfigIds(plant: any, currentPhase: any = null): string[] {
-    const values: any[] = [];
-    if (Array.isArray(plant?.mutant_config_ids)) values.push(...plant.mutant_config_ids);
+function getPlantMutantRecords(plant: any, currentPhase: any = null): any[] {
+    const records: any[] = [];
     if (Array.isArray(currentPhase?.mutants)) {
-        values.push(...currentPhase.mutants.map((mutant: any) => mutant?.mutant_config_id));
+        records.push(...currentPhase.mutants);
     } else if (Array.isArray(plant?.phases)) {
         for (const phase of plant.phases) {
             if (Array.isArray(phase?.mutants)) {
-                values.push(...phase.mutants.map((mutant: any) => mutant?.mutant_config_id));
+                records.push(...phase.mutants);
             }
         }
     }
     if (Array.isArray(plant?.extended_mutations)) {
-        values.push(...plant.extended_mutations.map((record: any) => record?.mutant_config_id));
+        records.push(...plant.extended_mutations);
     }
+    return records;
+}
+
+function getPlantMutantConfigIds(plant: any, currentPhase: any = null): string[] {
+    const values: any[] = Array.isArray(plant?.mutant_config_ids) ? [...plant.mutant_config_ids] : [];
+    values.push(...getPlantMutantRecords(plant, currentPhase).map((record: any) => record?.mutant_config_id));
     return [...new Set(values.map(normalizePositiveId).filter(Boolean))];
+}
+
+function getPlantCollectionMutations(plant: any, currentPhase: any): any[] {
+    const collections = new Map<string, any>();
+    for (const record of getPlantMutantRecords(plant, currentPhase)) {
+        if (toNum(record?.mutant_config_id) !== 18) continue;
+        const seriesId = normalizePositiveId(record.collection_series_id);
+        const itemId = normalizePositiveId(record.collection_item_id);
+        if (!seriesId && !itemId) continue;
+        collections.set(`${seriesId}:${itemId}`, {
+            seriesId, itemId,
+            name: itemId ? (getItemById(Number(itemId))?.name || `藏品${itemId}`) : `藏品系列${seriesId}`,
+            image: itemId ? getItemImageById(Number(itemId)) : '',
+        });
+    }
+    return [...collections.values()];
 }
 
 // 抓包确认：黄金虫、足球和乌云由农场主通过自家 Farming 清理，好友帮助务农不能代为清理。
@@ -329,7 +351,9 @@ function buildLandDetail(land: any, options: { friendMode?: boolean; landsMap?: 
     const phaseVal = toNum(currentPhase.phase);
     const plantId = toNum(plant.id);
     const mutantConfigIds = getPlantMutantConfigIds(plant, currentPhase);
-    const mutantEffects = getMutantEffectsByIds(mutantConfigIds);
+    const mutantEffects = getMutantEffectsByIds(mutantConfigIds).map((effect: any) => effect.id === 18
+        ? { ...effect, collections: getPlantCollectionMutations(plant, currentPhase) }
+        : effect);
     // 协议没有独立的“紫晶共鸣”布尔值：紫金土地由 level 标识，
     // 是否存在加成及具体比例必须以服务端 LandInfo.buff.plant_exp_bonus 为准。
     const purpleCrystalResonanceExpBonus = level === 5 && mutantConfigIds.length > 0
