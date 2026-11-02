@@ -39,8 +39,8 @@ let pendingBagRequest: Promise<any> | null = null;
 
 // ============ API ============
 
-async function getBag(): Promise<any> {
-    if (pendingBagRequest) return pendingBagRequest;
+async function getBag(options: { fresh?: boolean } = {}): Promise<any> {
+    if (!options.fresh && pendingBagRequest) return pendingBagRequest;
 
     const request = (async () => {
         const body: Uint8Array = types.BagRequest.encode(types.BagRequest.create({})).finish();
@@ -133,7 +133,14 @@ async function useItem(itemId: number, count: number = 1, landIds: number[] = []
         },
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.itempb.ItemService', 'Use', body);
-    return types.UseReply.decode(replyBody);
+    return describeUseReply(types.UseReply.decode(replyBody));
+}
+
+function describeUseReply(reply: any): any {
+    return { ...reply, rewards: (reply.items || []).map((item: any) => ({
+        id: toNum(item.id), count: String(item.count),
+        name: getItemById(toNum(item.id))?.name || `物品${item.id}`,
+    })) };
 }
 
 async function batchUseItems(items: any[]): Promise<any> {
@@ -144,7 +151,7 @@ async function batchUseItems(items: any[]): Promise<any> {
     }));
     const body: Uint8Array = types.BatchUseRequest.encode(types.BatchUseRequest.create({ items: payload })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.itempb.ItemService', 'BatchUse', body);
-    return types.BatchUseReply.decode(replyBody);
+    return describeUseReply(types.BatchUseReply.decode(replyBody));
 }
 
 function isFruitItemId(id: number): boolean {

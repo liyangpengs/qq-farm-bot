@@ -358,6 +358,16 @@ function mountFarmRoutes(app: Application, ctx: AdminContext): void {
         }
     });
 
+    app.post('/api/collections/:action', async (req: Request, res: Response) => {
+        const id = getAccId(ctx, req);
+        if (!id) return res.status(400).json({ ok: false, error: 'Missing x-account-id' });
+        try {
+            res.json({ ok: true, data: await ctx.provider.operateCollections(id, String(req.params.action), req.body) });
+        } catch (e: any) {
+            handleApiError(res, e);
+        }
+    });
+
     app.get('/api/illustrated/mutations', (_req: Request, res: Response) => {
         res.json({ ok: true, data: require('../../services/collections').getMutationCatalog() });
     });

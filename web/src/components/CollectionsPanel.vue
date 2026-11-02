@@ -7,6 +7,7 @@ import { NSelect } from 'naive-ui/es/select'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import CollectionRulesPopover from '@/components/CollectionRulesPopover.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import BookOverview from '@/components/illustrated/BookOverview.vue'
 import BookSection from '@/components/illustrated/BookSection.vue'
 import BookTile from '@/components/illustrated/BookTile.vue'
@@ -15,16 +16,19 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
 import { useCollectionsStore } from '@/stores/collections'
 import { useStatusStore } from '@/stores/status'
+import { useToastStore } from '@/stores/toast'
 
 const { currentAccountId } = storeToRefs(useAccountStore())
 const { currentAccountConnected: isConnected } = storeToRefs(useStatusStore())
 const store = useCollectionsStore()
-const { data, loading, error } = storeToRefs(store)
+const { data, loading, error, pending } = storeToRefs(store)
+const toast = useToastStore()
 const seriesId = ref(0)
 const search = ref('')
 const status = ref('all')
 const selected = ref<CollectionItem | null>(null)
 const rewardsOpen = ref(false)
+const upgradeConfirmation = ref<CollectionItem | null>(null)
 
 /** 稀有度色标：普通、稀有、珍品、天工。 */
 const RARITY_COLORS: Record<number, string> = { 1: 'var(--ui-primary)', 2: 'var(--ui-blue)', 3: 'var(--ui-violet)', 4: 'var(--ui-warning)' }
@@ -69,13 +73,53 @@ const progress = computed(() => data.value?.nextRewardScore ? Math.min(100, data
 const selectedSeries = computed(() => data.value?.series.find(series => series.items.some(item => item.id === selected.value?.id)))
 
 async function refresh() {
-  if (currentAccountId.value && isConnected.value)
+  if (currentAccountId.value && isConnected.value && !pending.value)
     await store.fetch(currentAccountId.value)
 }
+
+async function operate(action: 'upgrade' | 'claim' | 'display', input: Record<string, unknown>, message: string) {
+  const result = await store.operate(String(currentAccountId.value || ''), action, input)
+  if (result.stale)
+    return
+  if (result.ok)
+    toast.success(result.data?.skipped ? '当前状态已更新，无需重复操作' : message)
+  else
+    toast.error(result.error || '藏品操作失败')
+}
+
+async function upgrade() {
+  const item = upgradeConfirmation.value
+  if (!item)
+    return
+  await operate('upgrade', {
+    collectionId: item.id,
+    expectedStarLevel: item.starLevel,
+    expectedCosts: item.nextStarCosts.map(cost => ({ itemId: cost.itemId, count: cost.count })),
+  }, item.activated ? `${item.name}已升至 ${item.starLevel + 1} 星` : `${item.name}已激活`)
+  if (upgradeConfirmation.value === item)
+    upgradeConfirmation.value = null
+}
+
+async function toggleDisplay() {
+  const item = selected.value
+  if (!item)
+    return
+  await operate('display', {
+    collectionId: item.id,
+    displayed: !item.displayed,
+    expectedDisplayItemId: data.value?.display?.itemId || '0',
+  }, item.displayed ? '已取消展示' : `正在展示${item.name}`)
+}
+
+watch(data, () => {
+  if (selected.value)
+    selected.value = allItems.value.find(item => item.id === selected.value?.id) || null
+})
 watch([currentAccountId, isConnected], () => {
   store.reset()
   selected.value = null
   rewardsOpen.value = false
+  upgradeConfirmation.value = null
   void refresh()
 }, { immediate: true, flush: 'sync' })
 onBeforeUnmount(() => store.reset())
@@ -108,7 +152,7 @@ onBeforeUnmount(() => store.reset())
           <NButton secondary @click="rewardsOpen = true">
             评分奖励
           </NButton>
-          <NButton secondary :loading="loading" aria-label="刷新藏品" title="刷新藏品" @click="refresh">
+          <NButton secondary :loading="loading" :disabled="!!pending" aria-label="刷新藏品" title="刷新藏品" @click="refresh">
             <template #icon>
               <span class="i-carbon-renew" />
             </template>
@@ -197,6 +241,21 @@ onBeforeUnmount(() => store.reset())
               {{ requirement }}
             </li>
           </ul>
+          <div class="flex justify-end gap-2">
+            <NButton v-if="selected.activated" secondary :disabled="!!pending || loading" :loading="pending === 'display'" @click="toggleDisplay">
+              {{ selected.displayed ? '取消展示' : '展示' }}
+            </NButton>
+            <NButton
+              v-if="selected.starLevel < selected.maxStarLevel"
+              type="primary"
+              :disabled="!!pending || loading || !selected.canUpgrade"
+              :loading="pending === 'upgrade'"
+              :title="!selected.unlocked ? '未满足解锁条件' : !selected.canUpgrade ? '藏品副本不足' : ''"
+              @click="upgradeConfirmation = selected"
+            >
+              {{ selected.activated ? '升星' : '激活' }}
+            </NButton>
+          </div>
         </div>
       </NCard>
     </NModal>
@@ -214,13 +273,24 @@ onBeforeUnmount(() => store.reset())
                 <img v-if="reward.image" :src="reward.image" alt="">{{ reward.name }} ×{{ reward.count }}
               </span>
             </div>
-            <span class="milestone__state">
+            <NButton v-if="milestone.reached && !milestone.claimed" size="small" type="primary" :loading="pending === 'claim'" :disabled="!!pending || loading" title="领取全部已达标奖励" @click="operate('claim', {}, '已领取全部达标评分奖励')">
+              领取
+            </NButton>
+            <span v-else class="milestone__state">
               <span v-if="milestone.claimed" class="i-carbon-checkmark" aria-hidden="true" />{{ milestone.claimed ? '已领取' : milestone.reached ? '可领取' : '未达成' }}
             </span>
           </div>
         </div>
       </NCard>
     </NModal>
+    <ConfirmModal
+      :show="!!upgradeConfirmation"
+      :title="upgradeConfirmation?.activated ? '确认升星' : '确认激活'"
+      :message="upgradeConfirmation ? `${upgradeConfirmation.name} → ${upgradeConfirmation.starLevel + 1} 星\n消耗：${upgradeConfirmation.nextStarCosts.map(cost => `${cost.name} ×${Number(cost.count).toLocaleString()}`).join('、')}` : ''"
+      :loading="pending === 'upgrade'"
+      @confirm="upgrade"
+      @cancel="upgradeConfirmation = null"
+    />
   </div>
 </template>
 
