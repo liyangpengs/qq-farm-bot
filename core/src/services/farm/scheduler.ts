@@ -4,6 +4,7 @@ export {};
  */
 
 const { CONFIG } = require('../../config/config');
+const { getPlantById, getItemById } = require('../../config/gameConfig');
 const { isAutomationOn, getAutomation, getFertilizerBuyOrganicCount, getFertilizerBuyOrganicThresholdHours, getFertilizerBuyNormalCount, getFertilizerBuyNormalThresholdHours, getFertilizerBuyCheckIntervalMinutes } = require('../../models/store');
 const { getUserState, networkEvents } = require('../../utils/network');
 const { toNum, log, logWarn, randomDelay } = require('../../utils/utils');
@@ -83,6 +84,14 @@ async function runMultiSeasonFertilizer(growingLandIds: any[], propagateErrors: 
     }
 }
 
+function autoHarvestLandIds(status: any): number[] {
+    if (getAutomation().farm_harvest_tiangong !== false) return status.harvestable;
+    const tiangongLandIds = new Set(status.harvestableInfo
+        .filter((info: any) => Number(getItemById(getPlantById(info.plantId)?.seed_id)?.rarity) === 4)
+        .map((info: any) => info.landId));
+    return status.harvestable.filter((id: number) => !tiangongLandIds.has(id));
+}
+
 /**
  * smart 有机肥可能让作物在本轮成熟。施肥后只重查并收获一次，避免形成请求循环。
  * 跟随收获也会走多季补肥：这批作物进入下一季后，主循环里的补肥已经跑完了。
@@ -101,7 +110,7 @@ async function harvestMatureOwnLandsOnce(actions: string[], propagateErrors: boo
     if (lands.length === 0) return 0;
 
     const ownGid = toNum(getUserState().gid);
-    const harvestable = analyzeLands(lands, false, ownGid).harvestable;
+    const harvestable = autoHarvestLandIds(analyzeLands(lands, false, ownGid));
     if (harvestable.length === 0) return 0;
 
     try {
@@ -235,22 +244,23 @@ async function runFarmOperation(
     let harvestReply: any = null;
     let postHarvest: any = null;
     if (opType === 'all' || opType === 'harvest') {
-        if (status.harvestable.length > 0) {
+        const harvestable = opType === 'all' ? autoHarvestLandIds(status) : status.harvestable;
+        if (harvestable.length > 0) {
             try {
-                harvestReply = await harvest(status.harvestable);
-                log('收获', `收获完成 ${status.harvestable.length} 块土地`, {
+                harvestReply = await harvest(harvestable);
+                log('收获', `收获完成 ${harvestable.length} 块土地`, {
                     module: 'farm',
                     event: '收获作物',
                     result: 'ok',
-                    count: status.harvestable.length,
-                    landIds: [...status.harvestable],
+                    count: harvestable.length,
+                    landIds: [...harvestable],
                 });
-                actions.push(`收获${status.harvestable.length}`);
-                recordOperation('harvest', status.harvestable.length);
-                harvestedLandIds = [...status.harvestable];
+                actions.push(`收获${harvestable.length}`);
+                recordOperation('harvest', harvestable.length);
+                harvestedLandIds = [...harvestable];
                 networkEvents.emit('farmHarvested', {
-                    count: status.harvestable.length,
-                    landIds: [...status.harvestable],
+                    count: harvestable.length,
+                    landIds: [...harvestable],
                     opType,
                 });
             } catch (e: any) {

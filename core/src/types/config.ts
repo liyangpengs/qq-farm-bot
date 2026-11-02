@@ -16,6 +16,7 @@ export type FertilizerLandType = 'blue-crystal' | 'purple-gold' | 'gold' | 'blac
 
 export interface AutomationConfig {
   farm: boolean;
+  farm_harvest_tiangong: boolean;
   farm_push: boolean;
   land_upgrade: boolean;
   friend: boolean;

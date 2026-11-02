@@ -41,9 +41,24 @@ message UseTarget {
 message UseReply {
     repeated corepb.Item used_items = 1;
     repeated corepb.Item items = 2;
+    repeated corepb.Item compensated_items = 3;
     gamepb.plantpb.LandInfo land = 4;
     UseLandReward land_reward = 5;
     UseSocialReward social_reward = 6;
+    RandomPackUseRsp random_pack = 100;
+}
+
+message RandomPackUseRsp {
+    repeated RandomPackStatus packs = 1;
+}
+
+message RandomPackStatus {
+    int64 item_id = 1;
+    repeated RandomPackGroupStatus groups = 2;
+}
+
+message RandomPackGroupStatus {
+    int32 remaining_item_count = 1;
 }
 
 message UseLandReward {

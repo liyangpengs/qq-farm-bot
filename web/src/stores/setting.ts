@@ -4,6 +4,7 @@ import api, { getApiErrorMessage } from '@/api'
 
 export interface AutomationConfig {
   farm?: boolean
+  farm_harvest_tiangong?: boolean
   farm_push?: boolean
   land_upgrade?: boolean
   friend?: boolean

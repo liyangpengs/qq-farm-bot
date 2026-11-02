@@ -29,6 +29,7 @@ async function getMallListBySlotType(slotType: number = 1, subSlotType: number =
     const body: Uint8Array = types.GetMallListBySlotTypeRequest.encode(types.GetMallListBySlotTypeRequest.create({
         slot_type: Number(slotType) || 1,
         is_manual_open: Number(subSlotType) === 1,
+        global_scene_id: 1,
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.mallpb.MallService', 'GetMallListBySlotType', body);
     return types.GetMallListBySlotTypeResponse.decode(replyBody);

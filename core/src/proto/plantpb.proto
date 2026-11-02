@@ -104,7 +104,7 @@ message PlantInfo {
     // 重复的历史/扩展记录；同一土地可同时出现多条，且黄金虫/足球清理后仍会保留。
     // 当前互动道具以 interaction_uses / interaction_targets 为准；仅七夕灵露可结合变异 13 作保守兜底。
     repeated PlantExtendedStatus field_40 = 40;
-    // 变异扩展记录；配置 ID 可与 mutant_config_ids / phase.mutants 交叉确认。
+    // 官方 mutant_infos，保留原字段名；内容与 phase.mutants 同为 MutantInfo。
     repeated PlantMutationRecord extended_mutations = 41;
 }
 
@@ -137,8 +137,10 @@ message PlantMutationRecord {
     int64 mutant_config_id = 2;
     int64 field_3 = 3;
     int64 field_4 = 4;
-    int64 field_5 = 5;
-    int64 field_6 = 6;
+    int64 field_5 = 5; // mutant_plant_id，保留原字段名
+    int64 field_6 = 6; // forced_src，保留原字段名
+    int64 collection_series_id = 7;
+    int64 collection_item_id = 8;
 }
 
 // 植物限制信息 (field 34)
@@ -174,6 +176,10 @@ message MutantInfo {
     int64 mutant_time = 1;
     int64 mutant_config_id = 2;
     int64 weather_id = 3;
+    int64 mutant_plant_id = 5;
+    int32 forced_src = 6;
+    int64 collection_series_id = 7;
+    int64 collection_item_id = 8;
 }
 
 // ============ 操作限制 ============

@@ -11,8 +11,11 @@ message GetRechargeInfoRequest {
 }
 
 message RechargeInfo {
-    int64 balance = 1; // Observed value: 1.
-    int64 field_3 = 3; // Observed value: 10; semantics unknown.
+    int64 balance = 1;
+    int64 gen_balance = 2;
+    int64 save_sum = 3;
+    int64 direct_sum = 4;
+    repeated int64 first_charge_ids = 5 [packed = true];
 }
 
 message GetRechargeInfoReply {
@@ -20,6 +23,6 @@ message GetRechargeInfoReply {
 }
 
 message RechargeInfoNotify {
-    string transaction_id = 1;
+    RechargeInfo info = 1;
     string source = 2;
 }

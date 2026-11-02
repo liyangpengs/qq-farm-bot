@@ -132,7 +132,13 @@ async function getMilkTeaActivity(page = 'shop', input: any = {}) {
     if (page === 'exchange') {
         const shop = entries.find((v: any) => String(v.head?.activity_id) === SHOP)?.shop;
         if (!shop) fail('兑换商店未返回');
-        result.goods = (shop.goods || []).map((v: any) => normalizeGoods(v, settling));
+        // The official S4 shop keeps old and newly stocked goods as separate
+        // IDs, and puts eligible goods with remaining stock before sold-out or
+        // locked entries. Never carry a previous ID's stock over by item name.
+        const rank = (goods: any) => !(goods.cond_hints || []).every((condition: any) => condition.satisfied) ? 3
+            : toNum(goods.purchase_limit) > 0 && toNum(goods.purchased_count) >= toNum(goods.purchase_limit) ? 2 : 1;
+        result.goods = [...(shop.goods || [])].sort((a: any, b: any) => rank(a) - rank(b) || toNum(a.order) - toNum(b.order))
+            .map((v: any) => normalizeGoods(v, settling));
     } else if (page === 'fund') {
         const fund = entries.find((v: any) => String(v.head?.activity_id) === FUND)?.growth_fund;
         if (!fund) fail('成长基金未返回');

@@ -100,9 +100,13 @@ async function request(action = '', input: any = {}) {
         toast.warning(`${message}。请刷新确认最新进度`)
       else toast.success(message)
     }
-    if (panel.value)
+    if (panel.value) {
       panelState.value = next
-    else mainState.value = next
+    }
+    else if (action || target !== 'exchange' || !mainState.value
+      || JSON.stringify({ ...mainState.value, serverTime: 0 }) !== JSON.stringify({ ...next, serverTime: 0 })) {
+      mainState.value = next
+    }
   }
   catch (error: any) {
     if (version === sequence) {
@@ -125,9 +129,10 @@ function navigate(target: string) {
     return
   filters = {}
   if (tabs.some(([key]) => key === target)) {
+    if (target !== 'exchange' || mainPage.value !== target)
+      mainState.value = null
     panel.value = null
     mainPage.value = target
-    mainState.value = null
   }
   else {
     panel.value = target
