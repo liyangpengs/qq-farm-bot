@@ -106,7 +106,7 @@ function normalizeGoods(entry: any, settling: boolean) {
     // The official shop uses a positive purchase_limit as the finite cap.
     const remaining = limit > 0 ? Math.max(0, limit - bought) : null;
     return { id: String(entry.id), name: entry.name, description: entry.desc, rewards: items(entry.item), costs: items(entry.cost),
-        remaining, conditions, category: entry.category_tag,
+        remaining, purchaseLimit: limit > 0 ? limit : null, conditions, category: entry.category_tag,
         available: remaining !== 0 && conditions.every((v: any) => v.satisfied) && !(settling && entry.category_tag === 'seed'),
     };
 }
