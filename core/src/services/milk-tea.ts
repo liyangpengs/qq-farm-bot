@@ -105,8 +105,9 @@ function normalizeGoods(entry: any, settling: boolean) {
     const conditions = (entry.cond_hints || []).map((v: any) => ({ type: v.cond_type, satisfied: !!v.satisfied, current: toNum(v.current), target: toNum(v.target) }));
     // The official shop uses a positive purchase_limit as the finite cap.
     const remaining = limit > 0 ? Math.max(0, limit - bought) : null;
+    const limitPeriod = ({ 1: 'daily', 2: 'weekly', 3: 'monthly', 4: 'permanent' } as Record<number, string>)[toNum(entry.restriction_type)] || 'unknown';
     return { id: String(entry.id), name: entry.name, description: entry.desc, rewards: items(entry.item), costs: items(entry.cost),
-        remaining, purchaseLimit: limit > 0 ? limit : null, conditions, category: entry.category_tag,
+        remaining, purchaseLimit: limit > 0 ? limit : null, limitPeriod, conditions, category: entry.category_tag,
         available: remaining !== 0 && conditions.every((v: any) => v.satisfied) && !(settling && entry.category_tag === 'seed'),
     };
 }
