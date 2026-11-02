@@ -11,7 +11,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
 import { useCommerceStore } from '@/stores/commerce'
 import { useToastStore } from '@/stores/toast'
-import { getMallPurchaseAction } from '@/utils/mall-purchase'
+import { getMallLimitLabel, getMallPurchaseAction } from '@/utils/mall-purchase'
 
 type FilterKey = 'all' | 'free' | 'discount' | 'fertilizer' | 'pet' | 'activity'
 
@@ -103,6 +103,10 @@ const currencies = computed(() => (mall.value?.currencies || []).map(currency =>
 // 礼包内容完整清单，用于悬停提示与读屏；卡片上一行放不下时右侧淡出，完整内容在购买弹窗中查看。
 function rewardSummary(goods: MallGoodsDto) {
   return goods.rewards.map(item => `${item.name} ×${item.count}`).join('\n')
+}
+
+function limitLabel(goods: MallGoodsDto) {
+  return propsShop ? '限购' : getMallLimitLabel(goods.limit?.type)
 }
 
 // 只有一种奖励且与商品同名时，名称已经说明内容，只补数量。
@@ -244,7 +248,7 @@ onUnmounted(() => {
             </span>
           </div>
           <div v-if="goods.limit || discountRemaining(goods)" class="goods-card__meta">
-            <span v-if="goods.limit">限购 {{ goods.limit.bought }}/{{ goods.limit.max }}</span>
+            <span v-if="goods.limit">{{ limitLabel(goods) }} {{ goods.limit.bought }}/{{ goods.limit.max }}</span>
             <span v-if="discountRemaining(goods)" class="is-warn">{{ discountRemaining(goods) }}</span>
           </div>
         </div>
@@ -275,6 +279,7 @@ onUnmounted(() => {
     <PurchaseDialog
       :open="!!selected"
       :goods="selected"
+      :limit-label="selected ? limitLabel(selected) : undefined"
       :pending="purchasingGoodsId === selected?.id"
       @close="selected = null"
       @confirm="purchase"

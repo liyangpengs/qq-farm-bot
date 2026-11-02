@@ -143,6 +143,8 @@ const LONG_TERM_MS = 365 * 24 * 60 * 60 * 1000
  * 目录里的日期只是全局开放期，不代表账号有资格，所以不和限时活动混排，也不显示“进行中”。
  */
 function isStandingActivity(activity: ActivityDirectoryItemDto) {
+  if (activityStatus(activity) === 'ended')
+    return false
   if (isNewbieActivity(activity))
     return true
   const startTime = validActivityTime(activity.startTime)

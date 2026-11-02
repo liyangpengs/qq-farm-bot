@@ -1,5 +1,9 @@
 import type { MallCatalogDto, MallGoodsDto } from '@/stores/commerce'
 
+export function getMallLimitLabel(type?: number) {
+  return ({ 1: '每日限购', 2: '每周限购', 3: '每月限购', 4: '永久限购' } as Record<number, string>)[Number(type)] || '限购'
+}
+
 export function getMallPurchaseAction(goods: MallGoodsDto, membership?: MallCatalogDto['membership']) {
   const blocked = (label: string, reason = goods.unavailableReason || label) => ({ enabled: false, label, reason })
   if (membership?.isSvip === false || goods.purchaseStatus === 'svip_required')

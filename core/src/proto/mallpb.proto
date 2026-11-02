@@ -20,7 +20,7 @@ message GetMallListBySlotTypeRequest {
 
 // Purchase limits are returned both with a product and after a purchase.
 message PurchaseLimit {
-  int32 limit_type = 1;    // 1=daily, 4=activity-period in the captured products.
+  int32 limit_type = 1;    // Official RestrictionType: 1=daily, 2=weekly, 3=monthly, 4=forever.
   int64 bought_count = 2;
   int64 limit_count = 3;
 }
