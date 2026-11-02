@@ -518,12 +518,12 @@ async function copyToken() {
           v-if="showAccountDropdown"
           class="sidebar-dropdown absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden py-1"
         >
-          <div class="custom-scrollbar max-h-60 overflow-y-auto">
+          <div class="custom-scrollbar max-h-60 overflow-y-auto px-1">
             <template v-if="accounts.length > 0">
               <div
                 v-for="acc in accounts"
                 :key="acc.id || acc.uin"
-                class="flex items-center rounded-xl transition-colors hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
+                class="flex items-center rounded-xl pr-1 transition-colors hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
                 :class="{ 'bg-green-50/50 dark:bg-green-900/20': currentAccount?.id === acc.id }"
                 :style="{ backgroundColor: currentAccount?.id === acc.id ? 'color-mix(in srgb, var(--theme-primary) 10%, transparent)' : undefined }"
               >
