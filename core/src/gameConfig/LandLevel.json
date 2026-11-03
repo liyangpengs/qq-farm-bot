@@ -103,5 +103,26 @@
     "bp_exp_bonus": 4000,
     "plant_mutant_exp_bonus": 2500,
     "enable_time": "2026-04-15 12:00:00"
+  },
+  {
+    "id": 6,
+    "land_level": 6,
+    "level_name": "蓝晶土地",
+    "level_describe": "蓝晶土地",
+    "level_icon_tip": null,
+    "land_res": "model/v3/land_valid4/spriteFrame",
+    "land_icon_res": "gui/texture/plantinteractive/lanjintudi/spriteFrame",
+    "land_dryRes": "model/v3/land_dry4/spriteFrame",
+    "land_spine_res": "spine/v2/scene/scene_land/scene_land",
+    "mutiland_effect_res": null,
+    "merge_anim": "land_valid4",
+    "break_anim": null,
+    "plant_yield_bonus": 40000,
+    "planting_time_reduction": 2000,
+    "plant_exp_bonus": 3000,
+    "plant_mutant_bonus": 12500,
+    "bp_exp_bonus": 5000,
+    "plant_mutant_exp_bonus": 3000,
+    "enable_time": "2026-11-02 10:00:00"
   }
 ]

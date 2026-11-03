@@ -24,6 +24,12 @@
     "items_need": "1001:50000000;1005:500"
   },
   {
+    "land_id": 1,
+    "level": 6,
+    "level_need": 125,
+    "items_need": "1001:100000000;1005:11350"
+  },
+  {
     "land_id": 2,
     "level": 2,
     "level_need": 29,
@@ -46,6 +52,12 @@
     "level": 5,
     "level_need": 93,
     "items_need": "1001:70000000;1005:600"
+  },
+  {
+    "land_id": 2,
+    "level": 6,
+    "level_need": 130,
+    "items_need": "1001:120000000;1005:13610"
   },
   {
     "land_id": 3,
@@ -72,6 +84,12 @@
     "items_need": "1001:90000000;1005:720"
   },
   {
+    "land_id": 3,
+    "level": 6,
+    "level_need": 134,
+    "items_need": "1001:152900000;1005:16330"
+  },
+  {
     "land_id": 4,
     "level": 2,
     "level_need": 31,
@@ -94,6 +112,12 @@
     "level": 5,
     "level_need": 99,
     "items_need": "1001:110000000;1005:860"
+  },
+  {
+    "land_id": 4,
+    "level": 6,
+    "level_need": 139,
+    "items_need": "1001:198700000;1005:19600"
   },
   {
     "land_id": 5,
@@ -120,6 +144,12 @@
     "items_need": "1001:130000000;1005:1030"
   },
   {
+    "land_id": 5,
+    "level": 6,
+    "level_need": 143,
+    "items_need": "1001:257400000;1005:23520"
+  },
+  {
     "land_id": 6,
     "level": 2,
     "level_need": 33,
@@ -142,6 +172,12 @@
     "level": 5,
     "level_need": 105,
     "items_need": "1001:150000000;1005:1230"
+  },
+  {
+    "land_id": 6,
+    "level": 6,
+    "level_need": 148,
+    "items_need": "1001:329000000;1005:33860"
   },
   {
     "land_id": 7,
@@ -168,6 +204,12 @@
     "items_need": "1001:170000000;1005:1470"
   },
   {
+    "land_id": 7,
+    "level": 6,
+    "level_need": 152,
+    "items_need": "1001:413500000;1005:35550"
+  },
+  {
     "land_id": 8,
     "level": 2,
     "level_need": 35,
@@ -190,6 +232,12 @@
     "level": 5,
     "level_need": 111,
     "items_need": "1001:190000000;1005:1760"
+  },
+  {
+    "land_id": 8,
+    "level": 6,
+    "level_need": 157,
+    "items_need": "1001:510900000;1005:37320"
   },
   {
     "land_id": 9,
@@ -216,6 +264,12 @@
     "items_need": "1001:210000000;1005:2110"
   },
   {
+    "land_id": 9,
+    "level": 6,
+    "level_need": 162,
+    "items_need": "1001:621200000;1005:39180"
+  },
+  {
     "land_id": 10,
     "level": 2,
     "level_need": 37,
@@ -238,6 +292,12 @@
     "level": 5,
     "level_need": 117,
     "items_need": "1001:230000000;1005:2530"
+  },
+  {
+    "land_id": 10,
+    "level": 6,
+    "level_need": 167,
+    "items_need": "1001:744400000;1005:41130"
   },
   {
     "land_id": 11,
@@ -264,6 +324,12 @@
     "items_need": "1001:250000000;1005:3030"
   },
   {
+    "land_id": 11,
+    "level": 6,
+    "level_need": 172,
+    "items_need": "1001:880500000;1005:43180"
+  },
+  {
     "land_id": 12,
     "level": 2,
     "level_need": 39,
@@ -286,6 +352,12 @@
     "level": 5,
     "level_need": 123,
     "items_need": "1001:270000000;1005:3630"
+  },
+  {
+    "land_id": 12,
+    "level": 6,
+    "level_need": 177,
+    "items_need": "1001:1029500000;1005:45330"
   },
   {
     "land_id": 13,
@@ -312,6 +384,12 @@
     "items_need": "1001:290000000;1005:4350"
   },
   {
+    "land_id": 13,
+    "level": 6,
+    "level_need": 182,
+    "items_need": "1001:1191400000;1005:47590"
+  },
+  {
     "land_id": 14,
     "level": 2,
     "level_need": 41,
@@ -334,6 +412,12 @@
     "level": 5,
     "level_need": 129,
     "items_need": "1001:310000000;1005:5220"
+  },
+  {
+    "land_id": 14,
+    "level": 6,
+    "level_need": 187,
+    "items_need": "1001:1366200000;1005:49960"
   },
   {
     "land_id": 15,
@@ -360,6 +444,12 @@
     "items_need": "1001:330000000;1005:6260"
   },
   {
+    "land_id": 15,
+    "level": 6,
+    "level_need": 192,
+    "items_need": "1001:1553900000;1005:52450"
+  },
+  {
     "land_id": 16,
     "level": 2,
     "level_need": 43,
@@ -382,6 +472,12 @@
     "level": 5,
     "level_need": 135,
     "items_need": "1001:350000000;1005:7510"
+  },
+  {
+    "land_id": 16,
+    "level": 6,
+    "level_need": 197,
+    "items_need": "1001:1754500000;1005:55070"
   },
   {
     "land_id": 17,
@@ -408,6 +504,12 @@
     "items_need": "1001:370000000;1005:9010"
   },
   {
+    "land_id": 17,
+    "level": 6,
+    "level_need": 202,
+    "items_need": "1001:1968000000;1005:57820"
+  },
+  {
     "land_id": 18,
     "level": 2,
     "level_need": 45,
@@ -430,6 +532,12 @@
     "level": 5,
     "level_need": 141,
     "items_need": "1001:390000000;1005:10810"
+  },
+  {
+    "land_id": 18,
+    "level": 6,
+    "level_need": 207,
+    "items_need": "1001:2194400000;1005:60710"
   },
   {
     "land_id": 19,
@@ -456,6 +564,12 @@
     "items_need": "1001:410000000;1005:12970"
   },
   {
+    "land_id": 19,
+    "level": 6,
+    "level_need": 212,
+    "items_need": "1001:2433700000;1005:63740"
+  },
+  {
     "land_id": 20,
     "level": 2,
     "level_need": 49,
@@ -478,6 +592,12 @@
     "level": 5,
     "level_need": 147,
     "items_need": "1001:430000000;1005:15560"
+  },
+  {
+    "land_id": 20,
+    "level": 6,
+    "level_need": 217,
+    "items_need": "1001:2685900000;1005:66920"
   },
   {
     "land_id": 21,
@@ -504,6 +624,12 @@
     "items_need": "1001:450000000;1005:18670"
   },
   {
+    "land_id": 21,
+    "level": 6,
+    "level_need": 222,
+    "items_need": "1001:2951000000;1005:70260"
+  },
+  {
     "land_id": 22,
     "level": 2,
     "level_need": 53,
@@ -526,6 +652,12 @@
     "level": 5,
     "level_need": 153,
     "items_need": "1001:470000000;1005:22400"
+  },
+  {
+    "land_id": 22,
+    "level": 6,
+    "level_need": 228,
+    "items_need": "1001:3229000000;1005:73770"
   },
   {
     "land_id": 23,
@@ -552,6 +684,12 @@
     "items_need": "1001:490000000;1005:26880"
   },
   {
+    "land_id": 23,
+    "level": 6,
+    "level_need": 234,
+    "items_need": "1001:3519900000;1005:77450"
+  },
+  {
     "land_id": 24,
     "level": 2,
     "level_need": 57,
@@ -574,5 +712,11 @@
     "level": 5,
     "level_need": 159,
     "items_need": "1001:510000000;1005:32250"
+  },
+  {
+    "land_id": 24,
+    "level": 6,
+    "level_need": 240,
+    "items_need": "1001:3823700000;1005:81320"
   }
 ]
