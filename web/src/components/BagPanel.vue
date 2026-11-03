@@ -80,6 +80,13 @@ function formatItemCount(value: unknown) {
   return Number.isFinite(count) ? count.toLocaleString('zh-CN') : '0'
 }
 
+function useSuccessMessage(item: any, count: number, result: any) {
+  const rewards = result?.rewards || []
+  return [11, 33].includes(Number(item.itemType)) && rewards.length
+    ? `获得：${rewards.map((reward: any) => `${reward.name} ×${formatItemCount(reward.count)}`).join('、')}`
+    : `已使用 ${item.name || `物品${item.id}`} x${count}`
+}
+
 function getItemCategory(item: any): CategoryValue {
   const itemType = Number(item?.itemType || 0)
   if (itemType === 6)
@@ -227,7 +234,7 @@ function canBatchSell(item: any) {
 
 function canUse(item: any) {
   const itemType = Number(item?.itemType || 0)
-  return (itemType === 11 || isDogFood(item) || isFertilizer(item)) && item?.locked !== true
+  return ([11, 33].includes(itemType) || isDogFood(item) || isFertilizer(item)) && item?.locked !== true
 }
 
 function isLockable(item: any) {
@@ -474,7 +481,7 @@ async function handleConfirm() {
       else {
         const res = await bagStore.useItem(currentAccountId.value, Number(item.id), count, Number(item.uid) || 0)
         if (res.ok) {
-          toastStore.success(`已使用 ${item.name || `物品${item.id}`} x${count}`)
+          toastStore.success(useSuccessMessage(item, count, res.data))
           await loadBag()
         }
         else {
@@ -685,13 +692,13 @@ useIntervalFn(loadBag, 60000)
 
     <EmptyState v-else-if="!status?.connection?.connected" title="账号未运行" description="启动账号后读取背包物品" icon="i-carbon-connection-signal-off" />
 
-    <div v-else class="personal-panel__card farm-card rounded-2xl p-4 sm:p-5">
+    <div v-else class="personal-panel__card bag-panel-card farm-card rounded-2xl">
       <div v-if="items.length === 0" class="farm-card rounded-xl p-8 text-center text-gray-500">
         无可展示物品
       </div>
 
       <template v-else>
-        <div class="bag-toolbar panel-sticky panel-sticky--inset shrink-0">
+        <div class="bag-toolbar panel-sticky shrink-0">
           <div class="bag-categories custom-scrollbar" role="group" aria-label="背包分类">
             <NButton
               v-for="cat in CATEGORY_OPTIONS"
@@ -710,7 +717,7 @@ useIntervalFn(loadBag, 60000)
               <span class="ml-1 text-xs opacity-70">({{ categoryCounts[cat.value] || 0 }})</span>
             </NButton>
           </div>
-          <div class="bag-actions flex flex-wrap items-center gap-2">
+          <div v-if="sellModeAvailable || lockModeAvailable" class="bag-actions flex flex-wrap items-center gap-2">
             <NButton
               v-if="sellModeAvailable"
               :type="batchAction === 'sell' ? 'warning' : 'default'"
@@ -1138,11 +1145,26 @@ useIntervalFn(loadBag, 60000)
   }
 }
 
+.bag-panel-card {
+  --bag-panel-pad: 16px;
+  padding: var(--bag-panel-pad);
+}
+
+@media (min-width: 640px) {
+  .bag-panel-card {
+    --bag-panel-pad: 20px;
+  }
+}
+
 .bag-toolbar {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 14px;
+  margin: calc(-1 * var(--bag-panel-pad)) calc(-1 * var(--bag-panel-pad)) 14px;
+  padding: 12px var(--bag-panel-pad);
+  border-radius: var(--ui-radius-card) var(--ui-radius-card) 0 0;
+  background: var(--ui-table-head);
+  box-shadow: 0 1px 0 var(--ui-border);
 }
 
 .bag-batch-hint {
@@ -1211,7 +1233,6 @@ useIntervalFn(loadBag, 60000)
   min-width: 0;
   display: flex;
   gap: 8px;
-  padding-bottom: 4px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }

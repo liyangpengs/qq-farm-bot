@@ -177,6 +177,9 @@ async function loadProto(): Promise<void> {
     types.GetIllustratedListV2Request = root.lookupType('gamepb.illustratedpb.GetIllustratedListV2Request');
     types.GetCollectionsRequest = root.lookupType('gamepb.collectionpb.GetCollectionsRequest');
     types.GetCollectionsReply = root.lookupType('gamepb.collectionpb.GetCollectionsReply');
+    for (const name of ['UpgradeCollectionRequest', 'UpgradeCollectionReply', 'ClaimCollectionRewardRequest', 'ClaimCollectionRewardReply', 'SwitchSceneDisplayRequest', 'SwitchSceneDisplayReply']) {
+        types[name] = root.lookupType(`gamepb.collectionpb.${name}`);
+    }
     types.GetIllustratedListV2Reply = root.lookupType('gamepb.illustratedpb.GetIllustratedListV2Reply');
     types.GetIllustratedLevelListV2Request = root.lookupType('gamepb.illustratedpb.GetIllustratedLevelListV2Request');
     types.GetIllustratedLevelListV2Reply = root.lookupType('gamepb.illustratedpb.GetIllustratedLevelListV2Reply');

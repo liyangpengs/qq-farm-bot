@@ -19,6 +19,8 @@ export interface CollectionItem {
   wished: boolean
   requirements: string[]
   nextStarCosts: CollectionReward[]
+  unlocked: boolean
+  canUpgrade: boolean
 }
 export interface CollectionSeries {
   id: number
@@ -51,6 +53,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   const data = ref<CollectionSnapshot | null>(null)
   const loading = ref(false)
   const error = ref('')
+  const pending = ref('')
   let revision = 0
 
   async function fetch(accountId: string) {
@@ -83,6 +86,36 @@ export const useCollectionsStore = defineStore('collections', () => {
     data.value = null
     loading.value = false
     error.value = ''
+    pending.value = ''
   }
-  return { data, loading, error, fetch, reset }
+
+  async function operate(accountId: string, action: 'upgrade' | 'claim' | 'display', input: Record<string, unknown> = {}) {
+    if (pending.value)
+      return { ok: false, error: '藏品操作正在处理中' }
+    const request = ++revision
+    pending.value = action
+    loading.value = false
+    try {
+      const response = await api.post(`/api/collections/${action}`, input, {
+        headers: { 'x-account-id': accountId },
+        skipErrorToast: true,
+      } as any)
+      if (request !== revision)
+        return { ok: false, stale: true }
+      if (!response.data?.ok)
+        throw new Error(response.data?.error || '藏品操作失败')
+      data.value = response.data.data.snapshot
+      return { ok: true, data: response.data.data }
+    }
+    catch (cause) {
+      if (request !== revision)
+        return { ok: false, stale: true }
+      return { ok: false, error: getApiErrorMessage(cause, '藏品操作失败') }
+    }
+    finally {
+      if (request === revision)
+        pending.value = ''
+    }
+  }
+  return { data, loading, error, pending, fetch, reset, operate }
 })

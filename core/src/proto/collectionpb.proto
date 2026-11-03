@@ -47,8 +47,7 @@ message GetCollectionsReply {
     repeated DisplaySlot display_slots = 2;
 }
 
-// Official activation and star-up share this method. No write API is exposed
-// by the illustrated page; the definitions retain the verified wire format.
+// Official activation and star-up share this method.
 message UpgradeCollectionRequest {
     int32 category = 1;
     int64 collection_id = 2;
@@ -69,4 +68,12 @@ message ClaimCollectionRewardReply {
     int32 current_score = 2;
     int32 claimed_reward_score = 3;
     repeated int32 claimed_scores = 4 [packed = true];
+}
+
+// Slot 1 is the single collection display slot; item_id=0 clears it.
+message SwitchSceneDisplayRequest {
+    DisplaySlot display_slot = 1;
+}
+message SwitchSceneDisplayReply {
+    DisplaySlot display_slot = 1;
 }

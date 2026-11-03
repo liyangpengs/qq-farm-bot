@@ -17,6 +17,8 @@ const mutants = JSON.parse(fs.readFileSync(getResourcePath('gameConfig', 'Mutant
 const probabilities = config('MutantPublicity');
 
 const CATEGORY = 1;
+const DISPLAY_SLOT = 1;
+let mutationTail: Promise<void> = Promise.resolve();
 const rarityNames = ['', '普通', '稀有', '珍品', '天工'];
 const quantity = (value: any): string => value == null ? '0' : String(value);
 
@@ -52,11 +54,20 @@ function mutationRules(seriesId: number): any[] {
         .map((row: any) => ({ name: row.group_name, probability: Number((row.public_probability / 100).toFixed(1)), guarantee: row.display_guarantee }));
 }
 
+function conditionsMet(value: string | null, owned: Map<string, any>): boolean {
+    return !value || String(value).split(';').every(id => {
+        const condition = conditionConfig.find((row: any) => row.condition_id === Number(id));
+        if (!condition || condition.condition_type !== 3) return false;
+        const ids = itemConfig.filter((item: any) => item.series_id === condition.target_series_id).map((item: any) => String(item.item_id));
+        return ids.filter((itemId: string) => Number(owned.get(itemId)?.star_level || 0) >= condition.required_star_level).length >= condition.required_count;
+    });
+}
+
 function normalizeCollections(reply: any): any {
     const detail = (reply.details || []).find((row: any) => row.category === CATEGORY);
     if (!detail) throw new Error('当前账号未返回蓝晶藏品信息');
-    const owned = new Map((detail.collections || []).map((row: any) => [quantity(row.collection_id), row]));
-    const display = (reply.display_slots || []).find((row: any) => row.display?.category === CATEGORY)?.display;
+    const owned = new Map<string, any>((detail.collections || []).map((row: any) => [quantity(row.collection_id), row]));
+    const display = (reply.display_slots || []).find((row: any) => row.slot_type === DISPLAY_SLOT && row.display?.category === CATEGORY)?.display;
     const score = detail.current_score;
     const claimedScore = detail.claimed_reward_score;
     const series = seriesConfig.filter((row: any) => Number(row.category) === CATEGORY)
@@ -68,6 +79,9 @@ function normalizeCollections(reply: any): any {
                     const definition = getItemById(item.item_id);
                     const nextStar = starConfig.find((entry: any) => entry.series_id === row.series_id && entry.star_level === starLevel + 1);
                     const scores = scoreConfig.find((entry: any) => entry.star_level === starLevel && Number(entry.category) === CATEGORY);
+                    const unlocked = conditionsMet(row.unlock_condition_ids, owned) && conditionsMet(item.unlock_condition_ids, owned);
+                    const nextStarCosts = rewards(nextStar?.items_need || null, item.item_id);
+                    const copiesNeeded = nextStarCosts.find(cost => cost.itemId === item.item_id)?.count;
                     return {
                         id: item.item_id, name: definition?.name || `藏品${item.item_id}`, description: definition?.desc || '',
                         image: getItemImageById(item.item_id), starLevel, maxStarLevel: 5,
@@ -75,8 +89,9 @@ function normalizeCollections(reply: any): any {
                         score: scores ? Number(scores.score.split(';')[row.series_rarity - 1]) : 0,
                         displayed: quantity(display?.item_id) === String(item.item_id),
                         wished: (detail.wished || []).some((wish: any) => quantity(wish.collection_id) === String(item.item_id)),
-                        requirements: conditionText(item.unlock_condition_ids),
-                        nextStarCosts: rewards(nextStar?.items_need || null, item.item_id),
+                        requirements: [...conditionText(row.unlock_condition_ids), ...conditionText(item.unlock_condition_ids)],
+                        nextStarCosts, unlocked,
+                        canUpgrade: unlocked && starLevel < 5 && !!copiesNeeded && BigInt(quantity(state?.own_count)) >= BigInt(copiesNeeded),
                     };
                 });
             return { id: row.series_id, name: row.series_name, rarity: row.series_rarity, rarityName: rarityNames[row.series_rarity],
@@ -108,18 +123,157 @@ function normalizeCollections(reply: any): any {
 }
 
 let pendingSnapshot: Promise<any> | null = null;
-function getCollectionsSnapshot(): Promise<any> {
+async function readCollectionsReply(): Promise<any> {
+    const { sendMsgAsync } = require('../utils/network');
+    const { types } = require('../utils/proto');
+    const body = types.GetCollectionsRequest.encode({ categories: [CATEGORY] }).finish();
+    const reply = await sendMsgAsync('gamepb.collectionpb.CollectionService', 'GetCollections', body);
+    return types.GetCollectionsReply.decode(reply.body);
+}
+
+function getCollectionsSnapshot(options: { fresh?: boolean } = {}): Promise<any> {
+    if (options.fresh) return readCollectionsReply().then(normalizeCollections);
     if (pendingSnapshot) return pendingSnapshot;
-    const request = (async () => {
-        const { sendMsgAsync } = require('../utils/network');
-        const { types } = require('../utils/proto');
-        const body = types.GetCollectionsRequest.encode({ categories: [CATEGORY] }).finish();
-        const reply = await sendMsgAsync('gamepb.collectionpb.CollectionService', 'GetCollections', body);
-        return normalizeCollections(types.GetCollectionsReply.decode(reply.body));
-    })();
+    const request = readCollectionsReply().then(normalizeCollections);
     pendingSnapshot = request;
     request.finally(() => { if (pendingSnapshot === request) pendingSnapshot = null; }).catch(() => {});
     return request;
+}
+
+function collectionError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code });
+}
+
+function collectionId(value: unknown): number {
+    const id = Number(value);
+    if (!Number.isSafeInteger(id) || !itemConfig.some((item: any) => item.item_id === id)) throw collectionError('INVALID_ARGUMENT', '藏品编号无效');
+    return id;
+}
+
+function costSignature(costs: any[]): string {
+    return costs.map(cost => `${cost?.itemId}:${cost?.count}`).sort().join('|');
+}
+
+async function bagBalance(itemId: number): Promise<any> {
+    const warehouse = require('./warehouse');
+    const bag = await warehouse.getBag({ fresh: true });
+    let total = 0n;
+    let locked = 0n;
+    for (const item of warehouse.getBagItems(bag).filter((item: any) => Number(item.id) === itemId)) {
+        const count = BigInt(quantity(item.count));
+        if (count < 0n) throw collectionError('BALANCE_UNKNOWN', '物品余额无法确认');
+        total += count;
+        if (warehouse.isItemLocked(item)) locked += count;
+    }
+    return { resourceKey: `item:${itemId}`, state: 'known', total: String(total), locked: String(locked) };
+}
+
+async function prepareCollectionUpgrade(input: any): Promise<any> {
+    const id = collectionId(input.collectionId);
+    const level = input.expectedStarLevel;
+    if (!Number.isInteger(level) || level < 0 || level >= 5) throw collectionError('INVALID_ARGUMENT', '请提供当前藏品星级（0–4）');
+    const raw = await readCollectionsReply();
+    const snapshot = normalizeCollections(raw);
+    const item = snapshot.series.flatMap((series: any) => series.items).find((item: any) => item.id === id);
+    if (item.starLevel !== level) throw collectionError('COLLECTION_STATE_CHANGED', '藏品星级已变化，请刷新后重新确认');
+    if (!item.unlocked) throw collectionError('COLLECTION_LOCKED', '尚未满足藏品解锁条件');
+    if (!item.nextStarCosts.length) throw collectionError('COLLECTION_COST_UNKNOWN', '升星材料无法确认');
+    if (input.expectedCosts !== undefined && (!Array.isArray(input.expectedCosts) || costSignature(input.expectedCosts) !== costSignature(item.nextStarCosts))) {
+        throw collectionError('PRICE_CHANGED', '激活或升星材料已变化，请重新确认');
+    }
+    const balances = [];
+    for (const cost of item.nextStarCosts) {
+        const balance = cost.itemId === id
+            ? { resourceKey: `item:${id}`, state: 'known', total: item.ownCount, locked: '0' }
+            : await bagBalance(cost.itemId);
+        if (BigInt(balance.total) - BigInt(balance.locked) < BigInt(cost.count)) throw collectionError('INSUFFICIENT_BALANCE', `${cost.name}不足，需要 ${cost.count}`);
+        balances.push(balance);
+    }
+    return { raw, snapshot, item, balances, costs: item.nextStarCosts.map((cost: any) => ({ resourceKey: `item:${cost.itemId}`, amount: cost.count })),
+        expected: { starLevel: level, costs: item.nextStarCosts.map((cost: any) => ({ itemId: cost.itemId, count: cost.count })) } };
+}
+
+async function sendCollectionMutation(method: string, input: any): Promise<any> {
+    const { types } = require('../utils/proto');
+    const { sendMsgAsync } = require('../utils/network');
+    pendingSnapshot = null;
+    const body = types[`${method}Request`].encode(input).finish();
+    const reply = await sendMsgAsync('gamepb.collectionpb.CollectionService', method, body);
+    return types[`${method}Reply`].decode(reply.body);
+}
+
+function unconfirmed(): never {
+    throw collectionError('COLLECTION_RESULT_UNKNOWN', '藏品操作结果无法确认，请刷新核对，不要重复提交');
+}
+
+function serializeMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = mutationTail.then(operation, operation);
+    mutationTail = result.then(() => undefined, () => undefined);
+    return result;
+}
+
+async function upgradeCollection(input: any): Promise<any> {
+    return serializeMutation(async () => {
+        const plan = await prepareCollectionUpgrade(input);
+        const reply = await sendCollectionMutation('UpgradeCollection', { category: CATEGORY, collection_id: plan.item.id });
+        const copies = plan.item.nextStarCosts.find((cost: any) => cost.itemId === plan.item.id);
+        const expectedCount = BigInt(plan.item.ownCount) - BigInt(copies.count);
+        if (reply.category !== CATEGORY || Number(reply.collection_id) !== plan.item.id || reply.star_level !== plan.item.starLevel + 1 || BigInt(quantity(reply.own_count)) !== expectedCount) unconfirmed();
+        const series = plan.snapshot.series.find((series: any) => series.items.some((item: any) => item.id === plan.item.id));
+        const score = scoreConfig.find((row: any) => Number(row.category) === CATEGORY && row.star_level === reply.star_level);
+        if (!score || reply.current_score !== plan.snapshot.score - plan.item.score + Number(score.score.split(';')[series.rarity - 1])) unconfirmed();
+        for (const cost of plan.item.nextStarCosts.filter((cost: any) => cost.itemId !== plan.item.id)) {
+            const before = plan.balances.find((balance: any) => balance.resourceKey === `item:${cost.itemId}`);
+            const after = await bagBalance(cost.itemId);
+            if (BigInt(after.total) !== BigInt(before.total) - BigInt(cost.count)) unconfirmed();
+        }
+        const detail = plan.raw.details.find((detail: any) => detail.category === CATEGORY);
+        const owned = detail.collections.find((item: any) => Number(item.collection_id) === plan.item.id);
+        Object.assign(owned, { star_level: reply.star_level, own_count: reply.own_count });
+        detail.current_score = reply.current_score;
+        return { snapshot: normalizeCollections(plan.raw), costs: plan.costs };
+    });
+}
+
+async function claimCollectionRewards(): Promise<any> {
+    return serializeMutation(async () => {
+        const raw = await readCollectionsReply();
+        const snapshot = normalizeCollections(raw);
+        const eligible = snapshot.milestones.filter((row: any) => row.reached && !row.claimed);
+        if (!eligible.length) return { snapshot, skipped: true };
+        const reply = await sendCollectionMutation('ClaimCollectionReward', { category: CATEGORY });
+        if (reply.current_score < snapshot.score || reply.claimed_reward_score < eligible.at(-1).score || reply.claimed_reward_score > reply.current_score) unconfirmed();
+        const detail = raw.details.find((detail: any) => detail.category === CATEGORY);
+        Object.assign(detail, { current_score: reply.current_score, claimed_reward_score: reply.claimed_reward_score });
+        return { snapshot: normalizeCollections(raw), claimedScores: reply.claimed_scores, rewards: (reply.total_rewards || []).map((item: any) => ({ id: Number(item.id), name: getItemById(Number(item.id))?.name || `物品${item.id}`, count: quantity(item.count) })) };
+    });
+}
+
+async function setCollectionDisplay(input: any): Promise<any> {
+    const id = collectionId(input.collectionId);
+    if (typeof input.displayed !== 'boolean') throw collectionError('INVALID_ARGUMENT', '请指定展示或取消展示');
+    return serializeMutation(async () => {
+        const raw = await readCollectionsReply();
+        const snapshot = normalizeCollections(raw);
+        const item = snapshot.series.flatMap((series: any) => series.items).find((item: any) => item.id === id);
+        if (!item.activated) throw collectionError('COLLECTION_NOT_ACTIVE', '请先激活藏品');
+        const current = snapshot.display?.itemId || '0';
+        if (input.expectedDisplayItemId !== undefined && String(input.expectedDisplayItemId) !== current) throw collectionError('COLLECTION_STATE_CHANGED', '展示藏品已变化，请刷新后重新确认');
+        if ((input.displayed && current === String(id)) || (!input.displayed && current !== String(id))) return { snapshot, skipped: true };
+        const target = input.displayed ? id : 0;
+        const reply = await sendCollectionMutation('SwitchSceneDisplay', { display_slot: { slot_type: DISPLAY_SLOT, display: { category: CATEGORY, item_id: target } } });
+        const slot = reply.display_slot;
+        if (slot?.slot_type !== DISPLAY_SLOT || slot.display?.category !== CATEGORY || Number(slot.display.item_id) !== target) unconfirmed();
+        raw.display_slots = [...(raw.display_slots || []).filter((row: any) => row.slot_type !== DISPLAY_SLOT), slot];
+        return { snapshot: normalizeCollections(raw) };
+    });
+}
+
+function operateCollections(action: string, input: any = {}): Promise<any> {
+    if (action === 'upgrade') return upgradeCollection(input);
+    if (action === 'claim') return claimCollectionRewards();
+    if (action === 'display') return setCollectionDisplay(input);
+    throw collectionError('INVALID_ARGUMENT', '未知的藏品操作');
 }
 
 function getMutationCatalog(): any {
@@ -144,4 +298,4 @@ function getMutationCatalog(): any {
     };
 }
 
-module.exports = { getCollectionsSnapshot, normalizeCollections, getMutationCatalog };
+module.exports = { getCollectionsSnapshot, normalizeCollections, getMutationCatalog, prepareCollectionUpgrade, upgradeCollection, claimCollectionRewards, setCollectionDisplay, operateCollections };

@@ -802,6 +802,9 @@ async function handleApiCall(msg: any): Promise<void> {
             case 'getCollectionsSnapshot':
                 result = await require('../services/collections').getCollectionsSnapshot();
                 break;
+            case 'operateCollections':
+                result = await require('../services/collections').operateCollections(args[0], args[1]);
+                break;
             case 'claimIllustratedRewards':
                 result = await require('../services/illustrated').claimIllustratedRewards(args[0]);
                 break;
