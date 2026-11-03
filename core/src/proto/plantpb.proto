@@ -51,11 +51,11 @@ message LandUnlockCondition {
     int64 need_gold = 3;
 }
 
-// 土地升级条件 (简化)
+// 土地升级条件
 message LandUpgradeCondition {
-    int64 condition_type = 1;
-    int64 condition_value = 2; // condition_type=1 时已确认代表所需角色等级
-    repeated corepb.Item required_items = 3;
+    int64 preceeding_lands_count_need = 1; // 官方字段拼写：当前土地等级及以上的地块数量
+    int64 level_need = 2;
+    repeated corepb.Item items_need = 3;
 }
 
 // ============ 偷菜玩家信息 ============

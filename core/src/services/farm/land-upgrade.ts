@@ -48,11 +48,16 @@ export function buildLandUpgradeDetail(land: any, landsMap: Map<number, any> = n
         const [itemId, count] = part.split(':');
         return { id: itemId, count };
     });
-    const conditionType = number(condition?.condition_type);
+    const precedingCount = condition ? number(condition.preceeding_lands_count_need) || 1 : 0;
+    const precedingOwned = landsMap.size > 0
+        ? [...landsMap.values()].filter(entry => entry.unlocked && number(entry.level) >= level).length
+        : null;
     return { mode: 'upgrade', current, next, serverAllowed: !!land?.could_upgrade,
-        needLevel: condition ? (conditionType === 1 ? number(condition.condition_value) : null) : (config?.level_need ?? null),
+        needLevel: condition ? number(condition.level_need) : (config?.level_need ?? null),
         prerequisite: null,
-        costs: costs(condition ? (condition.required_items || []) : configItems),
-        unknown: !next || (condition ? conditionType !== 1 : !config),
+        precedingLands: precedingCount > 0 ? { name: current?.name || `等级${level}土地`, required: precedingCount,
+            owned: precedingOwned, met: precedingOwned === null ? null : precedingOwned >= precedingCount } : null,
+        costs: costs(condition ? (condition.items_need || []) : configItems),
+        unknown: !next || (condition ? !number(condition.level_need) || precedingOwned === null : !config),
     };
 }
