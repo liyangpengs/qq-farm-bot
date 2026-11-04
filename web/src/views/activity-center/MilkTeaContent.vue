@@ -2,6 +2,7 @@
 import { useIntervalFn } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 import CommerceItemImage from '@/components/commerce/CommerceItemImage.vue'
+import { affordableCount } from '@/utils/purchase-count'
 import MilkTeaWork from './MilkTeaWork.vue'
 
 const { state, page, busy } = defineProps<{ state: any, page: string, busy: boolean }>()
@@ -71,6 +72,14 @@ function switchPage(value: string) {
 }
 function select(action: string, title: string, input: any = {}, costs?: any[], rewards?: any[], max?: number) {
   emit('confirmation', { action, title, input, costs, rewards, quantity: max !== undefined, max })
+}
+function exchangeMax(goods: any) {
+  const byBalance = affordableCount((goods?.costs || []).map((cost: any) => ({
+    id: cost.id,
+    count: Number(cost.count),
+    balance: Number(state?.balances?.[cost.id] ?? Number.NaN),
+  })))
+  return Math.min(9999, goods?.remaining ?? 9999, byBalance)
 }
 function request(action = '', input: any = {}) {
   if (action)
@@ -357,7 +366,7 @@ onMounted(() => {
           </div>
           <small v-if="goods.remaining !== null">{{ limitLabel(goods.limitPeriod) }} {{ goods.remaining }}/{{ goods.purchaseLimit }}</small>
           <small v-for="condition in goods.conditions.filter((value: any) => !value.satisfied)" :key="condition.type">需店铺等级 {{ condition.target }}（当前 {{ condition.current }}）</small>
-          <button class="primary price" :disabled="busy || !state.active || !goods.available" @click="select('exchange', goods.name || goods.rewards[0]?.name, { goodsId: goods.id }, goods.costs, goods.rewards, Math.min(9999, goods.remaining ?? 9999))">
+          <button class="primary price" :disabled="busy || !state.active || !goods.available" @click="select('exchange', goods.name || goods.rewards[0]?.name, { goodsId: goods.id }, goods.costs, goods.rewards, exchangeMax(goods))">
             <template v-if="goods.remaining === 0">
               已售罄
             </template>

@@ -2,6 +2,7 @@
 import type { MallGoodsDto } from '@/stores/commerce'
 import { NButton } from 'naive-ui/es/button'
 import { computed, ref, watch } from 'vue'
+import { purchaseMaxCount } from '@/utils/purchase-count'
 import CommerceItemImage from './CommerceItemImage.vue'
 
 const props = defineProps<{
@@ -17,7 +18,10 @@ const emit = defineEmits<{
 }>()
 
 const count = ref(1)
-const maxCount = computed(() => Math.max(1, Math.min(9999, props.goods?.limit?.remaining ?? 9999)))
+const maxCount = computed(() => purchaseMaxCount({
+  limitRemaining: props.goods?.limit?.remaining ?? null,
+  costs: props.goods?.isFree ? [] : [{ id: props.goods?.price?.id, count: props.goods?.price?.count, balance: props.goods?.price?.balance }],
+}))
 const totalCost = computed(() => (props.goods?.price.count || 0) * count.value)
 const balanceUnknown = computed(() => !props.goods?.isFree && props.goods?.price.balance == null)
 const insufficient = computed(() => {
