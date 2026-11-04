@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { CommerceItemDto } from '@/stores/commerce'
+import { NButton } from 'naive-ui/es/button'
+import { NPopover } from 'naive-ui/es/popover'
+import { NTab, NTabs } from 'naive-ui/es/tabs'
 import { storeToRefs } from 'pinia'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import api from '@/api'
-import ActivityHeader from '@/components/activity/ActivityHeader.vue'
-import ActivityShell from '@/components/activity/ActivityShell.vue'
-import CommerceItemImage from '@/components/commerce/CommerceItemImage.vue'
+import BookOverview from '@/components/illustrated/BookOverview.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
 import { useToastStore } from '@/stores/toast'
 
@@ -28,7 +30,7 @@ interface ShareRewardState {
   claimLimit: number
   poolClaimedCount: number
   poolClaimLimit: number
-  milestones: Array<{ id: string, threshold: number, state: number, rewards: CommerceItemDto[] }>
+  milestones: Array<{ id: string, threshold: number, state: number, rewards: Array<CommerceItemDto & { description: string }> }>
 }
 interface ShareRecord { seq: string, kind: number, score: string, created_at: string, actor?: { name: string } }
 
@@ -40,28 +42,44 @@ const state = ref<ShareRewardState | null>(null)
 const busy = ref(false)
 const records = ref<ShareRecord[]>([])
 const logTab = ref(1)
+const logsOpen = ref(false)
+const rewardDetails = ref<Record<string, boolean>>({})
+const brokenImages = ref<Record<string, boolean>>({})
 let sequence = 0
 const readyTiers = computed(() => state.value?.milestones.filter(tier => tier.state === 2).length || 0)
 const nextTier = computed(() => state.value?.milestones.find(tier => tier.threshold > state.value!.score))
-// 档位门槛间距不均匀：刻度等距排在每列中心，相邻刻度之间再按快乐值线性插值
-const trackFill = computed(() => {
-  const tiers = state.value?.milestones || []
-  const score = state.value?.score || 0
-  let previous = 0
-  for (const [index, tier] of tiers.entries()) {
-    if (score < tier.threshold) {
-      const from = index ? (index - 0.5) / tiers.length : 0
-      const to = (index + 0.5) / tiers.length
-      return (from + (to - from) * (score - previous) / Math.max(1, tier.threshold - previous)) * 100
-    }
-    previous = tier.threshold
-  }
-  return tiers.length ? 100 : 0
+/** 概览进度：从上一档门槛到下一档门槛；全部解锁后满格。 */
+const tierProgress = computed(() => {
+  const current = state.value
+  if (!current)
+    return 0
+  const next = nextTier.value
+  if (!next)
+    return 100
+  const previous = [...current.milestones].reverse().find(tier => tier.threshold <= current.score)?.threshold || 0
+  return Math.max(0, Math.min(100, (current.score - previous) / Math.max(1, next.threshold - previous) * 100))
 })
-const period = computed(() => state.value ? `${date(state.value.startTime)} — ${date(state.value.endTime)}` : '')
+const period = computed(() => state.value ? `${date(state.value.startTime)} – ${date(state.value.endTime)}` : '')
+const daysLeft = computed(() => {
+  if (!state.value?.active)
+    return ''
+  const left = Math.ceil((state.value.endTime - Date.now()) / 86400000)
+  return left <= 0 ? '今天结束' : `还剩 ${left} 天`
+})
+
+const TIER_STATE = {
+  2: { label: '可领取', tone: 'ready' },
+  3: { label: '已领取', tone: 'claimed' },
+} as Record<number, { label: string, tone: string }>
+function tierState(state: number) {
+  return TIER_STATE[state] || { label: '未达成', tone: 'locked' }
+}
 
 function date(value: number) {
   return new Date(value).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+}
+function recordTime(entry: ShareRecord) {
+  return new Date(Number(entry.created_at) * 1000).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 function recordLabel(entry: ShareRecord) {
   if (entry.kind === 3)
@@ -121,8 +139,9 @@ function switchLogTab(tab: number) {
   records.value = []
   void request('logs')
 }
-function toggleLogs(event: Event) {
-  if ((event.target as HTMLDetailsElement).open)
+function toggleLogs() {
+  logsOpen.value = !logsOpen.value
+  if (logsOpen.value)
     void request('logs')
 }
 watch([currentAccountId, () => props.activityId], () => {
@@ -131,548 +150,575 @@ watch([currentAccountId, () => props.activityId], () => {
   state.value = null
   records.value = []
   logTab.value = 1
+  logsOpen.value = false
+  rewardDetails.value = {}
   void request()
 }, { immediate: true })
 onUnmounted(() => sequence++)
 </script>
 
 <template>
-  <ActivityShell class="share-shell" theme="day">
-    <div class="share-reward">
-      <ActivityHeader :title="state?.title || '快乐不独享'" :remaining="state?.active ? period : state ? '活动已结束' : ''" :loading="busy" show-refresh @back="$emit('back')" @refresh="request()" />
-      <main class="share-scroll">
-        <div v-if="!currentAccountId || !state" class="empty">
-          <span :class="busy ? 'i-carbon-renew animate-spin' : 'i-carbon-gift'" />
-          <strong>{{ !currentAccountId ? '请先选择账号' : busy ? '正在读取活动进度' : '暂未获取到活动数据' }}</strong>
-          <button v-if="currentAccountId && !busy" class="g-btn" @click="request()">
-            重新加载
-          </button>
+  <section class="share-page">
+    <header class="share-head">
+      <NButton secondary circle title="返回活动列表" aria-label="返回活动列表" @click="$emit('back')">
+        <template #icon>
+          <span class="i-carbon-arrow-left" />
+        </template>
+      </NButton>
+      <div class="share-head__title">
+        <h2>{{ state?.title || '快乐不独享' }}</h2>
+        <p v-if="state">
+          <span class="i-carbon-calendar" aria-hidden="true" />{{ period }}
+          <span v-if="daysLeft" class="share-head__badge">{{ daysLeft }}</span>
+          <span v-else-if="!state.active" class="share-head__badge is-ended">已结束</span>
+        </p>
+      </div>
+      <NButton secondary circle :loading="busy" title="刷新活动数据" aria-label="刷新活动数据" @click="request()">
+        <template #icon>
+          <span class="i-carbon-renew" />
+        </template>
+      </NButton>
+    </header>
+
+    <main class="share-scroll custom-scrollbar">
+      <EmptyState
+        v-if="!currentAccountId || !state"
+        :title="!currentAccountId ? '请先选择账号' : busy ? '正在读取活动进度' : '暂未获取到活动数据'"
+        :icon="busy ? 'i-svg-spinners-90-ring-with-bg' : 'i-carbon-gift'"
+      >
+        <NButton v-if="currentAccountId && !busy" secondary @click="request()">
+          重新加载
+        </NButton>
+      </EmptyState>
+
+      <div v-else class="share-content">
+        <BookOverview
+          title="我的快乐值"
+          icon="i-carbon-face-satisfied"
+          :badge-value="state.score"
+          badge-label="快乐值"
+          :caption="readyTiers ? `${readyTiers} 档奖励可领取` : `共 ${state.milestones.length} 档奖励`"
+          :progress-text="nextTier ? `${state.score} / ${nextTier.threshold}` : ''"
+          :percent="tierProgress"
+          :hint="nextTier ? `再攒 ${nextTier.threshold - state.score} 点解锁 ${nextTier.threshold} 档` : '全部档位都已解锁'"
+        >
+          <template v-if="readyTiers" #actions>
+            <NButton type="primary" :loading="busy" :disabled="!state.canClaimMilestones" @click="request('milestones')">
+              领取档位奖励（{{ readyTiers }}）
+            </NButton>
+          </template>
+        </BookOverview>
+
+        <div class="share-tasks">
+          <article class="share-task">
+            <span class="share-task__icon"><span class="i-carbon-share" /></span>
+            <div class="share-task__main">
+              <strong>每日分享</strong>
+              <span>首次分享得 {{ state.firstShareReward }} 快乐值 · 快乐包已被领 {{ state.poolClaimedCount }}/{{ state.poolClaimLimit }}</span>
+            </div>
+            <NButton :type="state.canShare ? 'primary' : 'default'" :secondary="!state.canShare" :disabled="busy || !state.canShare" @click="request('share')">
+              {{ state.firstShareAwarded ? '今日已分享' : '分享' }}
+            </NButton>
+          </article>
+          <article class="share-task">
+            <span class="share-task__icon"><span class="i-carbon-gift" /></span>
+            <div class="share-task__main">
+              <strong>好友快乐包</strong>
+              <span>每日可领 +{{ state.dailyReward }} 快乐值 · 今日已领 {{ state.claimedCount }}/{{ state.claimLimit }}</span>
+            </div>
+            <NButton :type="state.canClaimDaily ? 'primary' : 'default'" :secondary="!state.canClaimDaily" :disabled="busy || !state.canClaimDaily" @click="request('daily')">
+              {{ state.canClaimDaily ? '领取' : '已领取' }}
+            </NButton>
+          </article>
         </div>
-        <div v-else class="content">
-          <section class="board">
-            <div class="score-pill">
-              我的快乐值：<img :src="state.icon" alt=""><b>{{ state.score }}</b>
-            </div>
-            <p class="hint">
-              {{ nextTier ? `再攒 ${nextTier.threshold - state.score} 点，解锁 ${nextTier.threshold} 档奖励` : '全部档位都已解锁' }}
-            </p>
 
-            <div class="ladder" :style="{ '--tiers': state.milestones.length || 1 }">
-              <div v-for="tier in state.milestones" :key="tier.id" class="ladder__col" :class="{ ready: tier.state === 2, claimed: tier.state === 3 }">
-                <span v-if="tier.state === 2" class="ladder__tag">可领取</span>
-                <div v-for="item in tier.rewards" :key="item.id" class="item" :title="`${item.name} ×${item.count}`">
-                  <span class="item-box">
-                    <CommerceItemImage :src="item.image" :alt="item.name" />
-                    <b>{{ item.count }}</b>
-                    <span v-if="tier.state !== 2" class="item-box__badge" :aria-label="tier.state === 3 ? '已领取' : '未达成'"><span :class="tier.state === 3 ? 'i-carbon-checkmark' : 'i-carbon-locked'" /></span>
-                  </span>
-                  <span class="item__name">{{ item.name }}</span>
-                </div>
-                <i class="ladder__arrow" aria-hidden="true" />
+        <section class="share-section" aria-labelledby="share-tiers-title">
+          <h3 id="share-tiers-title" class="share-section__title">
+            档位奖励<small>{{ state.milestones.length }}</small>
+          </h3>
+          <ol class="tier-list">
+            <li v-for="tier in state.milestones" :key="tier.id" class="tier-row" :class="`is-${tierState(tier.state).tone}`">
+              <div class="tier-row__threshold">
+                <b>{{ tier.threshold }}</b><small>快乐值</small>
               </div>
-              <div class="ladder__track" role="progressbar" :aria-valuenow="state.score" aria-valuemin="0" :aria-valuemax="state.milestones[state.milestones.length - 1]?.threshold || 0" aria-label="快乐值档位进度">
-                <span :style="{ width: `${trackFill}%` }" />
-              </div>
-              <b v-for="tier in state.milestones" :key="`v-${tier.id}`" class="ladder__value">{{ tier.threshold }}</b>
-            </div>
-
-            <div v-if="readyTiers" class="actions">
-              <button class="g-btn g-btn--wide" :disabled="busy || !state.canClaimMilestones" @click="request('milestones')">
-                领取档位奖励（{{ readyTiers }}）
-              </button>
-            </div>
-
-            <div class="duo">
-              <div class="duo__item">
-                <span class="bubble">快乐包已被领 {{ state.poolClaimedCount }}/{{ state.poolClaimLimit }}</span>
-                <button class="g-btn" :disabled="busy || !state.canShare" @click="request('share')">
-                  <template v-if="state.firstShareAwarded">
-                    今日已分享
+              <div class="tier-row__rewards">
+                <NPopover v-for="item in tier.rewards" :key="item.id" v-model:show="rewardDetails[`${tier.id}-${item.id}`]" trigger="click" :show-arrow="false">
+                  <template #trigger>
+                    <button type="button" class="tier-reward" :title="`${item.name} ×${item.count}`" :aria-label="`查看${item.name}说明`" :aria-expanded="!!rewardDetails[`${tier.id}-${item.id}`]" @keydown.esc="rewardDetails[`${tier.id}-${item.id}`] = false">
+                      <span class="tier-reward__well"><img v-if="item.image && !brokenImages[item.image]" :src="item.image" alt="" @error="brokenImages[item.image] = true"><span v-else class="i-carbon-image" aria-hidden="true" /></span>
+                      <span class="tier-reward__name">{{ item.name }}</span>
+                      <b>×{{ item.count }}</b>
+                    </button>
                   </template>
-                  <template v-else>
-                    每日分享得<img :src="state.icon" alt="快乐值">{{ state.firstShareReward }}
-                  </template>
-                </button>
+                  <div class="reward-description" @keydown.esc="rewardDetails[`${tier.id}-${item.id}`] = false">
+                    <strong>{{ item.name }} ×{{ item.count }}</strong>
+                    <p v-if="item.description">
+                      {{ item.description }}
+                    </p>
+                  </div>
+                </NPopover>
               </div>
-              <div class="duo__item">
-                <span class="bubble">好友快乐包今日已领 {{ state.claimedCount }}/{{ state.claimLimit }}</span>
-                <button class="g-btn g-btn--brown" :disabled="busy || !state.canClaimDaily" @click="request('daily')">
-                  {{ state.canClaimDaily ? `领取今日快乐 +${state.dailyReward}` : '今日快乐已领取' }}
-                </button>
-              </div>
-            </div>
-          </section>
+              <span class="tier-row__state">
+                <span v-if="tier.state === 3" class="i-carbon-checkmark" aria-hidden="true" />
+                <span v-else-if="tier.state !== 2" class="i-carbon-locked" aria-hidden="true" />
+                {{ tierState(tier.state).label }}
+              </span>
+            </li>
+          </ol>
+        </section>
 
-          <details class="board board--fold" @toggle="toggleLogs">
-            <summary>领取日志</summary>
-            <div class="log-tabs" role="tablist">
-              <button role="tab" :aria-selected="logTab === 1" :disabled="busy" @click="switchLogTab(1)">
+        <section class="share-section">
+          <button type="button" class="share-section__title share-section__toggle" :aria-expanded="logsOpen" aria-controls="share-logs" @click="toggleLogs">
+            领取日志
+            <span class="share-section__chevron i-carbon-chevron-down" :class="{ 'is-open': logsOpen }" aria-hidden="true" />
+          </button>
+          <div v-if="logsOpen" id="share-logs" class="share-logs">
+            <NTabs :value="logTab" type="segment" size="small" class="share-logs__tabs" @update:value="switchLogTab">
+              <NTab :name="1" :disabled="busy">
                 我领取的
-              </button><button role="tab" :aria-selected="logTab === 0" :disabled="busy" @click="switchLogTab(0)">
+              </NTab>
+              <NTab :name="0" :disabled="busy">
                 领取我的
-              </button>
-            </div>
-            <ul class="records">
+              </NTab>
+            </NTabs>
+            <ul v-if="records.length" class="share-records">
               <li v-for="entry in records" :key="`${entry.seq}-${entry.kind}`">
-                <span>{{ recordLabel(entry) }}<time>{{ new Date(Number(entry.created_at) * 1000).toLocaleString('zh-CN') }}</time></span><b>+{{ entry.score }}</b>
+                <span>{{ recordLabel(entry) }}</span>
+                <time>{{ recordTime(entry) }}</time>
+                <b>+{{ entry.score }}</b>
               </li>
             </ul>
-            <p v-if="!records.length" class="hint">
+            <p v-else class="share-logs__empty">
               {{ busy ? '正在读取记录…' : '暂无记录' }}
             </p>
-          </details>
-        </div>
-      </main>
-    </div>
-  </ActivityShell>
+          </div>
+        </section>
+      </div>
+    </main>
+  </section>
 </template>
 
 <style scoped>
-.activity-shell.share-shell {
-  flex: 1 1 0;
-  height: auto;
-  min-height: 0;
-}
-.share-reward {
-  --wood: #9a6438;
-  --wood-dark: #5e3a1f;
-  --paper: #fbf3e2;
-  --paper-hi: #fffaf0;
-  --ink: #4b301b;
-  --muted: #7d5c40;
-  --orange: #f5a23a;
+.share-page {
+  display: flex;
   height: 100%;
-  color: var(--ink);
-  background: linear-gradient(180deg, #f7ecdc 0%, #efdfc8 100%);
+  min-height: 0;
+  flex-direction: column;
 }
+
+.share-head {
+  display: flex;
+  width: 100%;
+  max-width: 880px;
+  flex-shrink: 0;
+  margin: 0 auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 4px 12px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.share-head__title {
+  min-width: 0;
+  flex: 1;
+}
+
+.share-head__title h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ui-ink);
+  font-size: 18px;
+  font-weight: var(--fw-700);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-head__title p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0 0;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.share-head__badge {
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--ui-warning);
+  background: var(--ui-warning-soft);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.share-head__badge.is-ended {
+  color: var(--ui-muted);
+  background: var(--ui-surface-soft);
+}
+
 .share-scroll {
-  position: absolute;
-  inset: calc(86px + env(safe-area-inset-top)) 0 0;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-@media (max-width: 900px) {
-  .share-scroll {
-    top: calc(72px + env(safe-area-inset-top));
-  }
-}
-.content {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 22px 18px 44px;
-  display: grid;
-  gap: 22px;
-}
-.hint {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-  text-align: center;
-}
 
-/* 纸面面板 */
-.board {
-  padding: 22px 22px 26px;
-  border: 4px solid var(--wood);
-  border-radius: 22px;
-  background: var(--paper);
-  box-shadow:
-    inset 0 0 0 3px #f3ddb0,
-    0 6px 0 var(--wood-dark),
-    0 16px 24px -12px rgba(70, 40, 15, 0.42);
-}
-.score-pill {
-  width: fit-content;
+.share-content {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0 auto;
-  padding: 5px 28px;
-  border-radius: 999px;
-  color: #5a2e0d;
-  background: linear-gradient(180deg, #ffcf74, var(--orange));
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -3px 0 rgba(200, 100, 20, 0.35);
-  font-size: 17px;
-  font-weight: var(--fw-900);
-}
-.score-pill img {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-}
-.score-pill b {
-  margin-left: 4px;
-  color: #ffe54a;
-  font-size: 26px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  text-shadow:
-    1.5px 0 0 #7a3d0c,
-    -1.5px 0 0 #7a3d0c,
-    0 1.5px 0 #7a3d0c,
-    0 -1.5px 0 #7a3d0c,
-    0 2.5px 0 #7a3d0c;
-}
-
-/* 档位 */
-.ladder {
-  display: grid;
-  grid-template-columns: repeat(var(--tiers), minmax(0, 1fr));
-  column-gap: 8px;
-  margin-top: 20px;
-  padding: 0 4px;
-}
-.ladder__col {
-  display: flex;
+  max-width: 880px;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 12px;
-}
-.ladder__tag {
-  padding: 1px 8px;
-  border-radius: 999px;
-  color: #fff;
-  background: #e8731f;
-  font-size: 11px;
-  font-weight: var(--fw-900);
-}
-.item {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.item__name {
-  max-width: 100%;
-  display: -webkit-box;
-  overflow: hidden;
-  font-size: 11px;
-  line-height: 1.35;
-  text-align: center;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.item-box {
-  position: relative;
-  width: 62px;
-  height: 62px;
-  display: grid;
-  place-items: center;
-  border: 3px solid #8d7c6c;
-  border-radius: 13px;
-  background: linear-gradient(180deg, var(--paper-hi), #f1e3c5);
-  box-shadow: inset 0 0 0 2px #fffaf0;
-}
-.item-box :deep(.item-image) {
-  width: 82%;
-  height: 82%;
-  border: 0;
-  background: transparent;
-}
-.item-box b {
-  position: absolute;
-  right: 5px;
-  bottom: 1px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: var(--fw-900);
-  text-shadow:
-    1.5px 0 0 var(--wood-dark),
-    -1.5px 0 0 var(--wood-dark),
-    0 1.5px 0 var(--wood-dark),
-    0 -1.5px 0 var(--wood-dark);
-}
-.item-box__badge {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--paper-hi);
-  border-radius: 50%;
-  color: #fff;
-  background: #9b8f84;
-  font-size: 12px;
-}
-.ready .item-box {
-  border-color: #e0891f;
-  background: linear-gradient(180deg, #fff6d0, #ffe08a);
-  box-shadow:
-    inset 0 0 0 2px #fffaf0,
-    0 0 0 4px rgba(255, 190, 70, 0.45);
-}
-.claimed .item-box :deep(.item-image) {
-  opacity: 0.5;
-}
-.claimed .item-box__badge {
-  background: #6aa84f;
-}
-.ladder__arrow {
-  width: 0;
-  height: 0;
-  border-top: 7px solid var(--wood-dark);
-  border-right: 6px solid transparent;
-  border-left: 6px solid transparent;
-}
-.ladder__track {
-  grid-column: 1 / -1;
-  height: 16px;
-  margin-top: 4px;
-  overflow: hidden;
-  border: 3px solid var(--wood-dark);
-  border-radius: 999px;
-  background: #e9dcc0;
-}
-.ladder__track span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(180deg, #ffd35c, #f59a2b);
-  transition: width 0.3s ease;
-}
-.ladder__value {
-  margin-top: 6px;
-  font-size: 15px;
-  font-weight: var(--fw-900);
-  text-align: center;
-  font-variant-numeric: tabular-nums;
+  gap: 16px;
+  margin: 0 auto;
+  padding: 16px 0 32px;
 }
 
-/* 按钮 */
-.g-btn {
-  min-height: 52px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 0 18px;
-  border: 3px solid var(--wood-dark);
-  border-radius: 999px;
-  color: #5a3214;
-  background: linear-gradient(180deg, #ffe58e, #ffc847);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.65),
-    inset 0 -4px 0 rgba(214, 128, 26, 0.45),
-    0 4px 0 var(--wood-dark);
-  font: inherit;
-  font-size: 17px;
-  font-weight: var(--fw-900);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: transform 0.08s ease;
-}
-.g-btn img {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
-.g-btn--brown {
-  color: #fff4dc;
-  background: linear-gradient(180deg, #b77a4b, #91572d);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 220, 170, 0.4),
-    inset 0 -4px 0 rgba(70, 35, 10, 0.35),
-    0 4px 0 var(--wood-dark);
-  text-shadow: 0 1px 0 rgba(70, 35, 10, 0.6);
-}
-.g-btn--wide {
-  min-width: min(300px, 100%);
-}
-.g-btn:active:not(:disabled) {
-  box-shadow: 0 1px 0 var(--wood-dark);
-  transform: translateY(3px);
-}
-.g-btn:disabled {
-  border-color: #7c736a;
-  color: #6f665d;
-  background: linear-gradient(180deg, #d8d1c6, #bdb5aa);
-  box-shadow: 0 4px 0 #7c736a;
-  text-shadow: none;
-  cursor: not-allowed;
-}
-.g-btn:disabled img {
-  filter: grayscale(1);
-  opacity: 0.6;
-}
-button:focus-visible,
-summary:focus-visible {
-  outline: 3px solid #f0a33a;
-  outline-offset: 3px;
-}
-.actions {
-  display: flex;
-  justify-content: center;
-  margin-top: 22px;
-}
-.duo {
+.share-tasks {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.share-task {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 14px;
-  margin-top: 26px;
+  padding: 18px 24px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-surface);
 }
-.duo__item {
+
+.share-task__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+  font-size: 18px;
+}
+
+.share-task__main {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
 }
-.bubble {
-  position: relative;
-  align-self: center;
-  padding: 4px 14px;
-  border: 2px solid #e2cfa6;
-  border-radius: 999px;
-  background: var(--paper-hi);
-  font-size: 13px;
-  font-weight: var(--fw-700);
+
+.share-task__main strong {
+  color: var(--ui-ink);
+  font-size: 14px;
+  font-weight: var(--fw-650);
+}
+
+.share-task__main span {
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
-.bubble::after {
-  content: '';
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  border-top: 7px solid #e2cfa6;
-  border-right: 6px solid transparent;
-  border-left: 6px solid transparent;
-  transform: translateX(-50%);
-}
 
-/* 日志 */
-.board--fold {
-  padding: 0;
-}
-.board--fold summary {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 22px;
-  font-size: 16px;
-  font-weight: var(--fw-900);
-  list-style: none;
-  cursor: pointer;
-}
-.board--fold summary::-webkit-details-marker {
-  display: none;
-}
-.board--fold summary::before,
-.board--fold summary::after {
-  content: '';
-  flex: 1;
-  border-top: 2px dashed rgba(94, 58, 31, 0.4);
-}
-.log-tabs {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  padding: 0 22px;
-}
-.log-tabs button {
-  padding: 5px 18px;
-  border: 2px solid #c9ab7e;
-  border-radius: 999px;
-  color: var(--muted);
-  background: var(--paper-hi);
-  font: inherit;
-  font-size: 13px;
-  font-weight: var(--fw-700);
-  cursor: pointer;
-}
-.log-tabs button[aria-selected='true'] {
-  border-color: var(--wood-dark);
-  color: #5a2e0d;
-  background: linear-gradient(180deg, #ffe58e, #ffc847);
-}
-.records {
-  margin: 10px 0 0;
-  padding: 0 22px;
-  list-style: none;
-}
-.records li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 2px;
-  border-bottom: 1.5px dashed rgba(94, 58, 31, 0.22);
-  font-size: 15px;
-}
-.records li:last-child {
-  border-bottom: 0;
-}
-.records time {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.records b {
-  flex: none;
-  color: #c76a14;
-  font-size: 16px;
-}
-.board--fold .hint {
-  padding: 4px 22px 20px;
-}
-.board--fold[open] {
-  padding-bottom: 12px;
-}
-
-.empty {
-  min-height: 300px;
+.share-section {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.share-section__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: 14px;
+  font-weight: var(--fw-650);
+}
+
+.share-section__title small {
+  color: var(--ui-subtle);
+  font-size: 12px;
+  font-weight: var(--fw-400);
+}
+
+.share-section__toggle {
+  align-self: flex-start;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
-  color: var(--muted);
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
-.empty > span {
-  font-size: 36px;
+
+.share-section__toggle:hover {
+  color: var(--ui-primary);
 }
-@media (prefers-reduced-motion: no-preference) {
-  .ready .item-box {
-    animation: share-glow 1.6s ease-in-out infinite;
-  }
+
+.share-section__toggle:focus-visible,
+.tier-reward:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
-@keyframes share-glow {
-  50% {
-    box-shadow:
-      inset 0 0 0 2px #fffaf0,
-      0 0 0 7px rgba(255, 190, 70, 0.25);
-  }
+
+.share-section__chevron {
+  color: var(--ui-subtle);
+  transition: transform var(--spring-drag-duration) var(--spring-drag);
 }
-@media (max-width: 600px) {
-  .content {
-    padding: 14px 10px 32px;
-    gap: 16px;
-  }
-  .board {
-    padding: 18px 12px 22px;
-    border-radius: 18px;
-  }
-  .ladder {
-    column-gap: 3px;
-    padding: 0;
-  }
-  .item-box {
-    width: 48px;
-    height: 48px;
-    border-width: 2px;
-    border-radius: 10px;
-  }
-  .item__name {
-    display: none;
-  }
-  .duo {
+
+.share-section__chevron.is-open {
+  transform: rotate(180deg);
+}
+
+/* 档位奖励：一档一行，档位多了只是变长，不再横向挤压。 */
+.tier-list {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-surface);
+  list-style: none;
+}
+
+.tier-row {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 80px;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+}
+
+.tier-row + .tier-row {
+  border-top: 1px solid var(--ui-border);
+}
+
+.tier-row.is-ready {
+  background: var(--ui-primary-soft);
+}
+
+.tier-row.is-claimed {
+  opacity: 0.55;
+}
+
+.tier-row__threshold {
+  display: flex;
+  flex-direction: column;
+}
+
+.tier-row__threshold b {
+  color: var(--ui-ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tier-row__threshold small {
+  color: var(--ui-subtle);
+  font-size: 11px;
+}
+
+.tier-row__rewards {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tier-reward {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 3px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  color: var(--ui-muted);
+  background: var(--ui-surface-strong);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.16s ease;
+}
+
+.tier-reward:hover {
+  border-color: color-mix(in srgb, var(--ui-primary) 40%, var(--ui-border));
+}
+
+.tier-reward__well {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ui-surface-soft);
+}
+
+.tier-reward__well > span {
+  color: var(--ui-subtle);
+  font-size: 13px;
+}
+
+.tier-reward__well img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.tier-reward__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tier-reward b {
+  flex: none;
+  color: var(--ui-ink);
+  font-weight: var(--fw-600);
+  font-variant-numeric: tabular-nums;
+}
+
+.tier-row__state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  color: var(--ui-subtle);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tier-row.is-ready .tier-row__state {
+  color: var(--ui-primary);
+  font-weight: var(--fw-600);
+}
+
+.reward-description {
+  max-width: min(280px, calc(100vw - 56px));
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.reward-description p {
+  margin: 6px 0 0;
+  color: var(--ui-muted);
+  white-space: pre-line;
+}
+
+.share-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 24px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-surface);
+}
+
+.share-logs__tabs {
+  max-width: 260px;
+}
+
+.share-records {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share-records li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  font-size: 13px;
+}
+
+.share-records li + li {
+  border-top: 1px solid var(--ui-border);
+}
+
+.share-records span {
+  overflow: hidden;
+  color: var(--ui-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-records time {
+  color: var(--ui-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.share-records b {
+  color: var(--ui-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.share-logs__empty {
+  margin: 0;
+  padding: 12px 0;
+  color: var(--ui-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .share-tasks {
     grid-template-columns: 1fr;
-    gap: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .tier-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .tier-row__threshold {
+    padding-top: 6px;
+  }
+
+  .tier-row__rewards {
+    gap: 8px;
+  }
+
+  .tier-row__state {
+    grid-column: 2;
+    justify-content: flex-start;
+    padding-top: 10px;
+    border-top: 1px solid var(--ui-border);
+    line-height: 18px;
+  }
+
+  .share-task {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .share-logs {
+    padding: 14px 16px;
+  }
+
+  .share-task > :deep(.n-button) {
+    grid-column: 1 / -1;
+  }
+
+  .share-records li {
+    grid-template-columns: minmax(0, 1fr) 48px;
+  }
+
+  .share-records time {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: -6px;
   }
 }
 </style>

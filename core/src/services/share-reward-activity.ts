@@ -30,7 +30,8 @@ function instanceFor(activityId: unknown) {
 
 function reward(item: any) {
     const id = toNum(item.id);
-    return { id, count: toNum(item.count), name: getItemById(id)?.name || `物品 #${id}`, image: getItemImageById(id) };
+    const info = getItemById(id);
+    return { id, count: toNum(item.count), name: info?.name || `物品 #${id}`, image: getItemImageById(id), description: info?.desc || '' };
 }
 
 function findEntry(entry: any, id: string): any {
