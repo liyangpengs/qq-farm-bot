@@ -236,7 +236,7 @@ onUnmounted(() => sequence++)
           <h3 id="share-tiers-title" class="share-section__title">
             档位奖励<small>{{ state.milestones.length }}</small>
           </h3>
-          <ol class="tier-list">
+          <ol class="tier-list" :style="{ '--tier-rows': Math.ceil(state.milestones.length / 2) }">
             <li v-for="tier in state.milestones" :key="tier.id" class="tier-row" :class="`is-${tierState(tier.state).tone}`">
               <div class="tier-row__threshold">
                 <b>{{ tier.threshold }}</b><small>快乐值</small>
@@ -309,7 +309,6 @@ onUnmounted(() => sequence++)
 .share-head {
   display: flex;
   width: 100%;
-  max-width: 880px;
   flex-shrink: 0;
   margin: 0 auto;
   align-items: center;
@@ -366,11 +365,11 @@ onUnmounted(() => sequence++)
 
 .share-content {
   display: flex;
-  max-width: 880px;
   flex-direction: column;
   gap: 16px;
   margin: 0 auto;
   padding: 16px 0 32px;
+  container: share-content / inline-size;
 }
 
 .share-tasks {
@@ -472,15 +471,23 @@ onUnmounted(() => sequence++)
   transform: rotate(180deg);
 }
 
-/* 档位奖励：一档一行，档位多了只是变长，不再横向挤压。 */
+/* 档位奖励：每档一张卡片。宽屏两列，按列排序（左列先走完再到右列），上下读仍是递增进度。 */
 .tier-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
   margin: 0;
   padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-card);
-  background: var(--ui-surface);
   list-style: none;
+}
+
+@container share-content (min-width: 960px) {
+  .tier-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(var(--tier-rows), auto);
+    grid-auto-flow: column;
+    column-gap: 12px;
+  }
 }
 
 .tier-row {
@@ -489,13 +496,13 @@ onUnmounted(() => sequence++)
   align-items: center;
   gap: 16px;
   padding: 14px 24px;
-}
-
-.tier-row + .tier-row {
-  border-top: 1px solid var(--ui-border);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
 }
 
 .tier-row.is-ready {
+  border-color: color-mix(in srgb, var(--ui-primary) 40%, var(--ui-border));
   background: var(--ui-primary-soft);
 }
 
