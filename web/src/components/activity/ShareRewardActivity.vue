@@ -180,7 +180,7 @@ onUnmounted(() => sequence++)
       </NButton>
     </header>
 
-    <main class="share-scroll custom-scrollbar">
+    <main>
       <EmptyState
         v-if="!currentAccountId || !state"
         :title="!currentAccountId ? '请先选择账号' : busy ? '正在读取活动进度' : '暂未获取到活动数据'"
@@ -301,8 +301,6 @@ onUnmounted(() => sequence++)
 <style scoped>
 .share-page {
   display: flex;
-  height: 100%;
-  min-height: 0;
   flex-direction: column;
 }
 
@@ -354,13 +352,6 @@ onUnmounted(() => sequence++)
 .share-head__badge.is-ended {
   color: var(--ui-muted);
   background: var(--ui-surface-soft);
-}
-
-.share-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .share-content {

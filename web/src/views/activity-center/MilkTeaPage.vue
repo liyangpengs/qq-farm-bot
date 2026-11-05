@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { NButton } from 'naive-ui/es/button'
+import { NCard } from 'naive-ui/es/card'
+import { NInputNumber } from 'naive-ui/es/input-number'
+import { NModal } from 'naive-ui/es/modal'
+import { NTab, NTabs } from 'naive-ui/es/tabs'
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import api from '@/api'
-import ActivityHeader from '@/components/activity/ActivityHeader.vue'
-import ActivityShell from '@/components/activity/ActivityShell.vue'
-import CommerceItemImage from '@/components/commerce/CommerceItemImage.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
 import { useToastStore } from '@/stores/toast'
 import MilkTeaContent from './MilkTeaContent.vue'
@@ -20,9 +23,6 @@ const activeState = computed(() => panel.value ? panelState.value : mainState.va
 const busy = ref(false)
 const dialog = ref<any>(null)
 const count = ref(1)
-const detailElement = ref<HTMLElement | null>(null)
-const confirmElement = ref<HTMLElement | null>(null)
-let returnFocus: HTMLElement | null = null
 let sequence = 0
 let filters: any = {}
 const tabs: Array<[string, string]> = [['shop', '我的店铺'], ['exchange', '兑换商店'], ['work', '我的工作']]
@@ -37,7 +37,13 @@ const periodText = computed(() => {
   if (mainState.value.settling)
     return '结算期'
   const date = (value: number) => new Date(value * 1000).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Shanghai' })
-  return `${date(mainState.value.startTime)} — ${date(mainState.value.endTime)}`
+  return `${date(mainState.value.startTime)} – ${date(mainState.value.endTime)}`
+})
+const daysLeft = computed(() => {
+  if (!mainState.value?.active || mainState.value.settling || !mainState.value.endTime)
+    return ''
+  const left = Math.ceil((mainState.value.endTime * 1000 - Date.now()) / 86400000)
+  return left <= 0 ? '今天结束' : `还剩 ${left} 天`
 })
 const insufficient = computed(() => (dialog.value?.costs || []).some((item: any) => Number(item.count) * count.value > Number(activeState.value?.balances?.[item.id] || 0)))
 const boostEstimate = computed(() => {
@@ -65,6 +71,17 @@ function walletOf(value: any) {
     ...(value.balances?.[1004] !== undefined ? [{ id: 1004, name: '钻石' }] : []),
   ].map(item => ({ ...item, count: Number(value.balances?.[item.id] || 0), image: `/game-config/seed_images_named/seed_images/${item.id}.png` }))
 }
+function itemImage(id: number | string) {
+  return `/game-config/seed_images_named/seed_images/${id}.png`
+}
+/** 消耗行显示当前持有量；余额里没有的道具（如果实）不显示。 */
+function holding(cost: any): number | null {
+  const value = activeState.value?.balances?.[cost.id]
+  return value === undefined ? null : Number(value)
+}
+function hideImage(event: Event) {
+  (event.target as HTMLImageElement).style.visibility = 'hidden'
+}
 function rewardsText(values: any[]) {
   return (values || []).map(v => `${v.name} ×${v.count}`).join('、')
 }
@@ -72,7 +89,7 @@ function select(value: any) {
   count.value = 1
   dialog.value = value
 }
-function setCount(value: number) {
+function setCount(value: number | null) {
   count.value = Math.max(1, Math.min(dialog.value?.max || 1, Math.floor(Number(value)) || 1))
 }
 async function request(action = '', input: any = {}) {
@@ -148,6 +165,10 @@ function closePanel() {
   filters = {}
   void request()
 }
+function closeDialog() {
+  if (!busy.value)
+    dialog.value = null
+}
 function reload(input: any = {}) {
   filters = { ...filters, ...input }
   void request()
@@ -156,29 +177,6 @@ function confirm() {
   if (!dialog.value || busy.value || insufficient.value)
     return
   void request(dialog.value.action, { ...dialog.value.input, count: count.value, expectedCosts: dialog.value.costs })
-}
-watch([panel, dialog], async ([nextPanel, nextDialog], [oldPanel, oldDialog]) => {
-  if ((nextPanel || nextDialog) && !oldPanel && !oldDialog)
-    returnFocus = document.activeElement as HTMLElement
-  await nextTick()
-  if (nextDialog)
-    confirmElement.value?.focus()
-  else if (nextPanel)
-    detailElement.value?.focus()
-  else if (returnFocus?.isConnected)
-    returnFocus.focus()
-})
-function trapFocus(event: KeyboardEvent) {
-  if (event.key !== 'Tab')
-    return
-  const container = event.currentTarget as HTMLElement
-  const targets = [...container.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter(el => el.getClientRects().length)
-  const first = targets[0]
-  const last = targets[targets.length - 1]
-  if (!first || (event.shiftKey && (document.activeElement === first || document.activeElement === container)) || (!event.shiftKey && document.activeElement === last)) {
-    event.preventDefault()
-    ;(event.shiftKey ? last : first)?.focus()
-  }
 }
 watch(currentAccountId, () => {
   sequence++
@@ -195,518 +193,436 @@ onUnmounted(() => sequence++)
 </script>
 
 <template>
-  <ActivityShell class="milk-shell" theme="day">
-    <div class="tea-page" :inert="!!(panel || dialog)">
-      <ActivityHeader title="奶茶热销中" :remaining="periodText" :loading="busy" show-refresh @back="$emit('back')" @refresh="request()" />
-      <div class="tea-toolbar">
-        <nav class="tea-tabs" aria-label="奶茶活动页面">
-          <button v-for="[key, label] in tabs" :key="key" :disabled="busy" :class="{ selected: mainPage === key }" @click="navigate(key)">
-            {{ label }}
-          </button>
-        </nav>
-        <div v-if="mainWallet.length" class="tea-wallet" aria-label="活动道具余额">
-          <span v-for="item in mainWallet" :key="item.id" class="tea-wallet__chip" :title="item.name">
-            <img :src="item.image" :alt="item.name"><b>{{ item.count.toLocaleString() }}</b>
-          </span>
+  <section class="tea-page">
+    <header class="tea-head">
+      <div class="tea-head__lead">
+        <NButton secondary circle title="返回活动列表" aria-label="返回活动列表" @click="$emit('back')">
+          <template #icon>
+            <span class="i-carbon-arrow-left" />
+          </template>
+        </NButton>
+        <div class="tea-head__title">
+          <h2>奶茶热销中</h2>
+          <p v-if="mainState">
+            <span class="i-carbon-calendar" aria-hidden="true" />{{ periodText }}
+            <span v-if="daysLeft" class="tea-head__badge">{{ daysLeft }}</span>
+            <span v-else-if="!mainState.active" class="tea-head__badge is-ended">已结束</span>
+          </p>
         </div>
       </div>
-      <main class="tea-scroll">
-        <MilkTeaContent v-if="mainState" :key="mainPage" :state="mainState" :page="mainPage" :busy="busy" @navigate="navigate" @operation="request" @confirmation="select" @reload="reload" />
-        <div v-else class="empty">
-          <span>{{ !currentAccountId ? '请先选择账号' : busy ? '正在加载…' : '暂未获取到活动数据' }}</span><button v-if="currentAccountId && !busy" @click="request()">
-            重新加载
-          </button>
-        </div>
-      </main>
+      <NButton secondary circle :loading="busy" title="刷新活动数据" aria-label="刷新活动数据" @click="request()">
+        <template #icon>
+          <span class="i-carbon-renew" />
+        </template>
+      </NButton>
+    </header>
+
+    <div class="tea-toolbar">
+      <NTabs :value="mainPage" type="segment" class="tea-toolbar__tabs" aria-label="奶茶活动页面" @update:value="navigate">
+        <NTab v-for="[key, label] in tabs" :key="key" :name="key" :disabled="busy">
+          {{ label }}
+        </NTab>
+      </NTabs>
+      <ul v-if="mainWallet.length" class="tea-wallet" aria-label="活动道具余额">
+        <li v-for="item in mainWallet" :key="item.id" :title="item.name">
+          <img :src="item.image" :alt="item.name"><b>{{ item.count.toLocaleString() }}</b>
+        </li>
+      </ul>
     </div>
-    <Teleport to="body">
-      <div v-if="panel" class="tea-mask" @click.self="closePanel">
-        <section ref="detailElement" class="tea-detail" :class="{ 'tea-detail--wide': widePanels.includes(panel) }" role="dialog" aria-modal="true" :aria-label="panelTitles[panel]" :inert="!!dialog" tabindex="-1" @keydown="trapFocus" @keydown.esc="closePanel">
-          <header>
-            <h2>{{ panelTitles[panel] }}</h2>
-            <div v-if="panelWallet.length" class="tea-wallet tea-wallet--dialog" aria-label="活动道具余额">
-              <span v-for="item in panelWallet" :key="item.id" class="tea-wallet__chip" :title="item.name">
-                <img :src="item.image" :alt="item.name"><b>{{ item.count.toLocaleString() }}</b>
-              </span>
-            </div>
-            <button class="close" aria-label="关闭" :disabled="busy" @click="closePanel">
-              <span class="i-carbon-close" />
-            </button>
-          </header>
-          <div class="detail-scroll">
-            <MilkTeaContent v-if="panelState" :key="panel" :state="panelState" :page="panel" :busy="busy" @navigate="navigate" @operation="request" @confirmation="select" @reload="reload" /><div v-else class="empty">
-              <span>{{ busy ? '正在加载…' : '暂未获取到活动数据' }}</span><button v-if="!busy" @click="request()">
-                重新加载
-              </button>
-            </div>
-          </div>
+
+    <main>
+      <MilkTeaContent v-if="mainState" :key="mainPage" :state="mainState" :page="mainPage" :busy="busy" @navigate="navigate" @operation="request" @confirmation="select" @reload="reload" />
+      <EmptyState
+        v-else
+        :title="!currentAccountId ? '请先选择账号' : busy ? '正在读取活动进度' : '暂未获取到活动数据'"
+        :icon="busy ? 'i-svg-spinners-90-ring-with-bg' : 'i-carbon-cafe'"
+      >
+        <NButton v-if="currentAccountId && !busy" secondary @click="request()">
+          重新加载
+        </NButton>
+      </EmptyState>
+    </main>
+  </section>
+
+  <NModal :show="!!panel" :mask-closable="!busy" :close-on-esc="!busy && !dialog" @update:show="!$event && closePanel()">
+    <NCard
+      class="tea-modal"
+      :class="{ 'tea-modal--wide': panel && widePanels.includes(panel) }"
+      :title="panel ? panelTitles[panel] : ''"
+      :bordered="false"
+      :closable="!busy"
+      role="dialog"
+      aria-modal="true"
+      @close="closePanel"
+    >
+      <template v-if="panelWallet.length" #header-extra>
+        <ul class="tea-wallet tea-wallet--compact" aria-label="活动道具余额">
+          <li v-for="item in panelWallet" :key="item.id" :title="item.name">
+            <img :src="item.image" :alt="item.name"><b>{{ item.count.toLocaleString() }}</b>
+          </li>
+        </ul>
+      </template>
+      <MilkTeaContent v-if="panelState && panel" :key="panel" :state="panelState" :page="panel" :busy="busy" @navigate="navigate" @operation="request" @confirmation="select" @reload="reload" />
+      <EmptyState
+        v-else
+        :title="busy ? '正在加载' : '暂未获取到活动数据'"
+        :icon="busy ? 'i-svg-spinners-90-ring-with-bg' : 'i-carbon-cafe'"
+      >
+        <NButton v-if="!busy" secondary @click="request()">
+          重新加载
+        </NButton>
+      </EmptyState>
+    </NCard>
+  </NModal>
+
+  <NModal :show="!!dialog" :mask-closable="!busy" :close-on-esc="!busy" @update:show="!$event && closeDialog()">
+    <NCard class="tea-confirm" :title="dialog?.title" :bordered="false" :closable="!busy" role="dialog" aria-modal="true" @close="closeDialog">
+      <div v-if="dialog" class="tea-confirm__body">
+        <p v-if="dialog.description" class="tea-confirm__lead">
+          {{ dialog.description }}
+        </p>
+        <p v-if="dialog.input?.name" class="tea-confirm__lead">
+          {{ dialog.input.name }}
+        </p>
+        <section v-if="dialog.rewards?.length" class="tea-ledger" aria-label="将获得">
+          <h4>将获得</h4>
+          <ul>
+            <li v-for="reward in dialog.rewards" :key="reward.id">
+              <img :src="reward.image || itemImage(reward.id)" alt="" @error="hideImage">
+              <span class="tea-ledger__name">{{ reward.name }}</span>
+              <b>×{{ (reward.count * count).toLocaleString() }}</b>
+            </li>
+          </ul>
         </section>
-      </div>
-      <div v-if="dialog" class="tea-mask confirmation" @click.self="!busy && (dialog = null)">
-        <section ref="confirmElement" class="tea-dialog" role="dialog" aria-modal="true" :aria-label="dialog.title" tabindex="-1" @keydown="trapFocus" @keydown.esc="!busy && (dialog = null)">
-          <header>
-            <h2>{{ dialog.title }}</h2><button class="close" aria-label="关闭" :disabled="busy" @click="dialog = null">
-              <span class="i-carbon-close" />
-            </button>
-          </header>
-          <div class="confirmation-body">
-            <p v-if="dialog.description">
-              {{ dialog.description }}
-            </p>
-            <div v-if="dialog.rewards?.length" class="reward-list">
-              <span v-for="reward in dialog.rewards" :key="reward.id"><CommerceItemImage :src="reward.image" :alt="reward.name" size="sm" />{{ reward.name }} ×{{ reward.count * count }}</span>
-            </div>
-            <div v-if="dialog.quantity" class="quantity">
-              <button :disabled="busy || count <= 1" @click="setCount(count - 1)">
-                −
-              </button><input :value="count" aria-label="数量" inputmode="numeric" :disabled="busy" @input="setCount(Number(($event.target as HTMLInputElement).value))"><button :disabled="busy || count >= (dialog.max || 1)" @click="setCount(count + 1)">
-                +
-              </button><button :disabled="busy" @click="setCount(dialog.max || 1)">
-                最大
-              </button>
-            </div>
-            <p v-if="dialog.input.name">
-              {{ dialog.input.name }}
-            </p>
-            <div v-if="boostEstimate" class="estimate">
-              <strong>预计收益 · {{ boostEstimate.cups }}杯</strong><span>奶茶券 ×{{ boostEstimate.token }}</span><span v-if="boostEstimate.coin">金币 ×{{ boostEstimate.coin }}</span>
-            </div>
-            <div v-for="cost in dialog.costs" :key="String(cost.id) + (cost.uid || '')" class="row">
-              <span>{{ cost.name }}</span><strong>×{{ cost.count * count }}</strong>
-            </div><p v-if="insufficient" class="error">
-              数量不足
-            </p>
-          </div>
-          <footer>
-            <button :disabled="busy" @click="dialog = null">
-              取消
-            </button><button class="primary" :disabled="busy || insufficient" @click="confirm">
-              {{ busy ? '处理中…' : '确认' }}
-            </button>
-          </footer>
+        <div v-if="dialog.quantity" class="tea-confirm__quantity">
+          <span>数量</span>
+          <NInputNumber :value="count" :min="1" :max="dialog.max || 1" :disabled="busy" aria-label="数量" @update:value="setCount" />
+          <NButton secondary :disabled="busy || count >= (dialog.max || 1)" @click="setCount(dialog.max || 1)">
+            最大
+          </NButton>
+        </div>
+        <div v-if="boostEstimate" class="tea-confirm__estimate">
+          <strong>预计售出 {{ boostEstimate.cups }} 杯</strong>
+          <span>奶茶券 ×{{ boostEstimate.token }}</span>
+          <span v-if="boostEstimate.coin">金币 ×{{ boostEstimate.coin }}</span>
+        </div>
+        <section v-if="dialog.costs?.length" class="tea-ledger" aria-label="将消耗">
+          <h4>将消耗</h4>
+          <ul>
+            <li v-for="cost in dialog.costs" :key="String(cost.id) + (cost.uid || '')" :class="{ 'is-short': holding(cost) !== null && Number(cost.count) * count > holding(cost)! }">
+              <img :src="cost.image || itemImage(cost.id)" alt="" @error="hideImage">
+              <span class="tea-ledger__name">{{ cost.name }}</span>
+              <small v-if="holding(cost) !== null">持有 {{ holding(cost)!.toLocaleString() }}</small>
+              <b>×{{ (cost.count * count).toLocaleString() }}</b>
+            </li>
+          </ul>
         </section>
+        <p v-if="insufficient" class="tea-confirm__error" role="alert">
+          <span class="i-carbon-warning-alt" aria-hidden="true" />道具数量不足
+        </p>
       </div>
-    </Teleport>
-  </ActivityShell>
+      <template #footer>
+        <div class="tea-confirm__actions">
+          <NButton :disabled="busy" @click="closeDialog">
+            取消
+          </NButton>
+          <NButton type="primary" :loading="busy" :disabled="busy || insufficient" @click="confirm">
+            确认
+          </NButton>
+        </div>
+      </template>
+    </NCard>
+  </NModal>
 </template>
 
 <style scoped>
-.activity-shell.milk-shell {
-  flex: 1 1 0;
-  height: auto;
-  min-height: 0;
-}
 .tea-page {
-  --wood: #9a6438;
-  --wood-dark: #5e3a1f;
-  --paper: #fbf3e2;
-  --paper-hi: #fffaf0;
-  --ink: #4b301b;
-  --muted: #7d5c40;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  color: var(--ink);
-  background: linear-gradient(180deg, #f7ecdc 0%, #efdfc8 100%);
-  container-type: inline-size;
+  container: tea-page / inline-size;
 }
-.tea-page :deep(.activity-header) {
-  position: relative;
-  inset: auto;
-  flex-shrink: 0;
+
+.tea-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 4px 12px;
+  border-bottom: 1px solid var(--ui-border);
 }
+
+.tea-head__lead {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
 .tea-toolbar {
   display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  gap: 10px;
-  width: min(684px, calc(100% - 36px));
-  margin: 14px auto 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
 }
-.tea-tabs {
-  display: flex;
-  gap: 6px;
-  padding: 5px;
-  border: 3px solid var(--wood);
-  border-radius: 16px;
-  background: #e7d0aa;
-  box-shadow: inset 0 2px 0 rgba(94, 58, 31, 0.15);
+
+.tea-toolbar__tabs {
+  width: 360px;
 }
-.tea-tabs button {
+
+.tea-head__title {
+  min-width: 0;
   flex: 1;
-  min-height: 40px;
-  border: 0;
-  border-radius: 11px;
-  color: var(--muted);
-  background: transparent;
-  font-weight: var(--fw-800);
 }
-.tea-tabs button.selected {
-  border: 2px solid var(--wood-dark);
-  color: #5a3214;
-  background: linear-gradient(180deg, #ffe58e, #ffc847);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.6),
-    0 2px 0 var(--wood-dark);
+
+.tea-head__title h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ui-ink);
+  font-size: 18px;
+  font-weight: var(--fw-700);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.tea-tabs button:disabled:not(.selected) {
-  opacity: 0.55;
-  cursor: wait;
+
+.tea-head__title p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0 0;
+  color: var(--ui-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
+
+.tea-head__badge {
+  padding: 0 7px;
+  border-radius: 999px;
+  color: var(--ui-warning);
+  background: var(--ui-warning-soft);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.tea-head__badge.is-ended {
+  color: var(--ui-muted);
+  background: var(--ui-surface-soft);
+}
+
 .tea-wallet {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.tea-wallet__chip {
+
+.tea-wallet li {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 14px 2px 3px;
-  border: 2px solid rgba(94, 58, 31, 0.18);
+  padding: 2px 12px 2px 3px;
+  border: 1px solid var(--ui-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
+  background: var(--ui-surface);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-.tea-wallet__chip img {
-  width: 26px;
-  height: 26px;
+
+.tea-wallet img {
+  width: 24px;
+  height: 24px;
   object-fit: contain;
 }
-/* PC 宽屏：页签和余额并排，与下方内容同宽 */
-@container (min-width: 960px) {
-  .tea-toolbar {
-    width: min(1192px, calc(100% - 48px));
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  .tea-tabs {
-    width: 460px;
-    flex: none;
-  }
-}
-.tea-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(94, 58, 31, 0.3) transparent;
-}
-button,
-input {
-  font: inherit;
-}
-button {
-  cursor: pointer;
-}
-.empty {
-  display: grid;
-  place-items: center;
-  gap: 16px;
-  padding: 60px 20px;
-  color: var(--muted);
-  font-size: 15px;
-}
-.empty button,
-.tea-dialog footer button,
-.quantity button {
-  min-height: 40px;
-  padding: 0 18px;
-  border: 2px solid var(--wood-dark);
-  border-radius: 12px;
-  color: var(--ink);
-  background: linear-gradient(180deg, var(--paper-hi), #f1e1c2);
-  box-shadow: 0 3px 0 var(--wood-dark);
-  font-weight: var(--fw-800);
-}
-button.primary {
-  color: #5a3214;
-  background: linear-gradient(180deg, #ffe58e, #ffc847);
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.6),
-    0 3px 0 var(--wood-dark);
-}
-.tea-dialog footer button:disabled,
-.quantity button:disabled {
-  border-color: #8a8178;
-  color: #776e64;
-  background: linear-gradient(180deg, #ded8ce, #c4bcb1);
-  box-shadow: 0 3px 0 #8a8178;
-  cursor: not-allowed;
-}
-button:focus-visible,
-input:focus-visible {
-  outline: 3px solid #f0a33a;
-  outline-offset: 2px;
+
+.tea-wallet b {
+  color: var(--ui-ink);
+  font-weight: var(--fw-600);
 }
 
-/* 弹窗：羊皮纸 + 红色书签关闭 */
-.tea-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: 18px;
-  color: #4b301b;
-  background: rgba(40, 24, 12, 0.55);
-}
-.confirmation {
-  z-index: 1010;
-}
-.tea-detail,
-.tea-dialog {
-  --wood: #9a6438;
-  --wood-dark: #5e3a1f;
-  --paper: #fbf3e2;
-  --paper-hi: #fffaf0;
-  --ink: #4b301b;
-  --muted: #7d5c40;
-  position: relative;
-  width: min(640px, 100%);
-  max-height: min(88dvh, 1000px);
-  border: 5px solid #8a5a35;
-  border-radius: 22px;
-  background: var(--paper);
-  box-shadow:
-    inset 0 0 0 3px #f3ddb0,
-    0 6px 0 var(--wood-dark),
-    0 24px 60px rgba(30, 15, 5, 0.45);
-}
-.tea-detail {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  container-type: inline-size;
-}
-.tea-detail--wide {
-  width: min(920px, 100%);
-}
-.detail-scroll {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-.detail-scroll > .empty {
-  min-height: 0;
-  overflow: auto;
-}
-.tea-detail > header,
-.tea-dialog > header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 18px 64px 6px;
-}
-.tea-detail > header {
-  flex-direction: column;
-  gap: 8px;
-}
-.tea-wallet--dialog {
-  justify-content: center;
+.tea-wallet--compact {
   gap: 6px;
 }
-.tea-wallet--dialog .tea-wallet__chip {
-  padding-right: 11px;
-  font-size: 13px;
+
+.tea-wallet--compact li {
+  padding-right: 10px;
+  font-size: 12px;
 }
-.tea-wallet--dialog img {
-  width: 22px;
-  height: 22px;
+
+.tea-wallet--compact img {
+  width: 20px;
+  height: 20px;
 }
-@media (max-height: 560px) {
-  .activity-shell.milk-shell {
-    min-height: 400px;
-    flex-shrink: 0;
-  }
-}
-/* 宽弹窗：余额放到标题左侧同一行，列表多出一行可视高度 */
-@container (min-width: 700px) {
-  .tea-detail > header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    padding: 18px 24px 6px;
-  }
-  .tea-detail > header > h2 {
-    grid-row: 1;
-    grid-column: 2;
-  }
-  .tea-wallet--dialog {
-    grid-row: 1;
-    grid-column: 1;
-    justify-content: flex-start;
-  }
-}
-h2 {
-  min-width: 0;
-  max-width: 100%;
-  margin: 0;
-  padding: 4px 28px;
-  border-radius: 8px;
-  background: rgba(214, 190, 150, 0.55);
-  font-size: 20px;
-  font-weight: var(--fw-900);
-  text-align: center;
-  overflow-wrap: anywhere;
-  text-wrap: balance;
-}
-.close {
-  position: absolute;
-  top: -6px;
-  right: 18px;
-  width: 46px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  padding: 0 0 8px;
-  border: 0;
-  border-radius: 4px 4px 0 0;
-  color: #fff;
-  background: linear-gradient(180deg, #e2645a, #c8443b);
-  box-shadow: 0 3px 0 rgba(90, 20, 15, 0.45);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%);
-}
-.close span {
-  width: 26px;
-  height: 26px;
-}
-.close:disabled {
-  filter: grayscale(0.7);
-  cursor: not-allowed;
-}
-.tea-dialog {
+
+/* 列表弹窗：卡片限高，内容区由 MilkTeaContent 内部的列表滚动，标题与底部按钮常驻。 */
+.tea-modal {
   display: flex;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(88dvh, 960px);
   flex-direction: column;
-  width: min(440px, 100%);
-  padding: 0 22px 22px;
   overflow: hidden;
 }
-.tea-dialog > header {
-  margin-inline: -22px;
-  padding: 18px 64px 10px;
+
+.tea-modal--wide {
+  width: min(960px, calc(100vw - 32px));
 }
-.confirmation-body {
+
+.tea-modal :deep(.n-card-header) {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.tea-modal :deep(.n-card-header__extra) {
+  order: 3;
+  flex-basis: 100%;
+}
+
+.tea-modal :deep(.n-card-content) {
+  display: flex;
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
 }
-.tea-dialog footer {
+
+.tea-confirm {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.tea-confirm__body {
   display: flex;
-  flex-shrink: 0;
-  justify-content: center;
+  flex-direction: column;
   gap: 14px;
-  margin-top: 20px;
 }
-.tea-dialog footer button {
-  min-width: 120px;
-  min-height: 46px;
-  font-size: 16px;
+
+.tea-confirm__lead {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: 14px;
+  line-height: 1.6;
 }
-.confirmation-body > p {
-  margin: 10px 0;
-  text-align: center;
-  font-weight: var(--fw-700);
+
+.tea-confirm__quantity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--ui-muted);
+  font-size: 13px;
 }
-.quantity {
-  display: flex;
-  gap: 8px;
-  margin: 14px 0;
-}
-.quantity button {
-  flex-shrink: 0;
-  padding: 0 14px;
-  white-space: nowrap;
-}
-.quantity input {
-  flex: 1;
-  width: 0;
-  min-width: 0;
-  border: 2px solid #c9a97c;
-  border-radius: 10px;
-  color: inherit;
-  background: var(--paper-hi);
-  text-align: center;
-  font-weight: var(--fw-800);
-}
-.row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 4px;
-  border-bottom: 1.5px dashed rgba(94, 58, 31, 0.25);
-  font-size: 15px;
-}
-.reward-list {
+
+.tea-confirm__estimate {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin: 12px 0;
+  gap: 4px 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--ui-muted);
+  background: var(--ui-primary-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
-.reward-list > span {
+
+.tea-confirm__estimate strong {
+  flex-basis: 100%;
+  color: var(--ui-primary);
+  font-size: 14px;
+  font-weight: var(--fw-650);
+}
+
+/* 确认清单：获得与消耗同一种行样式，图标不加框，数量右对齐 */
+.tea-ledger h4 {
+  margin: 0 0 6px;
+  color: var(--ui-muted);
+  font-size: 12px;
+  font-weight: var(--fw-600);
+}
+
+.tea-ledger ul {
+  margin: 0;
+  padding: 2px 14px;
+  border-radius: 12px;
+  background: var(--ui-surface-soft);
+  list-style: none;
+}
+
+.tea-ledger li {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 3px 12px 3px 3px;
-  border: 2px solid #e6cfa6;
-  border-radius: 12px;
-  background: var(--paper-hi);
-  font-size: 13px;
-  font-weight: var(--fw-700);
-}
-.estimate {
-  display: grid;
-  gap: 6px;
-  margin: 14px 0;
-  padding: 12px 14px;
-  border: 2px dashed rgba(94, 58, 31, 0.3);
-  border-radius: 12px;
+  gap: 10px;
+  min-height: 44px;
   font-size: 14px;
 }
-.error {
-  margin-top: 12px;
-  color: #be4141;
-  font-weight: var(--fw-700);
-  text-align: center;
+
+.tea-ledger li + li {
+  border-top: 1px solid var(--ui-border);
 }
-@media (max-width: 600px) {
-  .tea-toolbar {
-    width: calc(100% - 20px);
-    margin-top: 10px;
-    gap: 8px;
+
+.tea-ledger img {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  object-fit: contain;
+}
+
+.tea-ledger__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--ui-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tea-ledger small {
+  flex: none;
+  color: var(--ui-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tea-ledger b {
+  flex: none;
+  min-width: 56px;
+  color: var(--ui-ink);
+  font-weight: var(--fw-650);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tea-ledger li.is-short small,
+.tea-ledger li.is-short b {
+  color: var(--ui-danger);
+}
+
+.tea-confirm__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ui-danger);
+  font-size: 13px;
+  font-weight: var(--fw-600);
+}
+
+.tea-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@container tea-page (max-width: 600px) {
+  .tea-toolbar__tabs {
+    width: 100%;
   }
-  .tea-tabs button {
-    font-size: 14px;
-  }
-  .tea-mask {
-    padding: 12px;
-  }
-  .tea-detail > header {
-    padding: 16px 58px 4px;
-  }
-  h2 {
-    padding: 3px 12px;
-    font-size: 18px;
-  }
-  .tea-dialog {
-    padding: 0 16px 18px;
-  }
-  .tea-dialog > header {
-    margin-inline: -16px;
-    padding: 16px 64px 10px;
-  }
-  .tea-dialog footer button {
-    min-width: 0;
+}
+
+@media (max-width: 520px) {
+  .tea-confirm__actions > :deep(.n-button) {
     flex: 1;
   }
 }
