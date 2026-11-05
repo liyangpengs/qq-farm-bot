@@ -136,11 +136,14 @@ useResizeObserver(scrollEl, measureScrollbar)
   margin-inline: auto;
 }
 
-/* 活动详情：外壳撑满内容区，活动自己的区域内部滚动，外层不再出现第二条滚动条。 */
+/* 活动详情隐藏通用页头；普通详情沿用页面滚动，游戏外壳保留内部滚动。 */
 .page-scroll--fill > :deep(*) {
+  margin-block-start: 0;
+}
+
+.page-scroll--fill > :deep(.activity-shell) {
   flex: 1 1 auto;
   min-height: 0;
-  margin-block-start: 0;
 }
 
 .page-fade-enter-active {
