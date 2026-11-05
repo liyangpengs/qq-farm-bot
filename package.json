@@ -1,6 +1,6 @@
  {
   "name": "qq-farm-bot-ui",
-  "version": "20261102",
+  "version": "20261104",
   "packageManager": "pnpm@10.30.2",
   "scripts": {
     "dev:core": "pnpm -C core dev",

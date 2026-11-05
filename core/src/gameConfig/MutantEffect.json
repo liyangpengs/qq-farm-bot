@@ -300,7 +300,7 @@
     "fruit_name": null,
     "icon": "gui/texture/mutant/icon/crystal/spriteFrame",
     "sort": 120,
-    "tips": "紫晶土地上随机出现",
+    "tips": "紫晶及以上土地上随机出现",
     "desc": null,
     "effect_res_type": 3,
     "effect_res": "effect/prefab/effect_jinghui",
