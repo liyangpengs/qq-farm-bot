@@ -94,6 +94,7 @@ function normalizeRecipes(reply: any) {
 }
 function normalizeShop(value: any) {
     const result = plain(types.MilkTeaOperateReply, { milk_tea_get_shop: { shop: value } }).milk_tea_get_shop.shop;
+    result.slots ??= [];
     for (const key of ['drink_cups', 'pending_cups_by_recipe', 'pending_cups_by_source', 'boost_coin_price']) result[key] = cupMap(value[key]);
     result.pending_rewards = items(value.pending_rewards);
     result.boost_preview_rewards = items(value.boost_preview_rewards);
