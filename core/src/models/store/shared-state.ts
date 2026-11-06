@@ -410,7 +410,7 @@ function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accoun
     }
 
     if (src.stealDelaySeconds !== undefined && src.stealDelaySeconds !== null) {
-        cfg.stealDelaySeconds = Math.max(0, Math.min(300, Number.parseInt(src.stealDelaySeconds, 10) || 0));
+        cfg.stealDelaySeconds = Math.max(0, Math.min(300, Number(src.stealDelaySeconds) || 0));
     }
 
     if (src.plantOrderRandom !== undefined && src.plantOrderRandom !== null) {

@@ -61,8 +61,6 @@ const SYNC_MAX_PER_ROUND_STEP: number = 5;
 const SYNC_MAX_PER_ROUND_CAP: number = 25;
 // 撞上网关静默之后的冷却时间：比常规检查更久，避免贴着服务端的限制反复试探
 const SYNC_BUSY_COOLDOWN_MS: number = 30 * 60 * 1000;
-const FRIEND_TASK_WAIT_MAX_MS: number = 10000;
-const FRIEND_TASK_POLL_MS: number = 250;
 // 等网关空闲的最长时间：等不到就整轮让路，剩下的好友留给下一轮
 const GATEWAY_IDLE_WAIT_MAX_MS: number = 8000;
 // 基线间隔：当天没活、开关关着、跨日等情况下的巡检节奏
@@ -171,15 +169,6 @@ export function planNextSyncPacing(result: FriendPetSyncResult | null | undefine
         };
     }
     return { delayMs: SYNC_CHECK_INTERVAL_MS, quota: current.quota, rampLocked: current.rampLocked };
-}
-
-async function waitForFriendTaskIdle(): Promise<boolean> {
-    const deadline: number = Date.now() + FRIEND_TASK_WAIT_MAX_MS;
-    while (schedulerRef().isFriendCheckRunning()) {
-        if (Date.now() >= deadline) return false;
-        await sleep(FRIEND_TASK_POLL_MS);
-    }
-    return true;
 }
 
 type ProbeOutcome = 'ok' | 'failed' | 'yield';
@@ -296,7 +285,8 @@ async function runFriendPetSyncRound(): Promise<FriendPetSyncResult> {
                     yielded = true;
                     break;
                 }
-                if (!await waitForFriendTaskIdle()) {
+                // 好友轮次在间隔中让出锁；同步任务立即让路，不能持锁等它结束。
+                if (schedulerRef().isFriendCheckRunning()) {
                     // 好友巡查正在占着进农场这个状态，把剩下的好友留给下一次定时检查
                     deferred = pending.length - checked - failed;
                     deferReason = 'friend_task_busy';
@@ -416,8 +406,6 @@ export const FRIEND_PET_SYNC_TUNING = {
     SYNC_MAX_PER_ROUND_STEP,
     SYNC_MAX_PER_ROUND_CAP,
     SYNC_BUSY_COOLDOWN_MS,
-    FRIEND_TASK_WAIT_MAX_MS,
-    FRIEND_TASK_POLL_MS,
     GATEWAY_IDLE_WAIT_MAX_MS,
     SYNC_CHECK_INTERVAL_MS,
     SYNC_FAST_INTERVAL_MS,

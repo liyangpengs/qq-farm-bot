@@ -884,7 +884,7 @@ export async function visitFriend(
             actions.push(`偷${ok}${plantNames ? `(${  plantNames  })` : ''}`);
             totalActions.steal += ok;
             recordOperation('steal', ok);
-            await randomDelay(500, 800);
+            await randomDelay(200, 350);
         }
     }
 
