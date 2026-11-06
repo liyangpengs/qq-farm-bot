@@ -1884,12 +1884,14 @@ async function handleResetSystemConfig() {
                   label="种植延迟 (秒)"
                   type="number"
                   min="0"
+                  max="60"
                 />
                 <BaseInput
                   v-model.number="localStrategySettings.stealDelaySeconds"
                   label="偷菜延迟 (秒)"
                   type="number"
                   min="0"
+                  max="300"
                 />
               </div>
             </div>
