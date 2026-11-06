@@ -242,97 +242,97 @@ onUnmounted(() => sequence++)
         </NButton>
       </EmptyState>
     </main>
-  </section>
 
-  <NModal :show="!!panel" :mask-closable="!busy" :close-on-esc="!busy && !dialog" @update:show="!$event && closePanel()">
-    <NCard
-      class="tea-modal"
-      :class="{ 'tea-modal--wide': panel && widePanels.includes(panel) }"
-      :title="panel ? panelTitles[panel] : ''"
-      :bordered="false"
-      :closable="!busy"
-      role="dialog"
-      aria-modal="true"
-      @close="closePanel"
-    >
-      <template v-if="panelWallet.length" #header-extra>
-        <ul class="tea-wallet tea-wallet--compact" aria-label="活动道具余额">
-          <li v-for="item in panelWallet" :key="item.id" :title="item.name">
-            <img :src="item.image" :alt="item.name"><b>{{ item.count.toLocaleString() }}</b>
-          </li>
-        </ul>
-      </template>
-      <MilkTeaContent v-if="panelState && panel" :key="panel" :state="panelState" :page="panel" :busy="busy" @navigate="navigate" @operation="request" @confirmation="select" @reload="reload" />
-      <EmptyState
-        v-else
-        :title="busy ? '正在加载' : '暂未获取到活动数据'"
-        :icon="busy ? 'i-svg-spinners-90-ring-with-bg' : 'i-carbon-cafe'"
+    <NModal :show="!!panel" :mask-closable="!busy" :close-on-esc="!busy && !dialog" @update:show="!$event && closePanel()">
+      <NCard
+        class="tea-modal"
+        :class="{ 'tea-modal--wide': panel && widePanels.includes(panel) }"
+        :title="panel ? panelTitles[panel] : ''"
+        :bordered="false"
+        :closable="!busy"
+        role="dialog"
+        aria-modal="true"
+        @close="closePanel"
       >
-        <NButton v-if="!busy" secondary @click="request()">
-          重新加载
-        </NButton>
-      </EmptyState>
-    </NCard>
-  </NModal>
+        <template v-if="panelWallet.length" #header-extra>
+          <ul class="tea-wallet tea-wallet--compact" aria-label="活动道具余额">
+            <li v-for="item in panelWallet" :key="item.id" :title="item.name">
+              <img :src="item.image" :alt="item.name"><b>{{ item.count.toLocaleString() }}</b>
+            </li>
+          </ul>
+        </template>
+        <MilkTeaContent v-if="panelState && panel" :key="panel" :state="panelState" :page="panel" :busy="busy" @navigate="navigate" @operation="request" @confirmation="select" @reload="reload" />
+        <EmptyState
+          v-else
+          :title="busy ? '正在加载' : '暂未获取到活动数据'"
+          :icon="busy ? 'i-svg-spinners-90-ring-with-bg' : 'i-carbon-cafe'"
+        >
+          <NButton v-if="!busy" secondary @click="request()">
+            重新加载
+          </NButton>
+        </EmptyState>
+      </NCard>
+    </NModal>
 
-  <NModal :show="!!dialog" :mask-closable="!busy" :close-on-esc="!busy" @update:show="!$event && closeDialog()">
-    <NCard class="tea-confirm" :title="dialog?.title" :bordered="false" :closable="!busy" role="dialog" aria-modal="true" @close="closeDialog">
-      <div v-if="dialog" class="tea-confirm__body">
-        <p v-if="dialog.description" class="tea-confirm__lead">
-          {{ dialog.description }}
-        </p>
-        <p v-if="dialog.input?.name" class="tea-confirm__lead">
-          {{ dialog.input.name }}
-        </p>
-        <section v-if="dialog.rewards?.length" class="tea-ledger" aria-label="将获得">
-          <h4>将获得</h4>
-          <ul>
-            <li v-for="reward in dialog.rewards" :key="reward.id">
-              <img :src="reward.image || itemImage(reward.id)" alt="" @error="hideImage">
-              <span class="tea-ledger__name">{{ reward.name }}</span>
-              <b>×{{ (reward.count * count).toLocaleString() }}</b>
-            </li>
-          </ul>
-        </section>
-        <div v-if="dialog.quantity" class="tea-confirm__quantity">
-          <span>数量</span>
-          <NInputNumber :value="count" :min="1" :max="dialog.max || 1" :disabled="busy" aria-label="数量" @update:value="setCount" />
-          <NButton secondary :disabled="busy || count >= (dialog.max || 1)" @click="setCount(dialog.max || 1)">
-            最大
-          </NButton>
+    <NModal :show="!!dialog" :mask-closable="!busy" :close-on-esc="!busy" @update:show="!$event && closeDialog()">
+      <NCard class="tea-confirm" :title="dialog?.title" :bordered="false" :closable="!busy" role="dialog" aria-modal="true" @close="closeDialog">
+        <div v-if="dialog" class="tea-confirm__body">
+          <p v-if="dialog.description" class="tea-confirm__lead">
+            {{ dialog.description }}
+          </p>
+          <p v-if="dialog.input?.name" class="tea-confirm__lead">
+            {{ dialog.input.name }}
+          </p>
+          <section v-if="dialog.rewards?.length" class="tea-ledger" aria-label="将获得">
+            <h4>将获得</h4>
+            <ul>
+              <li v-for="reward in dialog.rewards" :key="reward.id">
+                <img :src="reward.image || itemImage(reward.id)" alt="" @error="hideImage">
+                <span class="tea-ledger__name">{{ reward.name }}</span>
+                <b>×{{ (reward.count * count).toLocaleString() }}</b>
+              </li>
+            </ul>
+          </section>
+          <div v-if="dialog.quantity" class="tea-confirm__quantity">
+            <span>数量</span>
+            <NInputNumber :value="count" :min="1" :max="dialog.max || 1" :disabled="busy" aria-label="数量" @update:value="setCount" />
+            <NButton secondary :disabled="busy || count >= (dialog.max || 1)" @click="setCount(dialog.max || 1)">
+              最大
+            </NButton>
+          </div>
+          <div v-if="boostEstimate" class="tea-confirm__estimate">
+            <strong>预计售出 {{ boostEstimate.cups }} 杯</strong>
+            <span>奶茶券 ×{{ boostEstimate.token }}</span>
+            <span v-if="boostEstimate.coin">金币 ×{{ boostEstimate.coin }}</span>
+          </div>
+          <section v-if="dialog.costs?.length" class="tea-ledger" aria-label="将消耗">
+            <h4>将消耗</h4>
+            <ul>
+              <li v-for="cost in dialog.costs" :key="String(cost.id) + (cost.uid || '')" :class="{ 'is-short': holding(cost) !== null && Number(cost.count) * count > holding(cost)! }">
+                <img :src="cost.image || itemImage(cost.id)" alt="" @error="hideImage">
+                <span class="tea-ledger__name">{{ cost.name }}</span>
+                <small v-if="holding(cost) !== null">持有 {{ holding(cost)!.toLocaleString() }}</small>
+                <b>×{{ (cost.count * count).toLocaleString() }}</b>
+              </li>
+            </ul>
+          </section>
+          <p v-if="insufficient" class="tea-confirm__error" role="alert">
+            <span class="i-carbon-warning-alt" aria-hidden="true" />道具数量不足
+          </p>
         </div>
-        <div v-if="boostEstimate" class="tea-confirm__estimate">
-          <strong>预计售出 {{ boostEstimate.cups }} 杯</strong>
-          <span>奶茶券 ×{{ boostEstimate.token }}</span>
-          <span v-if="boostEstimate.coin">金币 ×{{ boostEstimate.coin }}</span>
-        </div>
-        <section v-if="dialog.costs?.length" class="tea-ledger" aria-label="将消耗">
-          <h4>将消耗</h4>
-          <ul>
-            <li v-for="cost in dialog.costs" :key="String(cost.id) + (cost.uid || '')" :class="{ 'is-short': holding(cost) !== null && Number(cost.count) * count > holding(cost)! }">
-              <img :src="cost.image || itemImage(cost.id)" alt="" @error="hideImage">
-              <span class="tea-ledger__name">{{ cost.name }}</span>
-              <small v-if="holding(cost) !== null">持有 {{ holding(cost)!.toLocaleString() }}</small>
-              <b>×{{ (cost.count * count).toLocaleString() }}</b>
-            </li>
-          </ul>
-        </section>
-        <p v-if="insufficient" class="tea-confirm__error" role="alert">
-          <span class="i-carbon-warning-alt" aria-hidden="true" />道具数量不足
-        </p>
-      </div>
-      <template #footer>
-        <div class="tea-confirm__actions">
-          <NButton :disabled="busy" @click="closeDialog">
-            取消
-          </NButton>
-          <NButton type="primary" :loading="busy" :disabled="busy || insufficient" @click="confirm">
-            确认
-          </NButton>
-        </div>
-      </template>
-    </NCard>
-  </NModal>
+        <template #footer>
+          <div class="tea-confirm__actions">
+            <NButton :disabled="busy" @click="closeDialog">
+              取消
+            </NButton>
+            <NButton type="primary" :loading="busy" :disabled="busy || insufficient" @click="confirm">
+              确认
+            </NButton>
+          </div>
+        </template>
+      </NCard>
+    </NModal>
+  </section>
 </template>
 
 <style scoped>
