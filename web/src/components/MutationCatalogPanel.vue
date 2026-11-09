@@ -8,6 +8,7 @@ import BookSection from '@/components/illustrated/BookSection.vue'
 import BookTile from '@/components/illustrated/BookTile.vue'
 import BookToolbar from '@/components/illustrated/BookToolbar.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { vLazySrc } from '@/directives/lazy-src'
 
 interface Mutation { id: number, name: string, image: string, effect: string, description: string, probabilities: Array<{ rarity: number | null, percent: number }> }
 interface Series { id: number, name: string, rarity?: number, rarityName: string, description: string, mutationRules: Array<{ name: string, probability: number, guarantee: number }>, items: Array<{ id: number, name: string, image: string }> }
@@ -78,7 +79,7 @@ onMounted(load)
         <!-- 列表而非卡片网格：条目字段固定，按列对齐后不会因缺少概率行而留白。 -->
         <ul v-if="effects.length" class="mutation-list">
           <li v-for="effect in effects" :key="effect.id" class="mutation-row">
-            <span class="mutation-row__well"><img v-if="effect.image" :src="effect.image" alt="" loading="lazy"></span>
+            <span class="mutation-row__well"><img v-if="effect.image" v-lazy-src="effect.image" alt="" loading="lazy" decoding="async"></span>
             <div class="mutation-row__main">
               <h3>{{ effect.name }}</h3>
               <p>{{ effect.description || '—' }}</p>
