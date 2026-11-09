@@ -39,14 +39,28 @@ require.cache[utilsPath] = {
         log: () => {},
         toNum: value => Number(value) || 0,
         getSystemDateKey: () => 'test',
+        getServerTimeSec: () => Math.floor(Date.now() / 1000),
+        getSystemClockMinutes: () => 600,
     },
 };
 
-const { checkAndClaimEmails } = require('../dist/services/email');
+const { checkAndClaimEmails, resetEmailClaimStateForTest } = require('../dist/services/email');
 
 test('邮箱两个列表串行发现，不叠加网关请求', async () => {
+    resetEmailClaimStateForTest();
     await checkAndClaimEmails(true);
 
     assert.equal(maxActiveCount, 1);
     assert.deepEqual(methods, ['GetEmailList', 'GetEmailList']);
+});
+
+test('邮箱领取一天只触发一次，第二次直接跳过', async () => {
+    resetEmailClaimStateForTest();
+    methods.length = 0;
+
+    await checkAndClaimEmails(false);
+    assert.equal(methods.length, 2);
+
+    await checkAndClaimEmails(false);
+    assert.equal(methods.length, 2, '当天已触发后不再请求邮箱列表');
 });

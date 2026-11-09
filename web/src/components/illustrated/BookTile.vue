@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { vLazySrc } from '@/directives/lazy-src'
 
 /**
  * 图鉴里的单个条目：固定的方形图位 + 一行名称 + 一行状态。
@@ -44,7 +45,7 @@ watch(() => props.image, () => failed.value = false)
     @click="interactive && $emit('select')"
   >
     <span class="book-tile__well">
-      <img v-if="image && !failed" :src="image" alt="" loading="lazy" @error="failed = true">
+      <img v-if="image && !failed" v-lazy-src="image" alt="" loading="lazy" decoding="async" @error="failed = true">
       <span v-else class="book-tile__fallback i-carbon-image" aria-hidden="true" />
       <span v-if="fresh" class="book-tile__fresh">新</span>
       <span v-if="state === 'owned'" class="book-tile__check" aria-hidden="true"><span class="i-carbon-checkmark" /></span>
