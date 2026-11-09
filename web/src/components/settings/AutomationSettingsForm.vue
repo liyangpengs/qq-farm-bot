@@ -5,6 +5,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
+import HourInput from '@/components/ui/HourInput.vue'
 
 export type AutomationSettingsFormModel = Pick<
   SettingsState,
@@ -19,7 +20,7 @@ export type AutomationSettingsFormModel = Pick<
   | 'autoAcceptHarvestStealEnabled'
   | 'autoAcceptHarvestStealHarvest'
   | 'autoAcceptHarvestStealSteal'
->
+> & { emailClaimHour: number | string }
 
 defineProps<{
   saving: boolean
@@ -75,8 +76,16 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
             <div class="automation-setting-item">
               <BaseSwitch v-model="settings.automation.sell" class="automation-setting-item" label="自动卖果实" />
             </div>
-            <div class="automation-setting-item sm:col-span-2">
+            <div class="automation-setting-item">
               <BaseSwitch v-model="settings.automation.fertilizer_gift" class="automation-setting-item" label="自动填充化肥" />
+            </div>
+            <div class="automation-setting-item">
+              <HourInput
+                v-model="settings.emailClaimHour"
+                class="w-full"
+                label="自动邮箱领取（时）"
+                help="默认 10 时，每天检查一次；0 时为午夜。加减到边界会循环。"
+              />
             </div>
           </div>
         </section>

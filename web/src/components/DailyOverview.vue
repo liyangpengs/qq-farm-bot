@@ -26,12 +26,31 @@ function formatTime(timestamp: number) {
   if (!timestamp)
     return '未领取'
   const d = new Date(timestamp)
+  const timeZone = props.dailyGifts?.timeZone
+  if (timeZone) {
+    return new Intl.DateTimeFormat('zh-CN', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(d)
+  }
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
 }
 
 function getGiftStatusText(gift: any) {
   if (!gift)
     return '未知'
+  if (gift.key === 'email_rewards') {
+    if (gift.result === 'running')
+      return '正在检查'
+    if (gift.result === 'error')
+      return '检查失败（今日跳过）'
+    if (gift.result === 'partial')
+      return '部分领取失败（今日跳过）'
+    if (gift.result === 'none' && gift.doneToday)
+      return '今日已检查（无奖励）'
+  }
   if (gift.result === 'error')
     return '领取失败'
   if (gift.result === 'partial')
@@ -54,6 +73,18 @@ function getGiftStatusText(gift: any) {
 function formatGiftSubText(gift: any) {
   if (!gift)
     return ''
+  if (gift.key === 'email_rewards') {
+    const hour = Number(gift.scheduledHour)
+    const scheduleText = Number.isFinite(hour) ? `每天 ${String(hour).padStart(2, '0')}:00 检查` : '每天定时检查'
+    if (gift.result === 'running')
+      return '正在检查邮箱奖励…'
+    if (gift.result === 'error' || gift.result === 'partial')
+      return gift.lastAt ? `最近检查 ${formatTime(Number(gift.lastAt))}，今日不再重试` : '今日检查未完成'
+    if (gift.result === 'none' && gift.doneToday)
+      return gift.lastAt ? `检查时间 ${formatTime(Number(gift.lastAt))}，暂无可领取邮件` : '今日暂无可领取邮件'
+    if (!gift.doneToday)
+      return scheduleText
+  }
   if (gift.result === 'error' || gift.result === 'partial')
     return gift.lastAt ? `最近检查 ${formatTime(Number(gift.lastAt))}` : '等待下次检查'
   if (gift.key === 'daily_share' && gift.mode === 'check_only') {
@@ -132,7 +163,7 @@ function formatGiftProgress(gift: any) {
             >
               <span :class="getGiftIcon(gift.key)" />
             </div>
-            <span class="text-sm font-medium leading-tight 2xl:text-base" style="color: var(--theme-text, #374151)">
+            <span class="text-sm leading-tight font-medium 2xl:text-base" style="color: var(--theme-text, #374151)">
               {{ gift.label }}
             </span>
           </div>
