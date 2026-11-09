@@ -3,8 +3,8 @@ export {};
  * 邮箱系统 - 自动领取邮箱奖励
  *
  * 邮箱领取属于日常任务：每天在配置的时间点（默认 10:00，可设为 0 点）检查一次。
- * 到点后的第一次检查会先占用当天的名额并落盘，之后无论成功、没有奖励还是失败，
- * 当天都不再重复触发，避免每次巡田或重连都请求邮箱列表。
+ * 领取完成、确认没有奖励或检查失败后，当天不再重复触发。
+ * 执行途中退出留下的 running 记录不算已完成，重启后重新读取邮箱状态。
  */
 
 const crypto = require('node:crypto');
@@ -54,9 +54,11 @@ function loadState(): void {
     lastError = String(state.lastError || state.error || '');
     lastClaimed = Math.max(0, Number(state.claimed) || 0);
     if (lastResult === 'running') {
-        // 上次进程在检查途中退出：当天名额已占用，按中断失败展示，不再重试。
-        lastResult = 'error';
-        lastError = lastError || '上次检查未完成';
+        // 上次进程未取得最终结果，恢复为待检查；重新读取后只领取仍可领取的邮件。
+        attemptedDateKey = '';
+        lastResult = '';
+        lastError = '';
+        lastClaimed = 0;
     }
 }
 
@@ -74,14 +76,14 @@ function persistState(): boolean {
         });
         return true;
     } catch {
-        // 状态落盘失败时由调用方决定是否继续；邮箱检查必须保证不会在重启后重复请求。
+        // 状态保存失败时由调用方停止本次检查，并展示存储错误。
         return false;
     }
 }
 
 function isDoneToday(): boolean {
     loadState();
-    return attemptedDateKey === getSystemDateKey();
+    return attemptedDateKey === getSystemDateKey() && lastResult !== 'running';
 }
 
 /** 配置当前账号的邮箱领取时间；切换账号时重新加载该账号的当日状态。 */
@@ -135,7 +137,7 @@ function markAttempted(): boolean {
     lastError = '';
     lastClaimed = 0;
     if (!persistState()) {
-        // 不能落盘的当日名额无法跨重启保证唯一性，直接跳过本次请求。
+        // 本次检查状态无法保存，停止请求并展示错误。
         lastResult = 'error';
         lastError = '无法保存邮箱检查状态';
         return false;
@@ -218,9 +220,10 @@ function getRewardSummary(items: any[]): string {
 
 async function checkAndClaimEmails(force: boolean = false): Promise<{ claimed: number; rewardItems: number; skipped?: string; error?: string }> {
     if (isDoneToday()) return { claimed: 0, rewardItems: 0, skipped: 'done' };
+    if (lastResult === 'running') return { claimed: 0, rewardItems: 0, skipped: 'running' };
     if (!force && !isEmailClaimTimeReached(claimHour)) return { claimed: 0, rewardItems: 0, skipped: 'waiting' };
 
-    // 先占用当天的唯一一次机会再发请求：即使进程中途重启或请求失败，也不会在当天反复触发。
+    // 先记录执行中，避免并发检查；只有取得最终结果后才结束当天检查。
     if (!markAttempted()) {
         log('邮箱', '无法保存邮箱检查状态，本次跳过以免重复请求', {
             module: 'task',
@@ -347,16 +350,17 @@ module.exports = {
     getEmailDailyState: () => {
         loadState();
         const doneToday: boolean = isDoneToday();
+        const checkedToday: boolean = attemptedDateKey === getSystemDateKey();
         return {
             key: DAILY_KEY,
             doneToday,
             lastCheckAt,
             nextCheckAt: getNextCheckAt(),
             scheduledHour: claimHour,
-            // 跨日后不把昨天的结果带到今天的状态里。
-            result: doneToday ? lastResult : '',
-            lastError: doneToday ? lastError : '',
-            claimed: doneToday ? lastClaimed : 0,
+            // 已结束的结果跨日清除；尚在执行中的检查继续展示 running。
+            result: lastResult === 'running' || checkedToday ? lastResult : '',
+            lastError: checkedToday ? lastError : '',
+            claimed: checkedToday ? lastClaimed : 0,
         };
     },
     resetEmailClaimStateForTest,

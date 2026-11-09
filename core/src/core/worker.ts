@@ -155,7 +155,7 @@ function startDailyRoutineTimer(runImmediately: boolean = true): void {
         const today = getSystemDateKey();
         if (today === lastDailyRunDate) {
             const email = getEmailDailyState();
-            if (!email.doneToday && Date.now() >= email.nextCheckAt) {
+            if (!email.doneToday && email.result !== 'running' && Date.now() >= email.nextCheckAt) {
                 runExclusiveAutomationTask('email_claim', async () => {
                     if (loginReady) await checkAndClaimEmails();
                 }).catch(() => null);
