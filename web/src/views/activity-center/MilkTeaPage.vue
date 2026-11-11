@@ -489,14 +489,37 @@ onUnmounted(() => sequence++)
   overflow: hidden;
 }
 
+/* 确认弹窗：卡片限高在视口内，标题与底部按钮常驻，中间清单单独滚动（与 .tea-modal 同一套做法）。 */
 .tea-confirm {
+  display: flex;
   width: min(440px, calc(100vw - 32px));
+  max-height: min(88vh, 960px);
+  max-height: min(88dvh, 960px);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tea-confirm :deep(.n-card-header),
+.tea-confirm :deep(.n-card__footer) {
+  flex: none;
+}
+
+.tea-confirm :deep(.n-card-content) {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .tea-confirm__body {
   display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .tea-confirm__lead {
