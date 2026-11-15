@@ -703,7 +703,20 @@ async function startBot(config: any): Promise<void> {
         await runExclusiveAutomationTask('startup_sequence', () => runStartupSequence(canContinueLogin));
     };
 
-    connect(code, onLoginSuccess);
+    // 手游助手扫码渠道：优先从主进程绑定凭据取新 Code（无凭据时继续使用原 Code）
+    let loginCode = code;
+    if (String(CONFIG.platform) === 'wx') {
+        try {
+            const gaCode = await require('../services/gameassist/worker-client').requestCode('before_connect');
+            if (gaCode) {
+                loginCode = gaCode;
+                log('系统', '已通过手游助手扫码渠道获取新的农场 Code');
+            }
+        } catch {
+            // 渠道不可用时继续使用原 Code
+        }
+    }
+    connect(loginCode, onLoginSuccess);
 
     // 启动定时状态同步
     workerScheduler.setIntervalTask('status_sync', 3000, syncStatus, { preventOverlap: true });

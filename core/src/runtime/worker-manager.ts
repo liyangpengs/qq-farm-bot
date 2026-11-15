@@ -425,6 +425,17 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 else req.resolve(result);
                 worker.requests.delete(id);
             }
+        } else if (msg.type === 'gameassist_code_request') {
+            // 手游助手扫码渠道：worker 请求凭据铸新 Code
+            const { mintFarmCode } = require('../services/gameassist/credentials');
+            Promise.resolve()
+                .then(() => mintFarmCode(accountId))
+                .then((code: string) => {
+                    try { worker.process.send({ type: 'gameassist_code_response', id: msg.id, ok: !!code, code: code || undefined }); } catch { /* 进程已退出 */ }
+                })
+                .catch((error: any) => {
+                    try { worker.process.send({ type: 'gameassist_code_response', id: msg.id, ok: false, error: error && error.message ? error.message : String(error) }); } catch { /* 进程已退出 */ }
+                });
         } else if (msg.type === 'friend_blacklist_add') {
             const gid = Number(msg.gid) || 0;
             if (gid > 0) {

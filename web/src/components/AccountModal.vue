@@ -19,7 +19,7 @@ const emit = defineEmits(['close', 'saved'])
 
 const loading = ref(false)
 const errorMessage = ref('')
-const activeLoginTab = ref<'code' | 'wx_qr' | 'qq_qr'>('code')
+const activeLoginTab = ref<'code' | 'wx_qr' | 'qq_qr' | 'ga_qr'>('code')
 const loginSettingsLoaded = ref(false)
 const loginSettings = ref({
   wechatQrLogin: true,
@@ -583,11 +583,155 @@ function close() {
   emit('close')
 }
 
+// 手游助手扫码登录渠道（与微信扫码同构：面板展示二维码，服务器完成 syzs OAuth 并铸农场 Code）
+const gaStatus = ref('')
+const gaError = ref('')
+const gaLoading = ref(false)
+const gaTaskId = ref('')
+const gaQrUrl = ref('')
+const gaOpenid = ref('')
+let gaQrObjectUrl = ''
+let gaPollTimer: ReturnType<typeof setTimeout> | undefined
+let gaFlowVersion = 0
+
+function stopGaLogin() {
+  gaFlowVersion++
+  if (gaPollTimer) {
+    clearTimeout(gaPollTimer)
+    gaPollTimer = undefined
+  }
+}
+
+function resetGaLogin() {
+  stopGaLogin()
+  gaStatus.value = ''
+  gaError.value = ''
+  gaLoading.value = false
+  gaTaskId.value = ''
+  if (gaQrObjectUrl) {
+    URL.revokeObjectURL(gaQrObjectUrl)
+    gaQrObjectUrl = ''
+  }
+  gaQrUrl.value = ''
+  gaOpenid.value = ''
+}
+
+async function pollGaStatus() {
+  const version = gaFlowVersion
+  if (!gaTaskId.value) return
+  try {
+    const response = await api.get(`/api/gameassist-login/tasks/${gaTaskId.value}/status`, { skipErrorToast: true } as any)
+    if (version !== gaFlowVersion) return
+    const status = response.data?.data?.status
+    if (status === 'waiting') gaStatus.value = '等待微信扫码...'
+    else if (status === 'scanned') gaStatus.value = '已扫码，请在手机上确认'
+    else if (status === 'cancelled') {
+      gaError.value = '已取消授权，请刷新二维码重试'
+      stopGaLogin()
+      return
+    }
+    else if (status === 'expired') {
+      gaError.value = '二维码已过期，请刷新重试'
+      stopGaLogin()
+      return
+    }
+    else if (status === 'authorized') {
+      await confirmGaLogin()
+      return
+    }
+  }
+  catch (e: any) {
+    if (version !== gaFlowVersion) return
+    gaError.value = getApiErrorMessage(e, '查询扫码状态失败')
+    stopGaLogin()
+    return
+  }
+  if (version === gaFlowVersion) gaPollTimer = setTimeout(pollGaStatus, 2500)
+}
+
+async function confirmGaLogin() {
+  const version = gaFlowVersion
+  gaStatus.value = '正在完成登录并获取农场 Code...'
+  try {
+    const response = await api.post(`/api/gameassist-login/tasks/${gaTaskId.value}/confirm`)
+    if (version !== gaFlowVersion) return
+    const code = String(response.data?.data?.code || '')
+    gaOpenid.value = String(response.data?.data?.openid || '')
+    const nickname = String(response.data?.data?.nickname || '')
+    if (!code) throw new Error('未获取到农场 Code')
+    gaStatus.value = '正在添加账号...'
+    const name = form.name.trim() || nickname
+    if (!name) throw new Error('未获取到微信昵称，请填写账号备注')
+    form.name = name
+    await addAccount({ name, code, platform: 'wx', loginType: 'manual' })
+    void bindGaCredential(name)
+  }
+  catch (e: any) {
+    if (version !== gaFlowVersion) return
+    gaError.value = getApiErrorMessage(e, '登录失败')
+    gaStatus.value = ''
+  }
+}
+
+async function bindGaCredential(name: string) {
+  if (!gaOpenid.value) return
+  try {
+    const list = await api.get('/api/accounts', { skipErrorToast: true } as any)
+    const accounts = list.data?.data?.accounts || list.data?.accounts || []
+    const matched = accounts.find((a: any) => String(a.name || '').trim() === name)
+    if (matched?.id) await api.post('/api/gameassist-login/credentials/bind', { openid: gaOpenid.value, account_id: String(matched.id) })
+  }
+  catch {
+    // 绑定失败不影响添加
+  }
+}
+
+async function startGaLogin() {
+  stopGaLogin()
+  gaError.value = ''
+  gaLoading.value = true
+  gaStatus.value = '正在获取二维码...'
+  gaOpenid.value = ''
+  try {
+    const response = await api.post('/api/gameassist-login/tasks')
+    const taskId = String(response.data?.data?.task_id || '')
+    const qrUrl = String(response.data?.data?.qr_url || '')
+    if (gaQrObjectUrl) {
+      URL.revokeObjectURL(gaQrObjectUrl)
+      gaQrObjectUrl = ''
+    }
+    const qrResponse = await api.get(qrUrl, { responseType: 'blob' } as any)
+    gaTaskId.value = taskId
+    gaQrObjectUrl = URL.createObjectURL(qrResponse.data)
+    gaQrUrl.value = gaQrObjectUrl
+    gaLoading.value = false
+    gaStatus.value = '等待微信扫码...'
+    gaPollTimer = setTimeout(pollGaStatus, 2000)
+  }
+  catch (e: any) {
+    gaLoading.value = false
+    gaStatus.value = ''
+    gaError.value = getApiErrorMessage(e, '获取二维码失败')
+  }
+}
+
+watch(activeLoginTab, (tab) => {
+  if (tab === 'ga_qr') {
+    if (!gaTaskId.value) void startGaLogin()
+  }
+  else {
+    stopGaLogin()
+  }
+})
+
+onBeforeUnmount(stopGaLogin)
+
 watch(() => props.show, (newVal) => {
   if (newVal) {
     errorMessage.value = ''
     activeLoginTab.value = 'code'
     resetWxLogin()
+    resetGaLogin()
     void loadLoginSettings()
     if (props.editData) {
       form.name = props.editData.name || ''
@@ -664,6 +808,9 @@ onBeforeUnmount(() => {
           </NTab>
           <NTab v-if="qqQrLoginEnabled" name="qq_qr">
             QQ扫码登录
+          </NTab>
+          <NTab name="ga_qr">
+            手游助手扫码
           </NTab>
         </NTabs>
 
@@ -757,6 +904,36 @@ onBeforeUnmount(() => {
           </div>
           <div class="flex justify-end gap-2">
             <BaseButton variant="outline" :loading="qqLoading" @click="startQqLogin">
+              刷新二维码
+            </BaseButton>
+            <BaseButton variant="outline" @click="close">
+              取消
+            </BaseButton>
+          </div>
+        </div>
+        <div v-else-if="activeLoginTab === 'ga_qr'" class="space-y-4" role="tabpanel" aria-label="手游助手扫码登录">
+          <BaseInput
+            v-model="form.name"
+            label="账号备注（可留空）"
+            placeholder="留空时使用微信昵称"
+            class="farm-input"
+          />
+          <div class="min-h-64 flex flex-col items-center justify-center gap-3">
+            <div v-if="gaQrUrl" class="bg-white p-2">
+              <img :src="gaQrUrl" alt="手游助手登录二维码" class="h-52 w-52">
+            </div>
+            <div v-else class="h-52 w-52 flex items-center justify-center text-sm opacity-60">
+              {{ gaLoading ? '正在获取二维码...' : '二维码不可用' }}
+            </div>
+            <p class="text-sm" :style="{ color: 'var(--theme-text)' }">
+              {{ gaStatus }}
+            </p>
+            <p v-if="gaError" class="text-sm text-red-500">
+              {{ gaError }}
+            </p>
+          </div>
+          <div class="flex justify-end gap-2">
+            <BaseButton variant="outline" :loading="gaLoading" @click="startGaLogin">
               刷新二维码
             </BaseButton>
             <BaseButton variant="outline" @click="close">

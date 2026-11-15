@@ -21,6 +21,7 @@ const { mountFriendRoutes } = require('./friend-routes');
 const { mountActivityCenterRoutes } = require('./activity-center-routes');
 const { mountCommerceRoutes } = require('./commerce-routes');
 const { mountWxLoginRoutes } = require('./wx-login-routes');
+const { mountGameAssistRoutes } = require('./gameassist-routes');
 const { mountQqLoginRoutes } = require('./qq-login-routes');
 const {
     setupSocketIO,
@@ -75,6 +76,7 @@ function startAdminServer(dataProvider: any): void {
     // Mount route modules
     mountAuthRoutes(app, ctx);
     mountWxLoginRoutes(app, ctx);
+    mountGameAssistRoutes(app, ctx);
     mountQqLoginRoutes(app, ctx);
     mountFarmRoutes(app, ctx);
     mountFriendRoutes(app, ctx);
