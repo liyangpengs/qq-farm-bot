@@ -31,6 +31,8 @@ const levelConfig = computed(() => state?.levels.find((v: any) => v.level === Nu
 const freeSlot = computed(() => Array.from({ length: Number(levelConfig.value?.employee_slot_count || 0) }, (_, index) => index)
   .find(index => !(state?.shop?.slots || []).some((slot: any) => Number(slot.slot_index || 0) === index && Number(slot.end_at) > now.value)))
 const canWork = computed(() => state?.active && !state?.settling)
+const canCraft = computed(() => state?.actionAvailability?.craft === true)
+const canExchange = computed(() => state?.actionAvailability?.exchange === true)
 const opened = computed(() => Number(state?.summary.shop_open_at) > 0)
 // 店铺、兑换、工作三个页签是主页面，其余页面都在弹窗里显示，弹窗自带标题
 const inDialog = computed(() => !['shop', 'exchange', 'work'].includes(page))
@@ -133,7 +135,7 @@ function changeRankPage(step: number) {
   request()
 }
 function craft(all = false) {
-  if (busy || !canWork.value)
+  if (busy || !canCraft.value)
     return
   const fruits = craftableFruits.value.filter(v => all || selectedFruitUids.value.includes(v.uid))
   if (!fruits.length)
@@ -330,7 +332,7 @@ onMounted(() => {
           </ul>
           <span v-if="goods.remaining !== null" class="tea-goods-card__meta">{{ limitLabel(goods.limitPeriod) }} {{ goods.remaining }}/{{ goods.purchaseLimit }}</span>
           <span v-for="condition in goods.conditions.filter((value: any) => !value.satisfied)" :key="condition.type" class="tea-goods-card__meta is-warning">需店铺等级 {{ condition.target }}（当前 {{ condition.current }}）</span>
-          <NButton class="tea-goods-card__buy" :type="goods.available ? 'primary' : 'default'" :secondary="!goods.available" block :disabled="busy || !state.active || !goods.available" @click="select('exchange', goods.name || goods.rewards[0]?.name, { goodsId: goods.id }, goods.costs, goods.rewards, exchangeMax(goods))">
+          <NButton class="tea-goods-card__buy" :type="goods.available ? 'primary' : 'default'" :secondary="!goods.available" block :disabled="busy || !canExchange || !goods.available" @click="select('exchange', goods.name || goods.rewards[0]?.name, { goodsId: goods.id }, goods.costs, goods.rewards, exchangeMax(goods))">
             <template v-if="goods.remaining === 0">
               已售罄
             </template>
@@ -427,10 +429,10 @@ onMounted(() => {
         <p class="tea-note tea-panel__hint">
           勾选果实后确认制作，会消耗所选的整组果实。
         </p>
-        <NButton secondary :disabled="busy || !canWork || !craftableFruits.length" @click="craft(true)">
+        <NButton secondary :disabled="busy || !canCraft || !craftableFruits.length" @click="craft(true)">
           全部制作
         </NButton>
-        <NButton type="primary" :disabled="busy || !canWork || !selectedFruitUids.length" @click="craft(false)">
+        <NButton type="primary" :disabled="busy || !canCraft || !selectedFruitUids.length" @click="craft(false)">
           {{ selectedFruitUids.length ? `制作所选（${selectedFruitUids.length}）` : '制作所选' }}
         </NButton>
       </div>
@@ -448,7 +450,7 @@ onMounted(() => {
           </div>
           <ul v-if="fruitsOf(recipe).length" class="tea-fruits">
             <li v-for="fruit in fruitsOf(recipe)" :key="fruit.uid" class="tea-fruit" :class="{ 'is-checked': selectedFruitUids.includes(fruit.uid) }">
-              <NCheckbox :checked="selectedFruitUids.includes(fruit.uid)" :disabled="busy || fruit.locked || !canWork" @update:checked="toggleFruit(fruit.uid, $event)">
+              <NCheckbox :checked="selectedFruitUids.includes(fruit.uid)" :disabled="busy || fruit.locked || !canCraft" @update:checked="toggleFruit(fruit.uid, $event)">
                 <span class="tea-fruit__label">
                   <CommerceItemImage :src="fruit.image" :alt="fruit.name" size="sm" />
                   <span>{{ fruit.name }} <b>×{{ fruit.count }}</b></span>

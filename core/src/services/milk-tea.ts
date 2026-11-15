@@ -28,6 +28,7 @@ const operations: Record<string, [number, string, string]> = {
     fundClaim: [76, 'growth_fund_claim', FUND],
 };
 const readActions = new Set(['shop', 'hireList', 'workshop', 'work', 'rank', 'logs']);
+const operatingOnlyActions = new Set(['create', 'rename', 'hire', 'boost', 'interact']);
 let tail: Promise<any> = Promise.resolve();
 
 function fail(message: string): never { throw new Error(message); }
@@ -100,7 +101,7 @@ function normalizeShop(value: any) {
     result.boost_preview_rewards = items(value.boost_preview_rewards);
     return result;
 }
-function normalizeGoods(entry: any, settling: boolean) {
+function normalizeGoods(entry: any) {
     const limit = toNum(entry.purchase_limit);
     const bought = toNum(entry.purchased_count);
     const conditions = (entry.cond_hints || []).map((v: any) => ({ type: v.cond_type, satisfied: !!v.satisfied, current: toNum(v.current), target: toNum(v.target) }));
@@ -109,13 +110,25 @@ function normalizeGoods(entry: any, settling: boolean) {
     const limitPeriod = ({ 1: 'daily', 2: 'weekly', 3: 'monthly', 4: 'permanent' } as Record<number, string>)[toNum(entry.restriction_type)] || 'unknown';
     return { id: String(entry.id), name: entry.name, description: entry.desc, rewards: items(entry.item), costs: items(entry.cost),
         remaining, purchaseLimit: limit > 0 ? limit : null, limitPeriod, conditions, category: entry.category_tag,
-        available: remaining !== 0 && conditions.every((v: any) => v.satisfied) && !(settling && entry.category_tag === 'seed'),
+        available: remaining !== 0 && conditions.every((v: any) => v.satisfied),
     };
 }
+// Settlement stops employment; the workshop and exchange shop remain open
+// until their respective activity windows end.
+function actionPhaseError(action: string, state: any, now = getServerTimeSec()): string | null {
+    const start = action === 'exchange' ? state.exchangeStartTime : state.startTime;
+    const end = action === 'exchange' ? state.exchangeEndTime : state.endTime;
+    if (!(now >= start && now < end)) return '活动尚未开放或已经结束';
+    if (action !== 'create' && !toNum(state.summary.shop_open_at)) return '请先开业';
+    if (state.settleStartTime > 0 && now >= state.settleStartTime && operatingOnlyActions.has(action)) return '结算期不可进行此操作';
+    return null;
+}
+
 async function getMilkTeaActivity(page = 'shop', input: any = {}) {
     if (!['shop', 'settings', 'upgrade', 'workshop', 'hireList', 'exchange', 'fund', 'work', 'rank', 'logs'].includes(page)) fail('未知的活动页面');
     const entries = await group();
     const entry = entries.find((v: any) => String(v.head?.activity_id) === MILK);
+    const exchangeEntry = entries.find((v: any) => String(v.head?.activity_id) === SHOP);
     if (!entry?.milk_tea?.summary) fail('奶茶活动进度未返回');
     const now = getServerTimeSec();
     const head = entry.head;
@@ -124,6 +137,7 @@ async function getMilkTeaActivity(page = 'shop', input: any = {}) {
     const summary = plain(types.MilkTeaGetGroupReply, { group: { children: [entry] } }).group.children[0].milk_tea.summary;
     const result: any = { id: MILK, title: head.name, serverTime: now, startTime: toNum(head.begin_time), endTime: toNum(head.end_time),
         settleStartTime: toNum(head.settle_start_time), active, settling, summary, rules: ruleLines(head), page,
+        exchangeStartTime: toNum(exchangeEntry?.head?.begin_time), exchangeEndTime: toNum(exchangeEntry?.head?.end_time),
         recommendedNames: config.MilkTeaActivityConfig[0].recommend_names.split(';'), levels: config.MilkTeaStoreLevelConfig.map(level => ({
             ...level, rewards: String(level.rewards || '').split(';').filter(Boolean).map(text => { const [id, count] = text.split(':').map(Number); return item({ id, count }); }),
             recipes: level.recipe_ids_string.split(';').map(id => recipeConfig(id)?.recipe_name).filter(Boolean),
@@ -132,7 +146,7 @@ async function getMilkTeaActivity(page = 'shop', input: any = {}) {
     const inv = await inventory(page === 'fund' || page === 'exchange');
     result.balances = inv.balances;
     if (page === 'exchange') {
-        const shop = entries.find((v: any) => String(v.head?.activity_id) === SHOP)?.shop;
+        const shop = exchangeEntry?.shop;
         if (!shop) fail('兑换商店未返回');
         // The official S4 shop keeps old and newly stocked goods as separate
         // IDs, and puts eligible goods with remaining stock before sold-out or
@@ -140,7 +154,7 @@ async function getMilkTeaActivity(page = 'shop', input: any = {}) {
         const rank = (goods: any) => !(goods.cond_hints || []).every((condition: any) => condition.satisfied) ? 3
             : toNum(goods.purchase_limit) > 0 && toNum(goods.purchased_count) >= toNum(goods.purchase_limit) ? 2 : 1;
         result.goods = [...(shop.goods || [])].sort((a: any, b: any) => rank(a) - rank(b) || toNum(a.order) - toNum(b.order))
-            .map((v: any) => normalizeGoods(v, settling));
+            .map((v: any) => normalizeGoods(v));
     } else if (page === 'fund') {
         const fund = entries.find((v: any) => String(v.head?.activity_id) === FUND)?.growth_fund;
         if (!fund) fail('成长基金未返回');
@@ -189,6 +203,10 @@ async function getMilkTeaActivity(page = 'shop', input: any = {}) {
             }
         }
     }
+    // These flags cover phase/opening eligibility; writes still recheck
+    // inventory, locked materials, stock, conditions and prices.
+    result.actionAvailability = Object.fromEntries(['craft', 'exchange', 'hire']
+        .map(action => [action, actionPhaseError(action, result) === null]));
     return result;
 }
 
@@ -197,9 +215,8 @@ async function perform(action: string, input: any) {
     const page = ['exchange'].includes(action) ? 'exchange' : ['unlock', 'fundClaim'].includes(action) ? 'fund'
         : ['hire'].includes(action) ? 'hireList' : action === 'craft' ? 'workshop' : ['wages', 'interact'].includes(action) ? 'work' : ['rename', 'hireSetting'].includes(action) ? 'settings' : action === 'upgrade' ? 'upgrade' : 'shop';
     const state = await getMilkTeaActivity(page, input);
-    if (!state.active) fail('活动尚未开放或已经结束');
-    if (action !== 'create' && !toNum(state.summary.shop_open_at)) fail('请先开业');
-    if (state.settling && ['create', 'rename', 'hire', 'boost', 'interact', 'craft'].includes(action)) fail('结算期不可进行此操作');
+    const phaseError = actionPhaseError(action, state);
+    if (phaseError) fail(phaseError);
     let params: any = {};
     if (action === 'create' || action === 'rename') {
         const name = String(input.name || '').trim();
@@ -264,6 +281,8 @@ async function perform(action: string, input: any) {
         if (typeof input.disabled !== 'boolean') fail('雇佣设置无效');
         params = { hire_disabled: input.disabled };
     }
+    const currentPhaseError = actionPhaseError(action, state);
+    if (currentPhaseError) fail(currentPhaseError);
     const reply = await rpc(action, params);
     const field = operations[action][1];
     const result = plain(types.MilkTeaOperateReply, { [field]: reply })[field];
