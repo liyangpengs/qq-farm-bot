@@ -106,8 +106,10 @@ async function run(options: { farmDeadline?: () => number } = {}): Promise<void>
                 const step = `${action}:${JSON.stringify(input)}`;
                 if (completedSteps.has(step)) return false;
                 checkpoint();
+                let label = action;
                 try {
                     const quote = await prepareAction(action, input);
+                    label = quote.label;
                     if (quote.skipped || currency && quote.costItems.some((cost: any) => cost.id !== currency)) {
                         completedSteps.add(step);
                         steps++;
@@ -134,7 +136,7 @@ async function run(options: { farmDeadline?: () => number } = {}): Promise<void>
                     if (['INSUFFICIENT_BALANCE', 'RESERVE_PROTECTED', 'PENDING_CONFIRMATION', 'RANCH_OFFER_CHANGED', 'GOODS_UNAVAILABLE', 'RANCH_STATE_CHANGED'].includes(error.code)) {
                         completedSteps.add(step);
                         steps++;
-                        log('牧场', `${action} 暂未执行：${error.message}`, { module: 'ranch', event: `ranch_${action}`, result: 'skipped' });
+                        log('牧场', `${label} 暂未执行：${error.message}`, { module: 'ranch', event: `ranch_${action}`, result: 'skipped' });
                         return false;
                     }
                     throw error;

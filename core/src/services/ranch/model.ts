@@ -8,7 +8,7 @@ import mutations from '../../gameConfig/ranch/MCAnimalMutation.json';
 
 export {};
 
-const { getItemById, getItemImageById } = require('../../config/gameConfig');
+const { getItemById, getItemImageById, getShopGoodsById } = require('../../config/gameConfig');
 
 const animalMap = new Map<number, any>(animals.map(row => [row.id, row]));
 const canMap = new Map<number, any>(cans.map(row => [row.id, row]));
@@ -47,6 +47,18 @@ function itemDto(item: any): any {
     return { id, count: quantity(item.count), name: metadata?.name || `物品${id}`, image: getItemImageById(id) };
 }
 
+function pendingOperationView(operation: any): any {
+    let label = operation.label;
+    const goodsId = operation.target.match(/^ranch:buy:(\d+)$/)?.[1];
+    if (label === '购买牧场商品' && goodsId) {
+        const goods = getShopGoodsById(Number(goodsId));
+        if (goods) label = `购买${itemDto({ id: goods.item_id }).name}`;
+    }
+    return { ...operation, label, costs: operation.costs.map((cost: any) => ({ ...cost,
+        name: itemDto({ id: Number(cost.resourceKey.slice(5)) }).name,
+    })) };
+}
+
 function sumItems(items: any[]): any[] {
     const totals = new Map<number, bigint>();
     for (const item of items) totals.set(Number(item.id), (totals.get(Number(item.id)) || 0n) + BigInt(quantity(item.count)));
@@ -63,4 +75,4 @@ function levelInfo(exp: number): any {
     return { level: current.level, exp, currentExp: exp - current.exp, neededExp: next ? next.exp - current.exp : null };
 }
 
-module.exports = { animalMap, mutationMap, cubMap, canMap, facilityMap, itemMap, taskMap, error, positiveId, positiveCount, quantity, itemDto, sumItems, signature, levelInfo };
+module.exports = { animalMap, mutationMap, cubMap, canMap, facilityMap, itemMap, taskMap, error, positiveId, positiveCount, quantity, itemDto, pendingOperationView, sumItems, signature, levelInfo };

@@ -1,7 +1,7 @@
 export {};
 
 const { rpc, inScene, isUnlocked } = require('./transport');
-const { animalMap, mutationMap, cubMap, canMap, facilityMap, itemMap, taskMap, itemDto, quantity, levelInfo, error } = require('./model');
+const { animalMap, mutationMap, cubMap, canMap, facilityMap, itemMap, taskMap, itemDto, pendingOperationView, quantity, levelInfo, error } = require('./model');
 const { getServerTimeSec } = require('../../utils/utils');
 
 function bagItems(bag: any): any[] {
@@ -194,7 +194,7 @@ async function getState(view = 'animals', shopId?: number, hostGid?: string): Pr
     return inScene(async (cells: any) => {
         const raw = await loadRaw(cells);
         const state = snapshot(raw);
-        state.pendingOperations = require('./operation-state').forCurrentAccount().pending();
+        state.pendingOperations = require('./operation-state').forCurrentAccount().pending().map(pendingOperationView);
         if (view === 'bag') state.bag = inventory(raw);
         if (view === 'shop') state.shop = await catalog(raw, Number(shopId ?? 5));
         if (view === 'market') state.market = await market(raw);
