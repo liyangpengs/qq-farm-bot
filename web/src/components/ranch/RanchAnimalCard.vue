@@ -11,10 +11,11 @@ const props = withDefaults(defineProps<{
   /** 距离下一阶段的剩余时间文本，由父组件按服务器时钟计算。 */
   remaining?: string
   actionable?: boolean
+  friend?: boolean
   disabled?: boolean
-}>(), { pen: '', remaining: '', actionable: false, disabled: false })
+}>(), { pen: '', remaining: '', actionable: false, friend: false, disabled: false })
 
-const emit = defineEmits<{ produce: [], harvest: [], feed: [bucketType: 1 | 2] }>()
+const emit = defineEmits<{ produce: [], harvest: [], feed: [bucketType: 1 | 2], release: [], stroke: [] }>()
 const failed = ref(false)
 watch(() => props.animal?.image, () => failed.value = false)
 
@@ -71,7 +72,10 @@ const feedOptions = computed(() => [
     <div v-else class="pen__rounds" aria-hidden="true" />
 
     <footer v-if="actionable" class="pen__foot">
-      <NButton v-if="animal.canHarvest" size="tiny" type="primary" :disabled="disabled" @click="emit('harvest')">
+      <NButton v-if="friend" size="tiny" type="primary" secondary :disabled="disabled || !animal.canStroke" :aria-label="`抚摸${animal.name}，${pen}第${animal.slot}栏`" @click="emit('stroke')">
+        {{ animal.stroked ? '已抚摸' : animal.canStroke ? '抚摸' : '不可抚摸' }}
+      </NButton>
+      <NButton v-else-if="animal.canHarvest" size="tiny" type="primary" :disabled="disabled" @click="emit('harvest')">
         收获
       </NButton>
       <NButton v-else-if="animal.canProduce" size="tiny" type="primary" secondary :disabled="disabled" @click="emit('produce')">
@@ -83,6 +87,9 @@ const feedOptions = computed(() => [
         </NButton>
       </NDropdown>
       <span v-else class="pen__idle">成长中</span>
+      <NButton v-if="!friend && animal.canRelease" size="tiny" quaternary :disabled="disabled" :aria-label="`放生${animal.name}，${pen}第${animal.slot}栏`" @click="emit('release')">
+        放生
+      </NButton>
     </footer>
   </article>
 </template>
@@ -268,7 +275,9 @@ const feedOptions = computed(() => [
 .pen__foot {
   display: flex;
   width: 100%;
-  height: 28px;
+  min-height: 28px;
+  flex-wrap: wrap;
+  gap: 4px;
   align-items: center;
   justify-content: center;
   margin-top: 8px;
@@ -277,7 +286,8 @@ const feedOptions = computed(() => [
 }
 
 .pen__foot :deep(.n-button) {
-  min-width: 60px;
+  min-width: 48px;
+  min-height: 24px;
 }
 
 .pen__idle {

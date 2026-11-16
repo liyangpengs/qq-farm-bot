@@ -104,6 +104,7 @@ function target(animal: any) {
               @produce="request('produce', target(animal))"
               @harvest="request('harvest', target(animal))"
               @feed="type => request('feed', { ...target(animal), bucketType: type })"
+              @release="request('release', target(animal))"
             />
           </div>
 
