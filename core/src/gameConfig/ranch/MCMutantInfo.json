@@ -1,0 +1,14 @@
+[
+  {
+    "mutation_type": 1,
+    "name": "巨大",
+    "enable_flag": true,
+    "content_version": 20261104,
+    "tag": 0,
+    "activity_id": 0,
+    "fruit_name": "巨大动物",
+    "icon": "gui/texture/mutant/icon/big/spriteFrame",
+    "tips": "饲养或好友照料动物有概率出现",
+    "pro": 10
+  }
+]

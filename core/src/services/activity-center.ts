@@ -2,6 +2,7 @@
 
 import type Long from 'long';
 import shareRewardInstances from '../activity-data/share-reward-instances.json';
+import pendingContent from '../activity-data/pending-content.json';
 
 const LongModule = require('long');
 const { sendMsgAsync, GatewayError } = require('../utils/network');
@@ -384,7 +385,8 @@ function buildActivityDirectory(windows: any[], season: any, shop: any, solarTer
         const id = String(window?.id || '').trim();
         if (!id) continue;
         const shareInstance = shareRewardInstances.find(entry => entry.activityId === id);
-        const name = shareInstance?.title || String(window?.name || '').trim() || `活动 ${id}`;
+        const placeholder = pendingContent.activities.find(entry => entry.activityIds.includes(id));
+        const name = shareInstance?.title || String(window?.name || '').trim() || placeholder?.name || `活动 ${id}`;
         const startTime = Number(window?.beginTime) || 0;
         const endTime = Number(window?.endTime) || 0;
         const group = groups.find((entry: any) => (

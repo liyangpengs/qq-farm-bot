@@ -1,0 +1,272 @@
+[
+  {
+    "mutation_type": 1,
+    "animal_id": 60002,
+    "base_weight": 1000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65002,
+    "giant_product_item": 2065002,
+    "giant_byproduct_item": 1065002
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60003,
+    "base_weight": 1600,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65003,
+    "giant_product_item": 2065003,
+    "giant_byproduct_item": 1065003
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60004,
+    "base_weight": 800,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65004,
+    "giant_product_item": 2065004,
+    "giant_byproduct_item": 1065004
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60005,
+    "base_weight": 2600,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65005,
+    "giant_product_item": 2065005,
+    "giant_byproduct_item": 1065005
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60006,
+    "base_weight": 330,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65006,
+    "giant_product_item": 2065006,
+    "giant_byproduct_item": 1065006
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60007,
+    "base_weight": 500,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65007,
+    "giant_product_item": 2065007,
+    "giant_byproduct_item": 1065007
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60008,
+    "base_weight": 130,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65008,
+    "giant_product_item": 2065008,
+    "giant_byproduct_item": 1065008
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60009,
+    "base_weight": 270,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65009,
+    "giant_product_item": 2065009,
+    "giant_byproduct_item": 1065009
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60010,
+    "base_weight": 40,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65010,
+    "giant_product_item": 2065010,
+    "giant_byproduct_item": 1065010
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60011,
+    "base_weight": 3000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65011,
+    "giant_product_item": 2065011,
+    "giant_byproduct_item": 1065011
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60012,
+    "base_weight": 2000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65012,
+    "giant_product_item": 2065012,
+    "giant_byproduct_item": 1065012
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70001,
+    "base_weight": 20000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75001,
+    "giant_product_item": 2075001,
+    "giant_byproduct_item": 1075001
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70002,
+    "base_weight": 130000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75002,
+    "giant_product_item": 2075002,
+    "giant_byproduct_item": 1075002
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70003,
+    "base_weight": 73000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75003,
+    "giant_product_item": 2075003,
+    "giant_byproduct_item": 1075003
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70004,
+    "base_weight": 13000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75004,
+    "giant_product_item": 2075004,
+    "giant_byproduct_item": 1075004
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70005,
+    "base_weight": 130000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75005,
+    "giant_product_item": 2075005,
+    "giant_byproduct_item": 1075005
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70006,
+    "base_weight": 150000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75006,
+    "giant_product_item": 2075006,
+    "giant_byproduct_item": 1075006
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70007,
+    "base_weight": 165000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75007,
+    "giant_product_item": 2075007,
+    "giant_byproduct_item": 1075007
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70008,
+    "base_weight": 115000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75008,
+    "giant_product_item": 2075008,
+    "giant_byproduct_item": 1075008
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70009,
+    "base_weight": 33000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75009,
+    "giant_product_item": 2075009,
+    "giant_byproduct_item": 1075009
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70010,
+    "base_weight": 23000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75010,
+    "giant_product_item": 2075010,
+    "giant_byproduct_item": 1075010
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70011,
+    "base_weight": 2000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75011,
+    "giant_product_item": 2075011,
+    "giant_byproduct_item": 1075011
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 70012,
+    "base_weight": 22000,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 75012,
+    "giant_product_item": 2075012,
+    "giant_byproduct_item": 1075012
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60013,
+    "base_weight": 3300,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65013,
+    "giant_product_item": 2065013,
+    "giant_byproduct_item": 1065013
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60014,
+    "base_weight": 170,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65014,
+    "giant_product_item": 2065014,
+    "giant_byproduct_item": 1065014
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60015,
+    "base_weight": 1600,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65015,
+    "giant_product_item": 2065015,
+    "giant_byproduct_item": 1065015
+  },
+  {
+    "mutation_type": 1,
+    "animal_id": 60016,
+    "base_weight": 330,
+    "weight": "20000,40000;40000,70000;70000,90000;90000,100001",
+    "giant_scale": 15000,
+    "giant_cub_item_id": 65016,
+    "giant_product_item": 2065016,
+    "giant_byproduct_item": 1065016
+  }
+]

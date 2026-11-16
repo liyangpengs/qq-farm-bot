@@ -7,7 +7,7 @@
     "bg": "gui/prefab/collect/collect_bg/collect_bg_02",
     "bg_img_url": "gui/texture/collect/collectBg/fx_collect_bg_02",
     "display": null,
-    "desc": "种植28品及以上普通作物有概率得本系列",
+    "desc": "种植4品及以上普通作物有概率得本系列",
     "series_rarity": 1,
     "unlock_condition_ids": null,
     "wish_bonus": 10000,

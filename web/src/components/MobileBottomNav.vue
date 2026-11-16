@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { menuRoutes } from '@/router/menu'
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { getSpaceMenu } from '@/router/menu'
+
+const route = useRoute()
 
 // 与侧栏使用同一份名称和图标，只在底栏放最常用的五项。
 const MOBILE_ITEMS: Array<[string, string?]> = [['dashboard'], ['personal'], ['activity-center'], ['game-mall', '商城'], ['Settings']]
-const items = MOBILE_ITEMS.flatMap(([name, shortLabel]) => {
-  const route = menuRoutes.find(item => item.name === name)
-  return route ? [{ path: `/${route.path}`, label: shortLabel || route.label, icon: route.icon }] : []
-})
+const items = computed(() => MOBILE_ITEMS.flatMap(([name, shortLabel]) => {
+  const inRanch = route.meta.gameSpace === 'ranch'
+  const item = getSpaceMenu(inRanch).find(item => item.name === `${inRanch ? 'ranch-' : ''}${name}`)
+  return item ? [{ path: `/${item.path}`, label: shortLabel || item.label, icon: item.icon }] : []
+}))
 </script>
 
 <template>

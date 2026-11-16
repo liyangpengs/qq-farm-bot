@@ -10,7 +10,7 @@ import AccountModal from '@/components/AccountModal.vue'
 import RemarkModal from '@/components/RemarkModal.vue'
 import BrandMark from '@/components/ui/BrandMark.vue'
 import { useCopyFeedback } from '@/composables/useCopyFeedback'
-import { menuRoutes } from '@/router/menu'
+import { getSpaceMenu } from '@/router/menu'
 import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/account'
 import { useAppStore } from '@/stores/app'
 import { useStatusStore } from '@/stores/status'
@@ -283,7 +283,7 @@ const connectionStatus = computed(() => {
 })
 
 const navItems = computed(() => {
-  return menuRoutes
+  return getSpaceMenu(route.meta.gameSpace === 'ranch')
     .map(item => ({
       path: item.path ? `/${item.path}` : '/',
       label: item.label,
@@ -345,11 +345,11 @@ async function copyToken() {
           <div class="sidebar-brand__identity min-w-0 flex items-center gap-2.5">
             <BrandMark class="brand-mark" :size="28" />
             <span v-show="!isSidebarCollapsed" class="min-w-0 truncate text-sm font-display font-semibold">
-              QQ农场智能助手
+              QQ{{ route.meta.gameSpace === 'ranch' ? '牧场' : '农场' }}智能助手
             </span>
           </div>
         </template>
-        QQ农场智能助手
+        QQ{{ route.meta.gameSpace === 'ranch' ? '牧场' : '农场' }}智能助手
       </NTooltip>
       <!-- Mobile Close Button -->
       <NButton

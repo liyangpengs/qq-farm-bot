@@ -390,5 +390,12 @@
     "source_param": 22,
     "attr_id": "蓝晶土地藏品额外产出概率提升",
     "attr_value": 350
+  },
+  {
+    "id": 2002,
+    "source_type": "活动加成",
+    "source_param": 2026111801,
+    "attr_id": "活动收获经验加成",
+    "attr_value": 2000
   }
 ]

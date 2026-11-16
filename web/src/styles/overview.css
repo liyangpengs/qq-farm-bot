@@ -1,0 +1,293 @@
+/* 概览卡片：农场与牧场概览共用，保证两个空间的首页结构与视觉一致。
+   组件内以 <style scoped src> 引入，类名仍按组件作用域隔离。 */
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ov-account {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .overview-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .ov-account {
+    grid-column: auto;
+  }
+}
+
+.ov-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-surface);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    var(--ui-shadow-sm);
+}
+
+.ov-card__title {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 13px;
+  font-weight: var(--fw-600);
+  line-height: 1.4;
+}
+
+/* 账号 */
+.ov-account__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ov-avatar {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: 16px;
+  color: var(--ui-subtle);
+  background: var(--ui-surface-soft);
+  font-size: 26px;
+}
+
+.ov-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.ov-avatar__dot {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--ui-surface-strong);
+  border-radius: 999px;
+  background: var(--ui-subtle);
+}
+
+.ov-avatar.is-online .ov-avatar__dot {
+  background: #3fa765;
+}
+
+.ov-account__name-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.ov-account__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-ink);
+  font-size: 18px;
+  font-weight: var(--fw-700);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-level {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: var(--ui-blue);
+  background: var(--ui-blue-soft);
+  font-size: 12px;
+  font-weight: var(--fw-700);
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-presence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 5px;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ov-presence__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px 1px 7px;
+  border-radius: 999px;
+  font-weight: var(--fw-600);
+  line-height: 20px;
+}
+
+.ov-presence__state::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  content: '';
+}
+
+.ov-presence__state.is-online {
+  color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+}
+
+.ov-presence__state.is-offline {
+  color: var(--ui-muted);
+  background: var(--ui-surface-soft);
+}
+
+.ov-presence__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-exp__labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ov-exp__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-exp__value b {
+  margin-left: 6px;
+  color: var(--ui-ink);
+  font-weight: var(--fw-700);
+}
+
+.ov-exp__track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-surface-soft);
+}
+
+.ov-exp__bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ov-exp-from, #5c9fd0), var(--ov-exp-to, #4b86c5));
+  transition: width 0.5s ease;
+}
+
+.ov-account__foot {
+  display: grid;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ui-border-strong);
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ov-account__foot b {
+  color: var(--ui-ink);
+  font-weight: var(--fw-600);
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-forecast {
+  margin-top: 0 !important;
+}
+
+/* 资产 / 库存数据格 */
+.ov-tiles {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ov-tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--ui-surface-soft);
+}
+
+.ov-tile__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--ui-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ov-tile__label > span {
+  flex: none;
+  font-size: 13px;
+}
+
+.ov-tile__value {
+  overflow: hidden;
+  color: var(--ui-ink);
+  font-size: 20px;
+  font-weight: var(--fw-700);
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-tile__delta {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-tile__delta.is-up {
+  color: var(--ui-primary);
+}
+
+.ov-tile__delta.is-down {
+  color: var(--ui-danger);
+}
+
+@media (max-width: 520px) {
+  .ov-card {
+    padding: 16px;
+  }
+
+  .ov-tile {
+    padding: 10px 12px;
+  }
+
+  .ov-tile__value {
+    font-size: clamp(15px, 4.5vw, 18px);
+  }
+}

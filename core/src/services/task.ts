@@ -144,6 +144,7 @@ function normalizeTaskInfo(taskInfo: any): NormalizedTaskInfo {
 
     const append = (task: any, target: any[]): void => {
         if (!task || typeof task !== 'object') return;
+        if ([4, 5].includes(toNum(task.task_type))) return;
         const id: number = toNum(task.id);
         if (id > 0) {
             if (seenIds.has(id)) return;
@@ -154,6 +155,7 @@ function normalizeTaskInfo(taskInfo: any): NormalizedTaskInfo {
 
     for (const task of (Array.isArray(source.tasks) ? source.tasks : [])) {
         const taskType: number = toNum(task && task.task_type);
+        if (taskType === 4 || taskType === 5) continue;
         if (taskType === 1) append(task, growthTasks);
         else if (taskType === 2) append(task, dailyTasks);
         else append(task, otherTasks);
@@ -363,8 +365,15 @@ async function doClaim(task: any): Promise<boolean> {
     }
 }
 
-function onTaskInfoNotify(taskInfo: any): void {
+function onTaskInfoNotify(taskInfo: any, context?: { globalSceneId?: number }): void {
     if (!taskInfo) return;
+    if (context?.globalSceneId === 2) {
+        if (isAutomationOn('ranch_task') && require('./ranch/state').taskList({ task_info: taskInfo }).some((task: any) => task.canClaim)) {
+            require('./ranch/daily').markTasksChanged();
+            require('./ranch/automation').resetSchedule();
+        }
+        return;
+    }
     if (!isAutomationOn('task')) return;
 
     const normalized: NormalizedTaskInfo = normalizeTaskInfo(taskInfo);
@@ -379,10 +388,10 @@ function onTaskInfoNotify(taskInfo: any): void {
     if (hasClaimable) log('任务', `有 ${claimable.length} 个任务可领取，准备自动领取...`, {
         module: 'task', event: '领取任务', result: 'plan', count: claimable.length
     });
-    taskScheduler.setTimeoutTask('task_claim_debounce', 1000, async () => {
+    taskScheduler.setTimeoutTask('task_claim_debounce', 1000, () => require('./automation-lock').runExclusiveAutomationTask('task_claim_notify', async () => {
         if (hasClaimable) await claimTasksFromList(claimable);
         await checkAndClaimActives(actives);
-    });
+    }, { detached: true }));
 }
 
 async function claimTasksFromList(claimable: any[]): Promise<void> {
@@ -397,10 +406,10 @@ async function claimTasksFromList(claimable: any[]): Promise<void> {
 function initTaskSystem(): void {
     cleanupTaskSystem();
     networkEvents.on('taskInfoNotify', onTaskInfoNotify);
-    taskScheduler.setTimeoutTask('task_init_bootstrap', 4000, async () => {
+    taskScheduler.setTimeoutTask('task_init_bootstrap', 4000, () => require('./automation-lock').runExclusiveAutomationTask('task_init', async () => {
         await checkAndClaimTasks();
         if (isAutomationOn('task')) await checkAndClaimIllustratedRewards();
-    });
+    }, { detached: true }));
 }
 
 function cleanupTaskSystem(): void {

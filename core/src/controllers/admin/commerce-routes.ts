@@ -47,6 +47,11 @@ function mountCommerceRoutes(app: Application, ctx: AdminContext): void {
         };
     };
 
+    app.get('/api/ranch/automation-options', (_req: Request, res: Response) => res.json({ ok: true, data: require('../../config/ranch-automation').RANCH_ANIMAL_OPTIONS }));
+    app.get('/api/ranch', withAccount((accountId: string, req: Request) => ctx.provider.getRanchState(accountId, String(req.query.view || 'animals'), req.query.shopId === undefined ? undefined : Number(req.query.shopId), req.query.hostGid === undefined ? undefined : String(req.query.hostGid))));
+    app.post('/api/ranch/:action/quote', withAccount((accountId: string, req: Request) => ctx.provider.prepareRanchAction(accountId, String(req.params.action), req.body)));
+    app.post('/api/ranch/:action', withAccount((accountId: string, req: Request) => ctx.provider.operateRanch(accountId, String(req.params.action), req.body)));
+
     app.get('/api/solar-calendar', withAccount((accountId: string) => ctx.provider.getSolarCalendar(accountId)));
     app.post('/api/solar-calendar/:action', withAccount((accountId: string, req: Request) => ctx.provider.operateSolarCalendar(accountId, req.params.action, req.body)));
     app.post('/api/illustrated/claim', withAccount((accountId: string, req: Request) => ctx.provider.claimIllustratedRewards(accountId, req.body?.type)));

@@ -1,0 +1,288 @@
+syntax = "proto3";
+package gamepb.ranchpb;
+
+import "corepb.proto";
+import "homesteadpb.proto";
+import "shoppb.proto";
+import "userpb.proto";
+
+message EnterHomesteadRequest {
+    int64 host_gid = 1;
+    int32 reason = 2;
+}
+message EnterHomesteadReply {
+    FriendBasicInfo basic = 1;
+    bool host_at_home = 3;
+    int64 unix_milli = 5;
+    bool is_tourist = 6;
+    gamepb.homesteadpb.AllCellsReply homestead_cells = 8;
+}
+message LeaveHomesteadRequest { int64 host_gid = 1; }
+message LeaveHomesteadReply {}
+message FriendBasicInfo {
+    int64 gid = 1;
+    string name = 2;
+    int64 big_farm_level = 20;
+}
+message StealProduceReply {
+    repeated gamepb.animalpb.RanchDetail ranches = 1;
+    repeated FacilityOpResult op_results = 4;
+}
+message FacilityOpResult {
+    int64 facility_inst_id = 1;
+    int32 kind = 2;
+    int64 target_id = 3;
+    repeated Item rewards = 10;
+    repeated Item costs = 11;
+}
+
+message ReportShareRequest {
+    int64 share_id = 1;
+    repeated int64 params = 2;
+    int32 channel = 3;
+    int64 doc_id = 4;
+}
+message ReportShareReply {
+    map<int64, gamepb.userpb.ShareInfo> share_infos = 1;
+}
+message ClaimShareRewardRequest { int64 share_id = 1; }
+message ClaimShareRewardReply {
+    repeated Item rewards = 1;
+    map<int64, gamepb.userpb.ShareInfo> share_infos = 2;
+    repeated Item compensated_items = 3;
+}
+
+// Scene 2 inventory preserves the official sale prices, locks and ranch-product details.
+
+message Item {
+    int64 id = 1;
+    int64 count = 2;
+    int64 expire_time = 3;
+    int64 uid = 6;
+    bool is_new = 7;
+    repeated int64 mutant_types = 8;
+    bool is_locked = 9;
+    bytes gift_detail = 10;
+    ItemDetail item_detail = 11;
+    int64 tab_id = 12;
+    ItemShow show = 100;
+}
+
+message ItemShow {
+    repeated SellCond sell_cond = 3;
+    repeated ItemEntry sells = 4;
+    repeated ItemEntry cond_sells = 5;
+}
+
+message ItemDetail {
+    bytes weather_wood = 1;
+    ItemRanchProduct ranch_product = 2;
+}
+
+message ItemRanchProduct {
+    int64 src_item_id = 1;
+    int64 src_animal_id = 2;
+    int32 weight_x10 = 3;
+    int32 tier = 4;
+    int64 price_rate = 5;
+    int64 base_point = 6;
+}
+
+message ItemEntry {
+    int64 id = 1;
+    int64 count = 2;
+}
+
+message SellCond {
+    string type = 1;
+    string params = 2;
+}
+
+message GetBagRequest {
+    int32 global_scene_id = 1;
+    int64 tab_id = 2;
+}
+
+message GetBagReply {
+    repeated Item physical_items = 1;
+    repeated Item virtual_items = 2;
+    int64 max_grid_num = 3;
+    int64 curr_grid_num = 4;
+    int32 global_scene_id = 5;
+}
+
+message GetBagTabRequest {
+    int32 global_scene_id = 1;
+}
+
+message GetBagTabReply {
+    repeated BagTabInfo tabs = 1;
+    int32 global_scene_id = 2;
+}
+
+message BagTabInfo {
+    int64 tab_id = 1;
+    string tab_name = 2;
+    int64 item_count = 3;
+    bool has_red_dot = 4;
+}
+
+message UseRequest {
+    Item item = 1;
+}
+
+message UseReply {
+    Item item = 1;
+    repeated Item get_items = 2;
+    repeated Item compensated_items = 3;
+}
+
+message SellRequest {
+    repeated Item items = 1;
+}
+
+message SellReply {
+    repeated Item sell_items = 1;
+    repeated Item get_items = 2;
+}
+
+message SceneData {
+    gamepb.homesteadpb.AllCellsReply homestead_cells = 2;
+}
+
+message RotationGoodsCard {
+    int32 shelf_id = 1;
+    int32 slot = 2;
+    int64 item_id = 3;
+    int64 item_count = 4;
+    int64 cost_item_id = 5;
+    int64 cost_count = 6;
+    int64 discount_price = 7;
+    int64 discount_start_time = 8;
+    int64 discount_end_time = 9;
+    int64 limit_count = 10;
+    int64 limit_used = 11;
+    repeated gamepb.shoppb.ShowCond buy_conds = 12;
+    int64 goods_id = 13;
+}
+
+message RotationShelf {
+    int32 shelf_id = 1;
+    string shelf_name = 2;
+    int32 sort = 3;
+}
+
+message RotationShopState {
+    int64 shop_id = 1;
+    bool present = 2;
+    int64 period_day = 3;
+    int32 round_index = 4;
+    int32 npc_id = 5;
+    int64 shop_start_time = 6;
+    int64 shop_end_time = 7;
+    bool has_redpoint = 8;
+    int64 npc_spawn_point_id = 9;
+}
+
+message RotationShopInfoRequest {
+    int64 shop_id = 1;
+}
+
+message RotationShopInfoReply {
+    bool opened = 1;
+    bool present = 2;
+    int64 period_day = 3;
+    int32 round_index = 4;
+    repeated RotationShelf shelves = 5;
+    repeated RotationGoodsCard goods = 6;
+}
+
+message RotationBuyGoodsRequest {
+    int64 goods_id = 1;
+    int32 count = 2;
+    int64 period_day = 3;
+    int32 round_index = 4;
+}
+
+message RotationBuyGoodsReply {
+    RotationGoodsCard card = 1;
+    repeated Item awards = 2;
+}
+
+message GetIllustratedListV2Request {
+    int32 rarity = 1;
+    int32 type = 2;
+}
+
+message GetIllustratedListV2Reply {
+    repeated IllustratedInfoV2 list = 1;
+    int32 total_progress = 2;
+    int32 current_level = 3;
+    repeated Item total_rewards = 4;
+    int32 type = 6;
+    int32 next_level_progress = 7;
+    bool has_claimable_reward = 8;
+    bool has_claimed_reward = 9;
+    int64 ranch_weight_score = 12;
+}
+
+message IllustratedInfoV2 {
+    int32 fruit_id = 1;
+    int32 rarity = 2;
+    bool unlocked = 3;
+    int32 progress = 4;
+    int32 layer = 5;
+    repeated Item reward = 6;
+    bool is_new = 7;
+    RanchGiantRecordView giant = 9;
+}
+
+message RanchGiantRecordView {
+    bool unlocked = 1;
+    int32 best_weight_x10 = 2;
+    int32 lo_x10 = 3;
+    int32 hi_x10 = 4;
+    int32 tier = 5;
+    int32 tier_reached_mask = 6;
+    int64 harvest_count = 7;
+    bool is_new = 8;
+}
+
+message GetRanchWeightScoreV2Request {
+
+}
+
+message GetRanchWeightScoreV2Reply {
+    int64 total_score = 1;
+    int32 current_id = 2;
+    int32 calc_mode = 3;
+    repeated RanchWeightScoreLevelV2 levels = 4;
+}
+
+message RanchWeightScoreLevelV2 {
+    int32 id = 1;
+    int64 score_condition = 2;
+    repeated Item rewards = 3;
+    bool can_claim = 4;
+    bool claimed = 5;
+}
+
+message ClaimRanchWeightScoreRewardV2Request {
+    int32 id = 1;
+}
+
+message ClaimRanchWeightScoreRewardV2Reply {
+    repeated Item rewards = 1;
+    repeated int32 claimed_ids = 2;
+}
+
+message ClaimAllRewardsV2Request {
+    int32 type = 1;
+}
+
+message ClaimAllRewardsV2Reply {
+    repeated Item total_rewards = 1;
+    repeated int32 claimed_level_ids = 2;
+    int32 current_level = 3;
+    repeated Item next_level_rewards = 4;
+}
