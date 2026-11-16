@@ -96,6 +96,32 @@ const events = [
   { label: '土地解锁', value: 'unlock_land' },
   { label: '好友巡查', value: 'friend_cycle' },
   { label: '访问好友', value: 'visit_friend' },
+  { label: '牧场巡查', value: 'ranch_automation' },
+  { label: '购买牧场商品', value: 'ranch_buy' },
+  { label: '放养幼崽', value: 'ranch_place' },
+  { label: '补充牧草', value: 'ranch_addGrass' },
+  { label: '填充罐头', value: 'ranch_useCan' },
+  { label: '喂养动物', value: 'ranch_feed' },
+  { label: '牧场生产', value: 'ranch_produce' },
+  { label: '牧场收获', value: 'ranch_harvest' },
+  { label: '出售牧场产物', value: 'ranch_sell' },
+  { label: '清理牧场', value: 'ranch_clean' },
+  { label: '升级牧场建筑', value: 'ranch_upgrade' },
+  { label: '完成建筑升级', value: 'ranch_completeUpgrade' },
+  { label: '领取牧场任务', value: 'ranch_claimTasks' },
+  { label: '牧场成长任务', value: 'ranch_reportEntry' },
+  { label: '牧场集市兑换', value: 'ranch_exchange' },
+  { label: '牧场图鉴奖励', value: 'ranch_claimIllustrated' },
+  { label: '牧场每日分享', value: 'ranch_claimDailyShare' },
+  { label: '购买牧场罐头', value: 'ranch_buyCan' },
+  { label: '偷取好友牧场', value: 'ranch_steal' },
+  { label: '抚摸好友动物', value: 'ranch_stroke' },
+  { label: '放生动物', value: 'ranch_release' },
+  { label: '放蚊子', value: 'ranch_putMosquito' },
+  { label: '清理好友牧场', value: 'ranch_cleanFriend' },
+  { label: '拜访好友牧场', value: 'ranch_friend' },
+  { label: '离开好友牧场', value: 'ranch_friend_leave' },
+  { label: '恢复场景', value: 'ranch_scene_restore' },
   { label: '牧场任务', value: 'ranch_task_claim' },
   { label: '牧场分享礼包', value: 'ranch_daily_share' },
 ]
@@ -104,8 +130,19 @@ const eventLabelMap: Record<string, string> = Object.fromEntries(
   events.filter(e => e.value).map(e => [e.value, e.label]),
 )
 
-function getEventLabel(event: string) {
-  return eventLabelMap[event] || event
+function getEventLabel(event?: string) {
+  const key = event || ''
+  return eventLabelMap[key] || (/[\u3400-\u9FFF]/u.test(key) ? key : '')
+}
+
+function isRanchLog(log: any) {
+  return log.meta?.module === 'ranch' || String(log.meta?.event || '').startsWith('ranch_') || log.tag === '牧场'
+}
+
+function getModuleLabel(log: any) {
+  if (isRanchLog(log))
+    return '牧场'
+  return modules.find(module => module.value && module.value === log.meta?.module)?.label || log.tag
 }
 
 const logs = [
@@ -295,14 +332,14 @@ useIntervalFn(loadLogs, 10000)
           v-for="group in logGroups"
           :key="group.log.ts + group.key"
           class="log-row"
-          :class="`log-row--${group.level}`"
+          :class="[`log-row--${group.level}`, { 'log-row--ranch': isRanchLog(group.log) }]"
         >
           <span class="log-row__time">
             {{ formatLogTime(group.log.time) }}
           </span>
-          <span class="log-row__tag">{{ group.log.tag }}</span>
+          <span class="log-row__tag">{{ getModuleLabel(group.log) }}</span>
           <span class="log-row__body">
-            <span v-if="group.log.meta?.event" class="log-row__event">{{ getEventLabel(group.log.meta.event) }}</span>
+            <span v-if="getEventLabel(group.log.meta?.event)" class="log-row__event">{{ getEventLabel(group.log.meta.event) }}</span>
             <span class="log-row__msg">{{ group.log.msg }}</span>
             <span v-if="group.count > 1" class="log-row__repeat" :title="`${formatLogTime(group.firstTime)} 起重复 ${group.count} 次`">
               ×{{ group.count }} · {{ formatLogTime(group.firstTime) }} 起
@@ -430,6 +467,10 @@ useIntervalFn(loadLogs, 10000)
 
 .log-row--success {
   border-left-color: var(--ui-primary);
+}
+
+.log-row--success.log-row--ranch {
+  border-left-color: var(--ui-violet);
 }
 
 .log-row--warn {
