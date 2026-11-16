@@ -13,6 +13,8 @@ enum ShopType {
     SKIN = 4;
     CUB = 5;
     FEED = 6;
+    ROTATION_SHOP = 7;
+    TRAVEL_SHOP = 8;
 }
 
 // ============ 商店概览 ============
@@ -20,13 +22,16 @@ message ShopProfile {
     int64 shop_id = 1;      // 商店ID
     string shop_name = 2;   // 商店名称
     int32 shop_type = 3;    // 商店类型
+    repeated int32 global_scene_ids = 4;
+    bool is_rotation_shop = 5;
+    bytes rotation_state = 6;
 }
 
 // ============ 商品信息 ============
 message GoodsInfo {
     int64 id = 1;              // 商品ID (用于购买)
     int64 bought_num = 2;      // 已购买数量
-    int64 price = 3;           // 基础单价；币种由商店类型决定
+    int64 price = 3;           // 基础单价；币种由官方 Goods 配置的 price_id 决定
     int64 limit_count = 4;     // 限购数量 (0=不限购)
     bool unlocked = 5;         // 是否已解锁
     int64 item_id = 6;         // 物品ID
@@ -51,6 +56,8 @@ enum CondType {
     COND_TYPE_UNKNOWN = 0;
     MIN_LEVEL = 1;     // 最低等级要求
     UNLOCK_CARD = 2;   // 需要解锁卡
+    BIG_FARM_LV = 3;
+    MIN_TRAVEL_LEVEL = 4;
 }
 
 message Cond {
@@ -61,7 +68,9 @@ message Cond {
 // ============ 请求/回复 ============
 
 // --- 获取商店列表 ---
-message ShopProfilesRequest {}
+message ShopProfilesRequest {
+    int32 global_scene_id = 1;
+}
 
 message ShopProfilesReply {
     repeated ShopProfile shop_profiles = 1;
@@ -81,6 +90,7 @@ message BuyGoodsRequest {
     int64 goods_id = 1;   // 商品ID (GoodsInfo.id)
     int64 num = 2;        // 购买数量
     int64 price = 3;      // 单价
+    bool auto_add = 4;
 }
 
 message BuyGoodsReply {

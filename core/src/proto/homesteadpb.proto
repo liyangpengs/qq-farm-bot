@@ -1,0 +1,373 @@
+syntax = "proto3";
+package gamepb.homesteadpb;
+
+import "corepb.proto";
+import "animalpb.proto";
+
+// 从 QQ 1.17.0.3 官方定义整理，服务层只开放已核实的动作。
+
+message CellInfo {
+    int64 cell_id = 1;
+    int32 grid_x = 2;
+    int32 grid_y = 3;
+    int32 status = 4;
+    int64 occupied_by = 5;
+    int32 region_id = 6;
+    repeated corepb.Item unlock_need = 7;
+    int64 unlock_end_time = 10;
+    int32 unlock_secs = 11;
+    bool can_share_unlock = 12;
+    repeated corepb.Item share_cost = 13;
+}
+
+message FacilityInfo {
+    int64 instance_id = 1;
+    int32 facility_id = 2;
+    int32 module_type = 3;
+    int32 position_x = 4;
+    int32 position_y = 5;
+    int32 rotation = 6;
+    int32 level = 7;
+    int32 width = 8;
+    int32 height = 9;
+    int32 capacity = 10;
+    repeated int64 occupied_cell_ids = 11;
+    gamepb.animalpb.RanchDetail ranch = 20;
+    FeedMachineDetail feed_machine = 21;
+    bytes order_board = 22;
+    int32 state = 12;
+    int32 upgrade_state = 13;
+    int64 upgrade_end_time = 14;
+}
+
+message AllCellsRequest {
+
+}
+
+message AllCellsReply {
+    int32 grid_width = 1;
+    int32 grid_height = 2;
+    repeated CellInfo cells = 3;
+    repeated FacilityInfo facilities = 4;
+    repeated BuildingItemInfo building_items = 5;
+    bool has_ready_upgrade = 6;
+    int32 region_occupied_count = 7;
+    int32 region_quota_count = 8;
+    SpeedUpInfo region_speed_up = 9;
+}
+
+message RefreshCellsRequest {
+    repeated int64 cell_ids = 1;
+    int64 host_gid = 2;
+}
+
+message RefreshCellsReply {
+    repeated CellInfo cells = 1;
+    repeated FacilityInfo facilities = 2;
+}
+
+message UnlockRegionRequest {
+    int32 region_id = 1;
+    bool do_shared = 2;
+}
+
+message UnlockRegionReply {
+    repeated CellInfo cells = 1;
+    repeated FacilityInfo facilities = 2;
+    int32 region_occupied_count = 3;
+    int32 region_quota_count = 4;
+}
+
+message SpeedUpRegionUnlockRequest {
+    int32 region_id = 1;
+    int32 count = 2;
+    int64 item_id = 3;
+}
+
+message SpeedUpRegionUnlockReply {
+    repeated CellInfo cells = 1;
+    repeated corepb.Item consumed = 2;
+}
+
+message CompleteRegionUnlockRequest {
+    int32 region_id = 1;
+}
+
+message CompleteRegionUnlockReply {
+    repeated CellInfo cells = 1;
+    repeated FacilityInfo facilities = 2;
+    int32 region_occupied_count = 3;
+    int32 region_quota_count = 4;
+}
+
+message PlaceFacilityRequest {
+    int64 inst_id = 1;
+    int32 position_x = 2;
+    int32 position_y = 3;
+    int32 rotation = 4;
+}
+
+message PlaceFacilityReply {
+    FacilityInfo facility = 1;
+}
+
+message MoveFacilityRequest {
+    int64 instance_id = 1;
+    int32 new_position_x = 2;
+    int32 new_position_y = 3;
+    int32 new_rotation = 4;
+}
+
+message MoveFacilityReply {
+    FacilityInfo facility = 1;
+}
+
+message RemoveFacilityRequest {
+    int64 instance_id = 1;
+}
+
+message RemoveFacilityReply {
+    BuildingItemInfo item = 1;
+}
+
+message ActivateFacilityRequest {
+    int64 instance_id = 1;
+}
+
+message ActivateFacilityReply {
+    FacilityInfo facility = 1;
+}
+
+message UpgradeBuildingRequest {
+    int64 inst_id = 1;
+}
+
+message UpgradeBuildingReply {
+    BuildingUpgradeInfo upgrade = 1;
+}
+
+message CellsNotify {
+    repeated CellInfo cells = 1;
+    int64 host_gid = 2;
+}
+
+message RegionQuotaNotify {
+    int64 host_gid = 1;
+    int32 region_occupied_count = 2;
+    int32 region_quota_count = 3;
+}
+
+message FacilitiesNotify {
+    repeated FacilityInfo facilities = 1;
+    int64 host_gid = 2;
+}
+
+message FacilitySummaryInfo {
+    int64 instance_id = 1;
+    string name = 2;
+    int32 base_facility_id = 3;
+    int32 module_type = 4;
+    repeated corepb.Item upgrade_cost = 5;
+    int32 level = 6;
+    int32 facility_id = 7;
+    int32 position_x = 8;
+    int32 position_y = 9;
+    int32 rotation = 10;
+    int32 width = 11;
+    int32 height = 12;
+    int32 capacity = 13;
+    gamepb.animalpb.RanchDetail ranch = 20;
+    EmptyFacilitySummary empty_summary = 99;
+    FeedMachineDetail feed_machine = 21;
+    bytes order_board = 22;
+}
+
+message GetFacilityInfoRequest {
+    int64 instance_id = 1;
+    int64 host_gid = 2;
+}
+
+message GetFacilityInfoReply {
+    FacilitySummaryInfo info = 1;
+}
+
+message FacilityDetailInfo {
+    int64 instance_id = 1;
+    string name = 2;
+    string description = 3;
+    int32 base_facility_id = 4;
+    int32 module_type = 5;
+    repeated corepb.Item upgrade_cost = 6;
+    int32 level = 7;
+    int32 facility_id = 8;
+    int32 position_x = 9;
+    int32 position_y = 10;
+    int32 rotation = 11;
+    int32 width = 12;
+    int32 height = 13;
+    int32 capacity = 14;
+    gamepb.animalpb.RanchDetail ranch = 20;
+    EmptyFacilityDetail empty_detail = 99;
+    FeedMachineDetail feed_machine = 21;
+    bytes order_board = 22;
+}
+
+message GetFacilityDetailRequest {
+    int64 instance_id = 1;
+    int64 host_gid = 2;
+}
+
+message GetFacilityDetailReply {
+    FacilityDetailInfo info = 1;
+}
+
+message EmptyFacilitySummary {
+
+}
+
+message EmptyFacilityDetail {
+
+}
+
+message FeedMachineDetail {
+    int32 feed_count = 1;
+    int32 consume_rate = 2;
+    int64 remaining_secs = 4;
+    bool is_owner = 7;
+    int32 status = 8;
+}
+
+message AddFeedRequest {
+    int64 instance_id = 1;
+    int32 add_count = 2;
+    bool use_gold = 3;
+    int64 host_gid = 4;
+}
+
+message AddFeedReply {
+    FeedMachineDetail detail = 1;
+    repeated corepb.Item consumed = 2;
+}
+
+message BuildingItemInfo {
+    int64 inst_id = 1;
+    int32 facility_id = 2;
+    int32 level = 3;
+    int32 upgrade_state = 5;
+    int64 upgrade_end_time = 6;
+    int64 added_at = 7;
+    bool is_new = 8;
+}
+
+message BuildingUpgradeInfo {
+    int64 inst_id = 1;
+    int32 state = 2;
+    int64 end_time = 3;
+    int32 target_facility_id = 4;
+    int32 target_level = 5;
+}
+
+message GetBuildingListRequest {
+
+}
+
+message GetBuildingListReply {
+    repeated BuildingItemInfo items = 1;
+    bool has_ready_upgrade = 2;
+}
+
+message SpeedUpBuildingUpgradeRequest {
+    int64 inst_id = 1;
+    int32 count = 2;
+    int64 item_id = 3;
+}
+
+message MarkBuildingKnownRequest {
+    repeated int64 inst_ids = 1;
+}
+
+message MarkBuildingKnownReply {
+    int32 marked_count = 1;
+}
+
+message SpeedUpBuildingUpgradeReply {
+    BuildingUpgradeInfo upgrade = 1;
+    repeated corepb.Item consumed = 2;
+}
+
+message CompleteBuildingUpgradeRequest {
+    int64 inst_id = 1;
+}
+
+message CompleteBuildingUpgradeReply {
+    FacilityInfo facility = 1;
+    BuildingItemInfo item = 2;
+}
+
+message BuildingListChangedNotify {
+    repeated BuildingItemInfo added = 1;
+    repeated int64 removed_inst_ids = 2;
+}
+
+message SpeedUpInfo {
+    int64 item_id = 1;
+    int64 own_count = 2;
+    int32 secs_per_item = 3;
+}
+
+message MainCityInfo {
+    bool has_main_city = 1;
+    int64 inst_id = 2;
+    string name = 3;
+    int32 level = 4;
+    BuildingUpgradeInfo upgrade = 5;
+    int32 next_level = 6;
+    repeated corepb.Item upgrade_cost = 7;
+    int32 upgrade_secs = 8;
+    repeated int64 next_unlock_goods_ids = 9;
+    int32 region_open_quota = 10;
+    int32 next_region_open_quota = 11;
+    SpeedUpInfo speed_up = 12;
+}
+
+message FacilityGoodsInfo {
+    int64 goods_id = 1;
+    int32 facility_id = 2;
+    int32 base_facility_id = 3;
+    int32 module_type = 4;
+    string name = 5;
+    repeated corepb.Item cost = 6;
+    int32 main_city_level = 7;
+    int32 sort = 8;
+    int32 state = 9;
+    int32 built_count = 10;
+    int32 max_count = 11;
+    bool is_new = 12;
+}
+
+message GetMainCityInfoRequest {
+    int32 source = 1;
+}
+
+message GetMainCityInfoReply {
+    MainCityInfo main_city = 1;
+    repeated FacilityGoodsInfo goods = 2;
+}
+
+message BuyBuildingRequest {
+    int64 goods_id = 1;
+}
+
+message BuyBuildingReply {
+    repeated BuildingItemInfo items = 1;
+    repeated corepb.Item consumed = 2;
+    FacilityGoodsInfo goods = 3;
+}
+
+message MarkGoodsKnownRequest {
+    repeated int64 goods_ids = 1;
+}
+
+message MarkGoodsKnownReply {
+    int32 marked_count = 1;
+}

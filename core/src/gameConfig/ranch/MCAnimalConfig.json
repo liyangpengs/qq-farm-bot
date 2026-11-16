@@ -1,0 +1,674 @@
+[
+  {
+    "id": 60001,
+    "name": "鸡",
+    "husbandry_type": "窝",
+    "cub_item_id": 60001,
+    "product_item": {
+      "id": 2060001,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060001,
+      "count": 5
+    },
+    "infant_sec": 4,
+    "grow_sec": 4,
+    "mature_sec": 8,
+    "product_round_sec": 8,
+    "product_drop_sec": 1,
+    "max_produce_count": 1,
+    "grass_sec_per_item": 4800,
+    "produce_exp": 0,
+    "harvest_exp": 1,
+    "enable_flag": true
+  },
+  {
+    "id": 60002,
+    "name": "鸭",
+    "husbandry_type": "窝",
+    "cub_item_id": 60002,
+    "product_item": {
+      "id": 2060002,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060002,
+      "count": 30
+    },
+    "infant_sec": 3600,
+    "grow_sec": 3600,
+    "mature_sec": 7200,
+    "product_round_sec": 7200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 4800,
+    "produce_exp": 180,
+    "harvest_exp": 360,
+    "enable_flag": true
+  },
+  {
+    "id": 60003,
+    "name": "鹅",
+    "husbandry_type": "窝",
+    "cub_item_id": 60003,
+    "product_item": {
+      "id": 2060003,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060003,
+      "count": 30
+    },
+    "infant_sec": 7200,
+    "grow_sec": 7200,
+    "mature_sec": 14400,
+    "product_round_sec": 14400,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 4800,
+    "produce_exp": 420,
+    "harvest_exp": 840,
+    "enable_flag": true
+  },
+  {
+    "id": 60004,
+    "name": "兔子",
+    "husbandry_type": "窝",
+    "cub_item_id": 60004,
+    "product_item": {
+      "id": 2060004,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060004,
+      "count": 30
+    },
+    "infant_sec": 10800,
+    "grow_sec": 10800,
+    "mature_sec": 21600,
+    "product_round_sec": 21600,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 4800,
+    "produce_exp": 630,
+    "harvest_exp": 1260,
+    "enable_flag": true
+  },
+  {
+    "id": 60005,
+    "name": "火鸡",
+    "husbandry_type": "窝",
+    "cub_item_id": 60005,
+    "product_item": {
+      "id": 2060005,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060005,
+      "count": 30
+    },
+    "infant_sec": 12000,
+    "grow_sec": 12000,
+    "mature_sec": 24000,
+    "product_round_sec": 24000,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 3600,
+    "produce_exp": 850,
+    "harvest_exp": 1700,
+    "enable_flag": true
+  },
+  {
+    "id": 60006,
+    "name": "天竺鼠",
+    "husbandry_type": "窝",
+    "cub_item_id": 60006,
+    "product_item": {
+      "id": 2060006,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060006,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 3600,
+    "produce_exp": 1020,
+    "harvest_exp": 2040,
+    "enable_flag": true
+  },
+  {
+    "id": 60007,
+    "name": "乌龟",
+    "husbandry_type": "窝",
+    "cub_item_id": 60007,
+    "product_item": {
+      "id": 2060007,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060007,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2880,
+    "produce_exp": 1200,
+    "harvest_exp": 2400,
+    "enable_flag": true
+  },
+  {
+    "id": 60008,
+    "name": "松鼠",
+    "husbandry_type": "窝",
+    "cub_item_id": 60008,
+    "product_item": {
+      "id": 2060008,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060008,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2880,
+    "produce_exp": 1800,
+    "harvest_exp": 3600,
+    "enable_flag": true
+  },
+  {
+    "id": 60009,
+    "name": "刺猬",
+    "husbandry_type": "窝",
+    "cub_item_id": 60009,
+    "product_item": {
+      "id": 2060009,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060009,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2057,
+    "produce_exp": 1440,
+    "harvest_exp": 2880,
+    "enable_flag": true
+  },
+  {
+    "id": 60010,
+    "name": "鼹鼠",
+    "husbandry_type": "窝",
+    "cub_item_id": 60010,
+    "product_item": {
+      "id": 2060010,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060010,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2057,
+    "produce_exp": 2160,
+    "harvest_exp": 4320,
+    "enable_flag": true
+  },
+  {
+    "id": 60011,
+    "name": "考拉",
+    "husbandry_type": "窝",
+    "cub_item_id": 60011,
+    "product_item": {
+      "id": 2060011,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060011,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1800,
+    "produce_exp": 1560,
+    "harvest_exp": 3120,
+    "enable_flag": true
+  },
+  {
+    "id": 60012,
+    "name": "狐狸",
+    "husbandry_type": "窝",
+    "cub_item_id": 60012,
+    "product_item": {
+      "id": 2060012,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060012,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1800,
+    "produce_exp": 2340,
+    "harvest_exp": 4680,
+    "enable_flag": true
+  },
+  {
+    "id": 70001,
+    "name": "羊",
+    "husbandry_type": "棚",
+    "cub_item_id": 70001,
+    "product_item": {
+      "id": 2070001,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070001,
+      "count": 30
+    },
+    "infant_sec": 12000,
+    "grow_sec": 12000,
+    "mature_sec": 24000,
+    "product_round_sec": 24000,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 3600,
+    "produce_exp": 850,
+    "harvest_exp": 1700,
+    "enable_flag": true
+  },
+  {
+    "id": 70002,
+    "name": "牛",
+    "husbandry_type": "棚",
+    "cub_item_id": 70002,
+    "product_item": {
+      "id": 2070002,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070002,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 3600,
+    "produce_exp": 1530,
+    "harvest_exp": 3060,
+    "enable_flag": true
+  },
+  {
+    "id": 70003,
+    "name": "驴",
+    "husbandry_type": "棚",
+    "cub_item_id": 70003,
+    "product_item": {
+      "id": 2070003,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070003,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2880,
+    "produce_exp": 1200,
+    "harvest_exp": 2400,
+    "enable_flag": true
+  },
+  {
+    "id": 70004,
+    "name": "迷你猪",
+    "husbandry_type": "棚",
+    "cub_item_id": 70004,
+    "product_item": {
+      "id": 2070004,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070004,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2880,
+    "produce_exp": 1800,
+    "harvest_exp": 3600,
+    "enable_flag": true
+  },
+  {
+    "id": 70005,
+    "name": "马",
+    "husbandry_type": "棚",
+    "cub_item_id": 70005,
+    "product_item": {
+      "id": 2070005,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070005,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2057,
+    "produce_exp": 1440,
+    "harvest_exp": 2880,
+    "enable_flag": true
+  },
+  {
+    "id": 70006,
+    "name": "水牛",
+    "husbandry_type": "棚",
+    "cub_item_id": 70006,
+    "product_item": {
+      "id": 2070006,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070006,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 2057,
+    "produce_exp": 2160,
+    "harvest_exp": 4320,
+    "enable_flag": true
+  },
+  {
+    "id": 70007,
+    "name": "骆驼",
+    "husbandry_type": "棚",
+    "cub_item_id": 70007,
+    "product_item": {
+      "id": 2070007,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070007,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1800,
+    "produce_exp": 1560,
+    "harvest_exp": 3120,
+    "enable_flag": true
+  },
+  {
+    "id": 70008,
+    "name": "牦牛",
+    "husbandry_type": "棚",
+    "cub_item_id": 70008,
+    "product_item": {
+      "id": 2070008,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070008,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1800,
+    "produce_exp": 2340,
+    "harvest_exp": 4680,
+    "enable_flag": true
+  },
+  {
+    "id": 70009,
+    "name": "鸵鸟",
+    "husbandry_type": "棚",
+    "cub_item_id": 70009,
+    "product_item": {
+      "id": 2070009,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070009,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1440,
+    "produce_exp": 1740,
+    "harvest_exp": 3480,
+    "enable_flag": true
+  },
+  {
+    "id": 70010,
+    "name": "梅花鹿",
+    "husbandry_type": "棚",
+    "cub_item_id": 70010,
+    "product_item": {
+      "id": 2070010,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070010,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1440,
+    "produce_exp": 2610,
+    "harvest_exp": 5220,
+    "enable_flag": true
+  },
+  {
+    "id": 70011,
+    "name": "浣熊",
+    "husbandry_type": "棚",
+    "cub_item_id": 70011,
+    "product_item": {
+      "id": 2070011,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070011,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1200,
+    "produce_exp": 1920,
+    "harvest_exp": 3840,
+    "enable_flag": true
+  },
+  {
+    "id": 70012,
+    "name": "羊驼",
+    "husbandry_type": "棚",
+    "cub_item_id": 70012,
+    "product_item": {
+      "id": 2070012,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1070012,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1200,
+    "produce_exp": 2880,
+    "harvest_exp": 5760,
+    "enable_flag": true
+  },
+  {
+    "id": 60013,
+    "name": "豪猪",
+    "husbandry_type": "窝",
+    "cub_item_id": 60013,
+    "product_item": {
+      "id": 2060013,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060013,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1440,
+    "produce_exp": 1740,
+    "harvest_exp": 3480,
+    "enable_flag": true
+  },
+  {
+    "id": 60014,
+    "name": "龙猫",
+    "husbandry_type": "窝",
+    "cub_item_id": 60014,
+    "product_item": {
+      "id": 2060014,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060014,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1440,
+    "produce_exp": 2610,
+    "harvest_exp": 5220,
+    "enable_flag": true
+  },
+  {
+    "id": 60015,
+    "name": "孔雀",
+    "husbandry_type": "窝",
+    "cub_item_id": 60015,
+    "product_item": {
+      "id": 2060015,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060015,
+      "count": 30
+    },
+    "infant_sec": 14400,
+    "grow_sec": 14400,
+    "mature_sec": 28800,
+    "product_round_sec": 28800,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1200,
+    "produce_exp": 1920,
+    "harvest_exp": 3840,
+    "enable_flag": true
+  },
+  {
+    "id": 60016,
+    "name": "貂",
+    "husbandry_type": "窝",
+    "cub_item_id": 60016,
+    "product_item": {
+      "id": 2060016,
+      "count": 1
+    },
+    "byproduct_item": {
+      "id": 1060016,
+      "count": 30
+    },
+    "infant_sec": 21600,
+    "grow_sec": 21600,
+    "mature_sec": 43200,
+    "product_round_sec": 43200,
+    "product_drop_sec": 1,
+    "max_produce_count": 2,
+    "grass_sec_per_item": 1200,
+    "produce_exp": 2880,
+    "harvest_exp": 5760,
+    "enable_flag": true
+  }
+]

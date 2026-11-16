@@ -22,23 +22,80 @@ export type AutomationSettingsFormModel = Pick<
   | 'autoAcceptHarvestStealSteal'
 > & { emailClaimHour: number | string }
 
-defineProps<{
+withDefaults(defineProps<{
+  inRanch?: boolean
+  panel?: 'automation' | 'strategy'
+  ranchAnimalOptions?: Array<{ value: number, label: string, kind: string }>
   saving: boolean
   fertilizerLandTypeOptions: Array<{ label: string, value: string }>
   fertilizerOptions: Array<{ label: string, value: string }>
-}>()
+}>(), { inRanch: false, panel: 'automation', ranchAnimalOptions: () => [] })
 
 const emit = defineEmits<{
   save: []
 }>()
 
 const settings = defineModel<AutomationSettingsFormModel>({ required: true })
+const ranchSwitches = [
+  ['ranch_harvest', '自动收获'],
+  ['ranch_produce', '自动生产'],
+  ['ranch_buy', '自动补栏（金券）'],
+  ['ranch_upgrade', '自动升级建筑（金券）'],
+  ['ranch_sell', '自动出售产物'],
+  ['ranch_clean', '自动清理'],
+  ['ranch_grass', '自动补充牧草'],
+  ['ranch_grass_buy', '牧草不足时购买（金券）'],
+  ['ranch_fill_cans', '自动填充库存罐头'],
+  ['ranch_feed_normal', '普通罐头喂养'],
+  ['ranch_feed_organic', '有机罐头喂养'],
+  ['ranch_task', '自动领取任务奖励'],
+  ['ranch_share', '每日分享礼包'],
+] as const
+const ranchStrategies = [
+  { label: '按已解锁等级', value: 'level' },
+  { label: '指定动物', value: 'preferred' },
+  { label: '优先背包幼崽', value: 'bag_priority' },
+]
 </script>
 
 <template>
   <div class="space-y-4">
-    <div class="automation-card-layout">
-      <div class="automation-card-column">
+    <div class="automation-card-layout" :class="{ 'automation-card-layout--single': inRanch }">
+      <div v-if="inRanch" class="automation-card-column">
+        <section class="farm-card rounded-2xl p-4">
+          <div class="mb-4 flex items-start gap-3">
+            <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/25 dark:text-green-400">
+              <span class="i-fa-solid-paw text-xl" />
+            </div>
+            <div>
+              <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
+                {{ panel === 'strategy' ? '养殖策略' : '日常牧场' }}
+              </h4>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ panel === 'strategy' ? '按窝、棚空位补栏，优先使用所选动物的库存幼崽' : '管理生产、收获、补栏与每日奖励' }}
+              </p>
+            </div>
+          </div>
+          <div v-if="panel === 'automation'" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div v-for="[key, label] in ranchSwitches" :key="key" class="automation-setting-item">
+              <BaseSwitch v-model="settings.automation[key]" :label="label" :disabled="key === 'ranch_grass_buy' && !settings.automation.ranch_grass" />
+            </div>
+            <div class="automation-setting-item">
+              <BaseInput v-model.number="settings.automation.ranch_check_minutes" class="w-full" label="巡查间隔（分钟）" type="number" min="1" max="60" step="1" />
+            </div>
+          </div>
+          <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <BaseSelect v-model="settings.automation.ranch_strategy" label="养殖策略" :options="ranchStrategies" />
+            <BaseSelect v-if="settings.automation.ranch_strategy === 'bag_priority'" v-model="settings.automation.ranch_bag_fallback" label="库存不足时" :options="ranchStrategies.slice(0, 2)" />
+            <template v-if="settings.automation.ranch_strategy === 'preferred' || settings.automation.ranch_strategy === 'bag_priority' && settings.automation.ranch_bag_fallback === 'preferred'">
+              <BaseSelect v-model="settings.automation.ranch_coop_animal" label="窝 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '窝')]" />
+              <BaseSelect v-model="settings.automation.ranch_shed_animal" label="棚 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '棚')]" />
+            </template>
+          </div>
+        </section>
+      </div>
+
+      <div v-if="!inRanch" class="automation-card-column">
         <section class="farm-card rounded-2xl p-4">
           <div class="mb-4 flex items-start gap-3">
             <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/25 dark:text-green-400">
@@ -190,7 +247,7 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
         </section>
       </div>
 
-      <div class="automation-card-column">
+      <div v-if="!inRanch" class="automation-card-column">
         <section class="farm-card rounded-2xl p-4">
           <div class="mb-4 flex items-start gap-3">
             <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
@@ -387,5 +444,8 @@ const settings = defineModel<AutomationSettingsFormModel>({ required: true })
   .automation-card-layout section {
     margin-bottom: 1rem;
   }
+}
+.automation-card-layout--single {
+  display: block;
 }
 </style>

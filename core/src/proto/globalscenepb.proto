@@ -1,6 +1,11 @@
 syntax = "proto3";
 package gamepb.globalscenepb;
 
+message GlobalSceneUnlockNotify {
+    repeated int32 unlocked_scenes = 1;
+    string source = 2;
+}
+
 message PlayerSceneLoginRequest {
     int32 global_scene_id = 1;
     repeated string experiment_keys = 2;

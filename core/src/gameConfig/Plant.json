@@ -613,7 +613,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020006,
@@ -657,7 +657,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020051,
@@ -701,7 +701,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020120,
@@ -745,7 +745,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020259,
@@ -789,7 +789,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020007,
@@ -833,7 +833,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020098,
@@ -877,7 +877,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020305,
@@ -921,7 +921,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020105,
@@ -965,7 +965,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020008,
@@ -1009,7 +1009,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020037,
@@ -1053,7 +1053,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020041,
@@ -1097,7 +1097,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020161,
@@ -1141,7 +1141,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020110,
@@ -1185,7 +1185,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020143,
@@ -1229,7 +1229,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020147,
@@ -1273,7 +1273,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020162,
@@ -1317,7 +1317,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020009,
@@ -1361,7 +1361,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020097,
@@ -1405,7 +1405,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020306,
@@ -1449,7 +1449,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020103,
@@ -1493,7 +1493,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020010,
@@ -1537,7 +1537,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020308,
@@ -1581,7 +1581,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020091,
@@ -1625,7 +1625,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020073,
@@ -1669,7 +1669,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020001,
@@ -1713,7 +1713,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020011,
@@ -1757,7 +1757,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020062,
@@ -1801,7 +1801,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020104,
@@ -1845,7 +1845,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020135,
@@ -1889,7 +1889,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020141,
@@ -1933,7 +1933,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020142,
@@ -1977,7 +1977,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020145,
@@ -2021,7 +2021,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020014,
@@ -2065,7 +2065,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020070,
@@ -2109,7 +2109,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020015,
@@ -2153,7 +2153,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020100,
@@ -2197,7 +2197,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020018,
@@ -2241,7 +2241,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020047,
@@ -2285,7 +2285,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020019,
@@ -2329,7 +2329,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020128,
@@ -2373,7 +2373,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020013,
@@ -2417,7 +2417,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020044,
@@ -2461,7 +2461,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020072,
@@ -2505,7 +2505,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020396,
@@ -2549,7 +2549,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020023,
@@ -2593,7 +2593,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020095,
@@ -2637,7 +2637,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020026,
@@ -2681,7 +2681,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020050,
@@ -2725,7 +2725,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020027,
@@ -2769,7 +2769,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020036,
@@ -2813,7 +2813,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020043,
@@ -2857,7 +2857,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020029,
@@ -2901,7 +2901,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020049,
@@ -2945,7 +2945,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020052,
@@ -2989,7 +2989,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020031,
@@ -3033,7 +3033,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020045,
@@ -3077,7 +3077,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020054,
@@ -3121,7 +3121,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020442,
@@ -3165,7 +3165,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020033,
@@ -3209,7 +3209,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020055,
@@ -3253,7 +3253,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020034,
@@ -3297,7 +3297,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020413,
@@ -3341,7 +3341,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020035,
@@ -3385,7 +3385,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020067,
@@ -3429,7 +3429,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020038,
@@ -3473,7 +3473,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020053,
@@ -3517,7 +3517,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020080,
@@ -3561,7 +3561,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020039,
@@ -3605,7 +3605,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020056,
@@ -3649,7 +3649,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020075,
@@ -3693,7 +3693,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020042,
@@ -3737,7 +3737,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020057,
@@ -3781,7 +3781,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020048,
@@ -3825,7 +3825,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020058,
@@ -3869,7 +3869,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020079,
@@ -3913,7 +3913,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020218,
@@ -3957,7 +3957,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020077,
@@ -4001,7 +4001,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020220,
@@ -4045,7 +4045,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020076,
@@ -4089,7 +4089,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020116,
@@ -4133,7 +4133,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020126,
@@ -4177,7 +4177,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020063,
@@ -4221,7 +4221,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020221,
@@ -4265,7 +4265,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020068,
@@ -4309,7 +4309,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020222,
@@ -4353,7 +4353,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020078,
@@ -4397,7 +4397,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020074,
@@ -4441,7 +4441,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020083,
@@ -4485,7 +4485,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020069,
@@ -4529,7 +4529,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020084,
@@ -4573,7 +4573,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020226,
@@ -4617,7 +4617,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020085,
@@ -4661,7 +4661,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "2001;1"
   },
   {
     "id": 1020227,
@@ -4705,7 +4705,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "3001;1"
   },
   {
     "id": 1020086,
@@ -4749,7 +4749,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "4001;1"
   },
   {
     "id": 1020228,
@@ -4793,7 +4793,7 @@
     "exp_alter": 0,
     "fruit_root": 0,
     "fruit_alter": 0,
-    "mutant_group_ids": "1001;1"
+    "mutant_group_ids": "5001;1"
   },
   {
     "id": 1020087,
@@ -12789,7 +12789,7 @@
     "harvestRandom": null,
     "harvestAllSpineRes": null,
     "harvestAllOffsetPosition": null,
-    "harvestAniName": "anim_harvest_zhenpin",
+    "harvestAniName": "anim_harvest_gold",
     "all_state_spine": null,
     "mature_effect": "effect/prefab/effect_plant_maturation",
     "mature_effect_offset": {
@@ -12833,7 +12833,7 @@
     "harvestRandom": null,
     "harvestAllSpineRes": null,
     "harvestAllOffsetPosition": null,
-    "harvestAniName": "anim_harvest_zhenpin",
+    "harvestAniName": "anim_harvest_gold",
     "all_state_spine": null,
     "mature_effect": "effect/prefab/effect_plant_maturation",
     "mature_effect_offset": {
@@ -12965,7 +12965,7 @@
     "harvestRandom": null,
     "harvestAllSpineRes": null,
     "harvestAllOffsetPosition": null,
-    "harvestAniName": "anim_harvest_zhenpin",
+    "harvestAniName": "anim_harvest_gold",
     "all_state_spine": null,
     "mature_effect": "effect/prefab/effect_plant_maturation",
     "mature_effect_offset": {
@@ -13009,7 +13009,7 @@
     "harvestRandom": null,
     "harvestAllSpineRes": null,
     "harvestAllOffsetPosition": null,
-    "harvestAniName": "anim_harvest_zhenpin",
+    "harvestAniName": "anim_harvest_gold",
     "all_state_spine": null,
     "mature_effect": "effect/prefab/effect_plant_maturation",
     "mature_effect_offset": {
@@ -13954,6 +13954,226 @@
     "name": "黄金·油茶",
     "fruit": {
       "id": 1040530,
+      "count": 10
+    },
+    "seed_id": null,
+    "land_level_need": 1,
+    "seasons": 1,
+    "grow_phases": "种子:8640;发芽:8640;小叶子:8640;大叶子:8640;初熟:8640;成熟:0;",
+    "exp": 1680,
+    "special_fruit": null,
+    "size": null,
+    "offsetPosition": {
+      "x": 0,
+      "y": 0
+    },
+    "mutantEffectScale": {
+      "x": 1,
+      "y": 1
+    },
+    "harvestOffsetPosition": {
+      "x": -35,
+      "y": 5
+    },
+    "harvestRandom": null,
+    "harvestAllSpineRes": null,
+    "harvestAllOffsetPosition": null,
+    "harvestAniName": "anim_harvest_gold",
+    "all_state_spine": null,
+    "mature_effect": "effect/prefab/effect_plant_maturation",
+    "mature_effect_offset": {
+      "x": 0,
+      "y": 0
+    },
+    "rare_plant_light_pos": null,
+    "exp_root": 1.6,
+    "exp_alter": 991,
+    "fruit_root": 0,
+    "fruit_alter": 0
+  },
+  {
+    "id": 1020040,
+    "mutant_group_ids": null,
+    "mutant_effect_plant": null,
+    "name": "牧草",
+    "fruit": {
+      "id": 7001,
+      "count": 20
+    },
+    "seed_id": 20040,
+    "land_level_need": 1,
+    "seasons": 1,
+    "grow_phases": "种子:300;大叶子:300;成熟:0;",
+    "exp": 10,
+    "special_fruit": null,
+    "size": null,
+    "offsetPosition": {
+      "x": 0,
+      "y": 0
+    },
+    "mutantEffectScale": {
+      "x": 1,
+      "y": 1
+    },
+    "harvestOffsetPosition": {
+      "x": -35,
+      "y": 5
+    },
+    "harvestRandom": null,
+    "harvestAllSpineRes": null,
+    "harvestAllOffsetPosition": null,
+    "harvestAniName": "anim_harvest_putong",
+    "all_state_spine": null,
+    "mature_effect": "effect/prefab/effect_plant_maturation",
+    "mature_effect_offset": {
+      "x": 0,
+      "y": 0
+    },
+    "rare_plant_light_pos": null,
+    "exp_root": 0,
+    "exp_alter": 0,
+    "fruit_root": 0,
+    "fruit_alter": 0
+  },
+  {
+    "id": 1026038,
+    "mutant_group_ids": 1003,
+    "mutant_effect_plant": "5:1126038:1",
+    "name": "款冬花",
+    "fruit": {
+      "id": 46038,
+      "count": 48
+    },
+    "seed_id": 26038,
+    "land_level_need": 1,
+    "seasons": 1,
+    "grow_phases": "种子:8640;发芽:8640;小叶子:8640;大叶子:8640;初熟:8640;成熟:0;",
+    "exp": 1680,
+    "special_fruit": null,
+    "size": null,
+    "offsetPosition": {
+      "x": 0,
+      "y": 0
+    },
+    "mutantEffectScale": {
+      "x": 1,
+      "y": 1
+    },
+    "harvestOffsetPosition": {
+      "x": -35,
+      "y": 5
+    },
+    "harvestRandom": null,
+    "harvestAllSpineRes": null,
+    "harvestAllOffsetPosition": null,
+    "harvestAniName": "anim_harvest_zhenpin",
+    "all_state_spine": null,
+    "mature_effect": "effect/prefab/effect_plant_maturation",
+    "mature_effect_offset": {
+      "x": 0,
+      "y": 0
+    },
+    "rare_plant_light_pos": null,
+    "exp_root": 1.6,
+    "exp_alter": 991,
+    "fruit_root": 2,
+    "fruit_alter": 36
+  },
+  {
+    "id": 1026084,
+    "mutant_group_ids": 1003,
+    "mutant_effect_plant": "5:1126084:1",
+    "name": "山茶花",
+    "fruit": {
+      "id": 46084,
+      "count": 48
+    },
+    "seed_id": 26084,
+    "land_level_need": 1,
+    "seasons": 1,
+    "grow_phases": "种子:8640;发芽:8640;小叶子:8640;大叶子:8640;初熟:8640;成熟:0;",
+    "exp": 1680,
+    "special_fruit": null,
+    "size": null,
+    "offsetPosition": {
+      "x": 0,
+      "y": 0
+    },
+    "mutantEffectScale": {
+      "x": 1,
+      "y": 1
+    },
+    "harvestOffsetPosition": {
+      "x": -35,
+      "y": 5
+    },
+    "harvestRandom": null,
+    "harvestAllSpineRes": null,
+    "harvestAllOffsetPosition": null,
+    "harvestAniName": "anim_harvest_zhenpin",
+    "all_state_spine": null,
+    "mature_effect": "effect/prefab/effect_plant_maturation",
+    "mature_effect_offset": {
+      "x": 0,
+      "y": 0
+    },
+    "rare_plant_light_pos": null,
+    "exp_root": 1.6,
+    "exp_alter": 991,
+    "fruit_root": 2,
+    "fruit_alter": 36
+  },
+  {
+    "id": 1126038,
+    "mutant_group_ids": null,
+    "mutant_effect_plant": null,
+    "name": "黄金·款冬花",
+    "fruit": {
+      "id": 1046038,
+      "count": 10
+    },
+    "seed_id": null,
+    "land_level_need": 1,
+    "seasons": 1,
+    "grow_phases": "种子:8640;发芽:8640;小叶子:8640;大叶子:8640;初熟:8640;成熟:0;",
+    "exp": 1680,
+    "special_fruit": null,
+    "size": null,
+    "offsetPosition": {
+      "x": 0,
+      "y": 0
+    },
+    "mutantEffectScale": {
+      "x": 1,
+      "y": 1
+    },
+    "harvestOffsetPosition": {
+      "x": -35,
+      "y": 5
+    },
+    "harvestRandom": null,
+    "harvestAllSpineRes": null,
+    "harvestAllOffsetPosition": null,
+    "harvestAniName": "anim_harvest_gold",
+    "all_state_spine": null,
+    "mature_effect": "effect/prefab/effect_plant_maturation",
+    "mature_effect_offset": {
+      "x": 0,
+      "y": 0
+    },
+    "rare_plant_light_pos": null,
+    "exp_root": 1.6,
+    "exp_alter": 991,
+    "fruit_root": 0,
+    "fruit_alter": 0
+  },
+  {
+    "id": 1126084,
+    "mutant_group_ids": null,
+    "mutant_effect_plant": null,
+    "name": "黄金·山茶花",
+    "fruit": {
+      "id": 1046084,
       "count": 10
     },
     "seed_id": null,

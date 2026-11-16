@@ -35,7 +35,7 @@ function createCharityActivityService(deps: any) {
     const lastCharityRedFlowerState = new Map<string, any>();
 
     async function queryActivityListReply(): Promise<any> {
-        const body = Buffer.from(types.ActivityListRequest.encode(types.ActivityListRequest.create({})).finish());
+        const body = Buffer.from(types.ActivityListRequest.encode(types.ActivityListRequest.create({ game_scene_id: 1 })).finish());
         const { body: replyBody } = await sendMsgAsync(
             'gamepb.activitypb.ActivityService',
             'List',

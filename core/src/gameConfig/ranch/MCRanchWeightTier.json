@@ -1,0 +1,22 @@
+[
+  {
+    "tier": 1,
+    "tier_name": "匀称",
+    "score": 10
+  },
+  {
+    "tier": 2,
+    "tier_name": "超重",
+    "score": 20
+  },
+  {
+    "tier": 3,
+    "tier_name": "极重",
+    "score": 60
+  },
+  {
+    "tier": 4,
+    "tier_name": "巨无霸",
+    "score": 100
+  }
+]

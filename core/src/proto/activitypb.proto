@@ -147,6 +147,8 @@ message CharityRedFlowerProgressReward {
     int64 target = 1;
     ActivityItem reward = 2;
     int64 status = 3;
+    // 实机领取前缺失、领取后为 1，用于区分“已达成待领取”和“已领取”。
+    bool claimed = 4;
 }
 
 message CharityRedFlowerGlobalReward {
@@ -193,7 +195,7 @@ message ActivityWindow {
     int64 end_time = 4;
 }
 
-message ActivityListRequest {}
+message ActivityListRequest { int32 game_scene_id = 1; }
 
 message ActivityListReply {
     repeated ActivityData activities = 1;
@@ -401,7 +403,7 @@ message GiftQixiSachetRequest {
 
 message CharityRedFlowerOperateRequest {
     message Empty {}
-    message QueryParams { bool accepted = 1; }
+    message AgreementParams { bool accepted = 1; }
     message ProgressRewardParams { int64 target = 1; }
 
     int64 activity_id = 1;
@@ -410,7 +412,7 @@ message CharityRedFlowerOperateRequest {
     Empty donate_love = 135;
     ProgressRewardParams claim_progress_reward = 136;
     Empty send_public_fund = 137;
-    QueryParams query = 138;
+    AgreementParams agreement = 138;
 }
 
 message CharityRedFlowerSeedResult {
@@ -424,6 +426,11 @@ message CharityRedFlowerDonateResult {
     int64 global_donated = 4;
 }
 
+message CharityRedFlowerProgressRewardResult {
+    int64 target = 1;
+    corepb.Item reward = 2;
+}
+
 message CharityRedFlowerPublicFundResult {
     int64 status = 1;
     string order_id = 2;
@@ -431,13 +438,8 @@ message CharityRedFlowerPublicFundResult {
     string token = 4;
 }
 
-message CharityRedFlowerQueryResult {
+message CharityRedFlowerAgreementResult {
     bool accepted = 1;
-}
-
-message CharityRedFlowerProgressRewardResult {
-    int64 target = 1;
-    corepb.Item reward = 2;
 }
 
 message QixiGiftResult {
@@ -494,7 +496,7 @@ message ActivityOperateReply {
     CharityRedFlowerDonateResult charity_donate_result = 136;
     CharityRedFlowerProgressRewardResult charity_progress_reward_result = 137;
     CharityRedFlowerPublicFundResult charity_public_fund_result = 138;
-    CharityRedFlowerQueryResult charity_query_result = 139;
+    CharityRedFlowerAgreementResult charity_agreement_result = 139;
 }
 
 message ExchangeShopResult {

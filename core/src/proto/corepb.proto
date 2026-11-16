@@ -51,3 +51,25 @@ message BuffEffect {
     int64 attr_value = 2;
     int64 extra_info = 3;
 }
+
+message FacilityOpResult {
+    int64 facility_inst_id = 1;
+    int32 kind = 2;
+    int64 target_id = 3;
+    repeated Item rewards = 10;
+    repeated Item costs = 11;
+}
+
+message ItemEntry {
+    int64 id = 1;
+    int64 count = 2;
+}
+
+message ItemRanchProduct {
+    int64 src_item_id = 1;
+    int64 src_animal_id = 2;
+    int32 weight_x10 = 3;
+    int32 tier = 4;
+    int64 price_rate = 5;
+    int64 base_point = 6;
+}

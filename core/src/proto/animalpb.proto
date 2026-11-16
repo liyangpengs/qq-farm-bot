@@ -1,0 +1,241 @@
+syntax = "proto3";
+package gamepb.animalpb;
+
+import "corepb.proto";
+
+// 从 QQ 1.17.0.3 官方定义整理，服务层只开放已核实的动作。
+
+message AnimalRef {
+    int64 ranch_inst_id = 1;
+    int32 animal_inst_id = 2;
+}
+
+message ShelfRef {
+    int64 ranch_inst_id = 1;
+    int32 slot_index = 2;
+}
+
+message AnimalLotSource {
+    int64 animal_id = 1;
+    int32 src_animal_inst_id = 2;
+    int64 byproduct_item_id_override = 3;
+}
+
+message RanchDetail {
+    int64 ranch_inst_id = 1;
+    int32 capacity = 2;
+    int32 animal_count = 3;
+    repeated AnimalDetail animals = 4;
+    GrassInfo grass = 5;
+    int32 husbandry_type = 6;
+    repeated ShelfDetail shelves = 7;
+    repeated RanchHazardView hazards = 8;
+}
+
+message AnimalDetail {
+    int64 ranch_inst_id = 1;
+    int32 slot_index = 2;
+    int32 animal_inst_id = 3;
+    int64 animal_id = 4;
+    int32 stage = 5;
+    int32 produce_count = 6;
+    bool can_harvest = 7;
+    int64 grow_ready_at_ms = 10;
+    int64 produce_ready_at_ms = 11;
+    bool grass_blocked = 12;
+    int64 infant_ready_at_ms = 14;
+    bool producing = 15;
+    bool can_deliver = 16;
+    int64 delivering_until_ms = 17;
+    bool can_feed = 18;
+    bool limited_can_used = 19;
+    bool can_donate = 20;
+    int64 expected_harvest_exp = 21;
+    repeated corepb.ItemEntry expected_harvest_sells = 22;
+    int64 expected_produce_exp = 23;
+    repeated corepb.ItemEntry expected_produce_sells = 24;
+    int64 mature_ready_at_ms = 25;
+    AnimalMutationView mutation = 30;
+}
+
+message AnimalMutationView {
+    int32 mutation_type = 1;
+    int32 source = 2;
+    int32 weight_display_x10 = 3;
+    int32 scale_bp = 4;
+    int32 weight_final_x10 = 5;
+    int32 tier = 6;
+    int64 became_at_ms = 7;
+    bool strokable = 8;
+    repeated int64 stroked_gids = 9;
+}
+
+message ProductLotDetail {
+    int64 item_id = 1;
+    int64 base_num = 2;
+    int64 remain_num = 3;
+    int64 stolen_num = 4;
+    int64 animal_id = 5;
+    bool can_steal = 6;
+    repeated int64 stealers = 7;
+}
+
+message ShelfDetail {
+    int32 slot_index = 1;
+    repeated ProductLotDetail lots = 2;
+    int64 total_remain = 3;
+    bool can_collect = 4;
+    bool can_steal = 5;
+}
+
+message GrassInfo {
+    int64 amount = 1;
+    int64 empty_at_ms = 2;
+}
+
+message PlaceAnimalItem {
+    int64 ranch_inst_id = 1;
+    int64 animal_id = 2;
+    int64 giant_cub_item_id = 3;
+}
+
+message PlaceAnimalRequest {
+    repeated PlaceAnimalItem items = 1;
+}
+
+message PlaceAnimalReply {
+    repeated RanchDetail ranches = 1;
+    repeated corepb.FacilityOpResult op_results = 3;
+}
+
+message TriggerProduceRequest {
+    int64 host_gid = 1;
+    repeated AnimalRef targets = 2;
+}
+
+message TriggerProduceReply {
+    repeated RanchDetail ranches = 1;
+    repeated corepb.FacilityOpResult op_results = 3;
+}
+
+message DonateAnimalRequest {
+    repeated AnimalRef targets = 1;
+}
+
+message DonateAnimalReply {
+    repeated RanchDetail ranches = 1;
+    repeated corepb.FacilityOpResult op_results = 2;
+}
+
+message StealProduceRequest {
+    int64 host_gid = 1;
+    repeated ShelfRef targets = 2;
+}
+
+message GetRanchDetailRequest {
+    int64 host_gid = 1;
+    repeated int64 ranch_inst_ids = 2;
+}
+
+message GetRanchDetailReply {
+    repeated RanchDetail ranches = 1;
+    int64 interval = 2;
+}
+
+message FeedAnimalRequest {
+    repeated AnimalRef targets = 1;
+    int32 bucket_type = 2;
+}
+
+message FeedAnimalReply {
+    repeated RanchDetail ranches = 1;
+    int64 deduct_secs = 2;
+    int64 bucket_remain_secs = 4;
+    repeated corepb.FacilityOpResult op_results = 5;
+}
+
+message HarvestRanchRequest {
+    repeated int64 ranch_inst_ids = 2;
+    int32 op = 3;
+    repeated AnimalRef animals = 4;
+    repeated ShelfRef shelves = 5;
+}
+
+message HarvestRanchReply {
+    repeated RanchDetail ranches = 1;
+    repeated corepb.FacilityOpResult op_results = 5;
+    repeated GiantShareView giant_shares = 6;
+}
+
+message GiantShareView {
+    int64 animal_id = 1;
+    int32 weight_x10 = 2;
+    int32 tier = 3;
+}
+
+message RanchHazardView {
+    int64 hazard_id = 1;
+    int64 owner = 2;
+    int32 hazard_type = 3;
+}
+
+message PutHazardRequest {
+    int64 ranch_inst_id = 1;
+    int64 host_gid = 2;
+    int64 op_id = 3;
+    int64 count = 4;
+}
+
+message PutHazardReply {
+    int64 actual_count = 1;
+    int64 remaining_times = 2;
+    repeated RanchHazardView hazards = 3;
+    repeated corepb.Item rewards = 4;
+}
+
+message CleanRanchRequest {
+    int64 host_gid = 1;
+    repeated int64 hazard_ids = 2;
+}
+
+message CleanRanchReply {
+    repeated RanchDetail ranches = 1;
+    repeated corepb.FacilityOpResult op_results = 2;
+}
+
+message CleanAllRanchRequest {
+    int64 host_gid = 1;
+    repeated int64 ranch_inst_ids = 2;
+}
+
+message CleanAllRanchReply {
+    repeated RanchDetail ranches = 1;
+    repeated corepb.FacilityOpResult op_results = 2;
+}
+
+message GetRanchOpTimesRequest {
+    repeated int64 op_ids = 1;
+}
+
+message GetRanchOpTimesReply {
+    repeated RanchOpTimesView ops = 1;
+}
+
+message RanchOpTimesView {
+    int64 op_id = 1;
+    int64 times_limit = 2;
+    int64 used_times = 3;
+    int64 remaining_times = 4;
+}
+
+message StrokeAnimalRequest {
+    int64 host_gid = 1;
+    AnimalRef target = 2;
+}
+
+message StrokeAnimalReply {
+    repeated RanchDetail ranches = 1;
+    corepb.FacilityOpResult op_result = 2;
+    bool triggered = 3;
+    int64 remaining_times = 4;
+}

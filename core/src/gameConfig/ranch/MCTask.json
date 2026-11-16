@@ -1,0 +1,4664 @@
+[
+  {
+    "id": 90001,
+    "task_type": "成长任务",
+    "desc": "完成1次收获",
+    "condition": "收获自己N次",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 90002,
+    "task_type": "成长任务",
+    "desc": "购买1个白萝卜种子",
+    "condition": "购买道具",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 90003,
+    "task_type": "成长任务",
+    "desc": "种植1个白萝卜",
+    "condition": "种植N个X种子",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 90004,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 90005,
+    "task_type": "成长任务",
+    "desc": "打开好友面板",
+    "condition": "客户端上报进度",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 90006,
+    "task_type": "成长任务",
+    "desc": "完成1次收获",
+    "condition": "收获自己N次",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 91001,
+    "task_type": "成长任务",
+    "desc": "完成1次收获",
+    "condition": "收获自己N次",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 91002,
+    "task_type": "成长任务",
+    "desc": "种植1个白萝卜",
+    "condition": "种植N个X种子",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 91003,
+    "task_type": "成长任务",
+    "desc": "打开好友面板",
+    "condition": "客户端上报进度",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 91004,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 91005,
+    "task_type": "成长任务",
+    "desc": "完成1次收获",
+    "condition": "收获自己N次",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100001,
+    "task_type": "成长任务",
+    "desc": "等级提升至2级",
+    "condition": "达到等级",
+    "total_progress": 2,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100002,
+    "task_type": "成长任务",
+    "desc": "购买6个胡萝卜种子",
+    "condition": "购买道具",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100003,
+    "task_type": "成长任务",
+    "desc": "种植6个胡萝卜",
+    "condition": "种植N个X种子",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100004,
+    "task_type": "成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获自己N次",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100005,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 50,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100006,
+    "task_type": "成长任务",
+    "desc": "等级提升至3级",
+    "condition": "达到等级",
+    "total_progress": 3,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100007,
+    "task_type": "成长任务",
+    "desc": "购买6个大白菜种子",
+    "condition": "购买道具",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100008,
+    "task_type": "成长任务",
+    "desc": "种植6个大白菜",
+    "condition": "种植N个X种子",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100009,
+    "task_type": "成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获自己N次",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100010,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 160,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100011,
+    "task_type": "成长任务",
+    "desc": "等级提升至4级",
+    "condition": "达到等级",
+    "total_progress": 4,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100012,
+    "task_type": "成长任务",
+    "desc": "购买6个大蒜种子",
+    "condition": "购买道具",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100013,
+    "task_type": "成长任务",
+    "desc": "种植6个大蒜",
+    "condition": "种植N个X种子",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100014,
+    "task_type": "成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获自己N次",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100015,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 400,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100016,
+    "task_type": "成长任务",
+    "desc": "等级提升至5级",
+    "condition": "达到等级",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100017,
+    "task_type": "成长任务",
+    "desc": "扩建第7块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100018,
+    "task_type": "成长任务",
+    "desc": "购买7个大葱种子",
+    "condition": "购买道具",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100019,
+    "task_type": "成长任务",
+    "desc": "种植7个大葱",
+    "condition": "种植N个X种子",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100020,
+    "task_type": "成长任务",
+    "desc": "完成7次收获",
+    "condition": "收获自己N次",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100021,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 1000,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100022,
+    "task_type": "成长任务",
+    "desc": "进行1次好友邀请",
+    "condition": "发送N个好友邀请",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100023,
+    "task_type": "成长任务",
+    "desc": "等级提升至6级",
+    "condition": "达到等级",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100024,
+    "task_type": "成长任务",
+    "desc": "购买7个水稻种子",
+    "condition": "购买道具",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100025,
+    "task_type": "成长任务",
+    "desc": "种植7个水稻",
+    "condition": "种植N个X种子",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100026,
+    "task_type": "成长任务",
+    "desc": "完成7次收获",
+    "condition": "收获自己N次",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100027,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 2000,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100028,
+    "task_type": "成长任务",
+    "desc": "等级提升至7级",
+    "condition": "达到等级",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100029,
+    "task_type": "成长任务",
+    "desc": "扩建第8块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100030,
+    "task_type": "成长任务",
+    "desc": "购买8个小麦种子",
+    "condition": "购买道具",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100031,
+    "task_type": "成长任务",
+    "desc": "种植8个小麦",
+    "condition": "种植N个X种子",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100032,
+    "task_type": "成长任务",
+    "desc": "完成8次收获",
+    "condition": "收获自己N次",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100033,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 3300,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100034,
+    "task_type": "成长任务",
+    "desc": "等级提升至8级",
+    "condition": "达到等级",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100035,
+    "task_type": "成长任务",
+    "desc": "购买8个玉米种子",
+    "condition": "购买道具",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100036,
+    "task_type": "成长任务",
+    "desc": "种植8个玉米",
+    "condition": "种植N个X种子",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100037,
+    "task_type": "成长任务",
+    "desc": "完成8次收获",
+    "condition": "收获自己N次",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100038,
+    "task_type": "成长任务",
+    "desc": "售卖果实获得金币",
+    "condition": "售卖果实得到金币",
+    "total_progress": 4700,
+    "group": null,
+    "is_show_text": 1
+  },
+  {
+    "id": 100039,
+    "task_type": "成长任务",
+    "desc": "等级提升至9级",
+    "condition": "达到等级",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100040,
+    "task_type": "成长任务",
+    "desc": "扩建第9块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100041,
+    "task_type": "成长任务",
+    "desc": "购买9个鲜姜种子",
+    "condition": "购买道具",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100042,
+    "task_type": "成长任务",
+    "desc": "种植9个鲜姜",
+    "condition": "种植N个X种子",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100043,
+    "task_type": "成长任务",
+    "desc": "完成9次收获",
+    "condition": "收获自己N次",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100044,
+    "task_type": "成长任务",
+    "desc": "等级提升至10级",
+    "condition": "达到等级",
+    "total_progress": 10,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100045,
+    "task_type": "成长任务",
+    "desc": "购买9个土豆种子",
+    "condition": "购买道具",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100046,
+    "task_type": "成长任务",
+    "desc": "种植9个土豆",
+    "condition": "种植N个X种子",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100047,
+    "task_type": "成长任务",
+    "desc": "完成9次收获",
+    "condition": "收获自己N次",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100048,
+    "task_type": "成长任务",
+    "desc": "等级提升至11级",
+    "condition": "达到等级",
+    "total_progress": 11,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100049,
+    "task_type": "成长任务",
+    "desc": "扩建第10块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100050,
+    "task_type": "成长任务",
+    "desc": "完成10次收获",
+    "condition": "收获自己N次",
+    "total_progress": 10,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100051,
+    "task_type": "成长任务",
+    "desc": "等级提升至12级",
+    "condition": "达到等级",
+    "total_progress": 12,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100052,
+    "task_type": "成长任务",
+    "desc": "完成10次收获",
+    "condition": "收获自己N次",
+    "total_progress": 10,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100053,
+    "task_type": "成长任务",
+    "desc": "等级提升至13级",
+    "condition": "达到等级",
+    "total_progress": 13,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100054,
+    "task_type": "成长任务",
+    "desc": "扩建第11块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100055,
+    "task_type": "成长任务",
+    "desc": "完成22次收获",
+    "condition": "收获自己N次",
+    "total_progress": 22,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100056,
+    "task_type": "成长任务",
+    "desc": "等级提升至14级",
+    "condition": "达到等级",
+    "total_progress": 14,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100057,
+    "task_type": "成长任务",
+    "desc": "设置QQ状态1次",
+    "condition": "设置QQ状态",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100058,
+    "task_type": "成长任务",
+    "desc": "等级提升至15级",
+    "condition": "达到等级",
+    "total_progress": 15,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100059,
+    "task_type": "成长任务",
+    "desc": "扩建第12块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100060,
+    "task_type": "成长任务",
+    "desc": "完成24次收获",
+    "condition": "收获自己N次",
+    "total_progress": 24,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100061,
+    "task_type": "成长任务",
+    "desc": "等级提升至16级",
+    "condition": "达到等级",
+    "total_progress": 16,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100062,
+    "task_type": "成长任务",
+    "desc": "点亮15个作物图鉴",
+    "condition": "点亮作物图鉴",
+    "total_progress": 15,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100063,
+    "task_type": "成长任务",
+    "desc": "等级提升至17级",
+    "condition": "达到等级",
+    "total_progress": 17,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100064,
+    "task_type": "成长任务",
+    "desc": "扩建第13块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100065,
+    "task_type": "成长任务",
+    "desc": "完成26次收获",
+    "condition": "收获自己N次",
+    "total_progress": 26,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100066,
+    "task_type": "成长任务",
+    "desc": "等级提升至18级",
+    "condition": "达到等级",
+    "total_progress": 18,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100067,
+    "task_type": "成长任务",
+    "desc": "点亮18个作物图鉴",
+    "condition": "点亮作物图鉴",
+    "total_progress": 18,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100068,
+    "task_type": "成长任务",
+    "desc": "等级提升至19级",
+    "condition": "达到等级",
+    "total_progress": 19,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100069,
+    "task_type": "成长任务",
+    "desc": "扩建第14块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100070,
+    "task_type": "成长任务",
+    "desc": "完成28次收获",
+    "condition": "收获自己N次",
+    "total_progress": 28,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100071,
+    "task_type": "成长任务",
+    "desc": "等级提升至20级",
+    "condition": "达到等级",
+    "total_progress": 20,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100072,
+    "task_type": "成长任务",
+    "desc": "完成28次收获",
+    "condition": "收获自己N次",
+    "total_progress": 28,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100073,
+    "task_type": "成长任务",
+    "desc": "等级提升至21级",
+    "condition": "达到等级",
+    "total_progress": 21,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100074,
+    "task_type": "成长任务",
+    "desc": "扩建第15块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100075,
+    "task_type": "成长任务",
+    "desc": "完成30次收获",
+    "condition": "收获自己N次",
+    "total_progress": 30,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100076,
+    "task_type": "成长任务",
+    "desc": "等级提升至23级",
+    "condition": "达到等级",
+    "total_progress": 23,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100077,
+    "task_type": "成长任务",
+    "desc": "扩建第16块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100078,
+    "task_type": "成长任务",
+    "desc": "完成32次收获",
+    "condition": "收获自己N次",
+    "total_progress": 32,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100079,
+    "task_type": "成长任务",
+    "desc": "等级提升至25级",
+    "condition": "达到等级",
+    "total_progress": 25,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100080,
+    "task_type": "成长任务",
+    "desc": "扩建第17块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100081,
+    "task_type": "成长任务",
+    "desc": "完成34次收获",
+    "condition": "收获自己N次",
+    "total_progress": 34,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100082,
+    "task_type": "成长任务",
+    "desc": "等级提升至27级",
+    "condition": "达到等级",
+    "total_progress": 27,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100083,
+    "task_type": "成长任务",
+    "desc": "扩建第18块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100084,
+    "task_type": "成长任务",
+    "desc": "完成36次收获",
+    "condition": "收获自己N次",
+    "total_progress": 36,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100085,
+    "task_type": "成长任务",
+    "desc": "等级提升至28级",
+    "condition": "达到等级",
+    "total_progress": 28,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100086,
+    "task_type": "成长任务",
+    "desc": "升级1块红土地",
+    "condition": "升级土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100087,
+    "task_type": "成长任务",
+    "desc": "完成36次收获",
+    "condition": "收获自己N次",
+    "total_progress": 36,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100088,
+    "task_type": "成长任务",
+    "desc": "等级提升至29级",
+    "condition": "达到等级",
+    "total_progress": 29,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100089,
+    "task_type": "成长任务",
+    "desc": "扩建第19块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100090,
+    "task_type": "成长任务",
+    "desc": "完成38次收获",
+    "condition": "收获自己N次",
+    "total_progress": 38,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100091,
+    "task_type": "成长任务",
+    "desc": "等级提升至30级",
+    "condition": "达到等级",
+    "total_progress": 30,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100092,
+    "task_type": "成长任务",
+    "desc": "升级3块红土地",
+    "condition": "升级土地",
+    "total_progress": 3,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100093,
+    "task_type": "成长任务",
+    "desc": "完成38次收获",
+    "condition": "收获自己N次",
+    "total_progress": 38,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100094,
+    "task_type": "成长任务",
+    "desc": "等级提升至31级",
+    "condition": "达到等级",
+    "total_progress": 31,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100095,
+    "task_type": "成长任务",
+    "desc": "扩建第20块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100096,
+    "task_type": "成长任务",
+    "desc": "完成40次收获",
+    "condition": "收获自己N次",
+    "total_progress": 40,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100097,
+    "task_type": "成长任务",
+    "desc": "等级提升至32级",
+    "condition": "达到等级",
+    "total_progress": 32,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100098,
+    "task_type": "成长任务",
+    "desc": "升级5块红土地",
+    "condition": "升级土地",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100099,
+    "task_type": "成长任务",
+    "desc": "完成40次收获",
+    "condition": "收获自己N次",
+    "total_progress": 40,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100100,
+    "task_type": "成长任务",
+    "desc": "等级提升至33级",
+    "condition": "达到等级",
+    "total_progress": 33,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100101,
+    "task_type": "成长任务",
+    "desc": "扩建第21块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100102,
+    "task_type": "成长任务",
+    "desc": "完成42次收获",
+    "condition": "收获自己N次",
+    "total_progress": 42,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100103,
+    "task_type": "成长任务",
+    "desc": "等级提升至34级",
+    "condition": "达到等级",
+    "total_progress": 34,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100104,
+    "task_type": "成长任务",
+    "desc": "升级7块红土地",
+    "condition": "升级土地",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100105,
+    "task_type": "成长任务",
+    "desc": "完成42次收获",
+    "condition": "收获自己N次",
+    "total_progress": 42,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100106,
+    "task_type": "成长任务",
+    "desc": "等级提升至35级",
+    "condition": "达到等级",
+    "total_progress": 35,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100107,
+    "task_type": "成长任务",
+    "desc": "扩建第22块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100108,
+    "task_type": "成长任务",
+    "desc": "完成44次收获",
+    "condition": "收获自己N次",
+    "total_progress": 44,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100109,
+    "task_type": "成长任务",
+    "desc": "等级提升至36级",
+    "condition": "达到等级",
+    "total_progress": 36,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100110,
+    "task_type": "成长任务",
+    "desc": "升级9块红土地",
+    "condition": "升级土地",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100111,
+    "task_type": "成长任务",
+    "desc": "完成44次收获",
+    "condition": "收获自己N次",
+    "total_progress": 44,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100112,
+    "task_type": "成长任务",
+    "desc": "等级提升至37级",
+    "condition": "达到等级",
+    "total_progress": 37,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100113,
+    "task_type": "成长任务",
+    "desc": "扩建第23块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100114,
+    "task_type": "成长任务",
+    "desc": "完成46次收获",
+    "condition": "收获自己N次",
+    "total_progress": 46,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100115,
+    "task_type": "成长任务",
+    "desc": "等级提升至38级",
+    "condition": "达到等级",
+    "total_progress": 38,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100116,
+    "task_type": "成长任务",
+    "desc": "升级11块红土地",
+    "condition": "升级土地",
+    "total_progress": 11,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100117,
+    "task_type": "成长任务",
+    "desc": "完成46次收获",
+    "condition": "收获自己N次",
+    "total_progress": 46,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100118,
+    "task_type": "成长任务",
+    "desc": "等级提升至39级",
+    "condition": "达到等级",
+    "total_progress": 39,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100119,
+    "task_type": "成长任务",
+    "desc": "扩建第24块土地",
+    "condition": "开垦土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100120,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100121,
+    "task_type": "成长任务",
+    "desc": "等级提升至40级",
+    "condition": "达到等级",
+    "total_progress": 40,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100122,
+    "task_type": "成长任务",
+    "desc": "升级1块黑土地",
+    "condition": "升级土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100123,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100124,
+    "task_type": "成长任务",
+    "desc": "等级提升至42级",
+    "condition": "达到等级",
+    "total_progress": 42,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100125,
+    "task_type": "成长任务",
+    "desc": "升级3块黑土地",
+    "condition": "升级土地",
+    "total_progress": 3,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100126,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100127,
+    "task_type": "成长任务",
+    "desc": "等级提升至44级",
+    "condition": "达到等级",
+    "total_progress": 44,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100128,
+    "task_type": "成长任务",
+    "desc": "升级5块黑土地",
+    "condition": "升级土地",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100129,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100130,
+    "task_type": "成长任务",
+    "desc": "等级提升至46级",
+    "condition": "达到等级",
+    "total_progress": 46,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100131,
+    "task_type": "成长任务",
+    "desc": "升级7块黑土地",
+    "condition": "升级土地",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100132,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100133,
+    "task_type": "成长任务",
+    "desc": "等级提升至48级",
+    "condition": "达到等级",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100134,
+    "task_type": "成长任务",
+    "desc": "升级9块黑土地",
+    "condition": "升级土地",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100135,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100136,
+    "task_type": "成长任务",
+    "desc": "等级提升至50级",
+    "condition": "达到等级",
+    "total_progress": 50,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100137,
+    "task_type": "成长任务",
+    "desc": "升级11块黑土地",
+    "condition": "升级土地",
+    "total_progress": 11,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100138,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100139,
+    "task_type": "成长任务",
+    "desc": "等级提升至52级",
+    "condition": "达到等级",
+    "total_progress": 52,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100140,
+    "task_type": "成长任务",
+    "desc": "升级13块黑土地",
+    "condition": "升级土地",
+    "total_progress": 13,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100141,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100142,
+    "task_type": "成长任务",
+    "desc": "等级提升至54级",
+    "condition": "达到等级",
+    "total_progress": 54,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100143,
+    "task_type": "成长任务",
+    "desc": "升级15块黑土地",
+    "condition": "升级土地",
+    "total_progress": 15,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100144,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100145,
+    "task_type": "成长任务",
+    "desc": "等级提升至56级",
+    "condition": "达到等级",
+    "total_progress": 56,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100146,
+    "task_type": "成长任务",
+    "desc": "升级17块黑土地",
+    "condition": "升级土地",
+    "total_progress": 17,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100147,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100148,
+    "task_type": "成长任务",
+    "desc": "等级提升至58级",
+    "condition": "达到等级",
+    "total_progress": 58,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100149,
+    "task_type": "成长任务",
+    "desc": "升级1块金土地",
+    "condition": "升级土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100150,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100151,
+    "task_type": "成长任务",
+    "desc": "等级提升至60级",
+    "condition": "达到等级",
+    "total_progress": 60,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100152,
+    "task_type": "成长任务",
+    "desc": "升级3块金土地",
+    "condition": "升级土地",
+    "total_progress": 3,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100153,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100154,
+    "task_type": "成长任务",
+    "desc": "等级提升至62级",
+    "condition": "达到等级",
+    "total_progress": 62,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100155,
+    "task_type": "成长任务",
+    "desc": "升级5块金土地",
+    "condition": "升级土地",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100156,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100157,
+    "task_type": "成长任务",
+    "desc": "等级提升至64级",
+    "condition": "达到等级",
+    "total_progress": 64,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100158,
+    "task_type": "成长任务",
+    "desc": "升级7块金土地",
+    "condition": "升级土地",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100159,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100160,
+    "task_type": "成长任务",
+    "desc": "等级提升至66级",
+    "condition": "达到等级",
+    "total_progress": 66,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100161,
+    "task_type": "成长任务",
+    "desc": "升级9块金土地",
+    "condition": "升级土地",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100162,
+    "task_type": "成长任务",
+    "desc": "等级提升至68级",
+    "condition": "达到等级",
+    "total_progress": 68,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100163,
+    "task_type": "成长任务",
+    "desc": "升级11块金土地",
+    "condition": "升级土地",
+    "total_progress": 11,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100164,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100165,
+    "task_type": "成长任务",
+    "desc": "等级提升至70级",
+    "condition": "达到等级",
+    "total_progress": 70,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100166,
+    "task_type": "成长任务",
+    "desc": "升级13块金土地",
+    "condition": "升级土地",
+    "total_progress": 13,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100167,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100168,
+    "task_type": "成长任务",
+    "desc": "等级提升至72级",
+    "condition": "达到等级",
+    "total_progress": 72,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100169,
+    "task_type": "成长任务",
+    "desc": "升级15块金土地",
+    "condition": "升级土地",
+    "total_progress": 15,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100170,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100171,
+    "task_type": "成长任务",
+    "desc": "等级提升至74级",
+    "condition": "达到等级",
+    "total_progress": 74,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100172,
+    "task_type": "成长任务",
+    "desc": "升级17块金土地",
+    "condition": "升级土地",
+    "total_progress": 17,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100173,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100174,
+    "task_type": "成长任务",
+    "desc": "等级提升至77级",
+    "condition": "达到等级",
+    "total_progress": 77,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100175,
+    "task_type": "成长任务",
+    "desc": "升级19块金土地",
+    "condition": "升级土地",
+    "total_progress": 19,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100176,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100177,
+    "task_type": "成长任务",
+    "desc": "等级提升至79级",
+    "condition": "达到等级",
+    "total_progress": 79,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100178,
+    "task_type": "成长任务",
+    "desc": "升级20块金土地",
+    "condition": "升级土地",
+    "total_progress": 20,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100179,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100180,
+    "task_type": "成长任务",
+    "desc": "等级提升至81级",
+    "condition": "达到等级",
+    "total_progress": 81,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100181,
+    "task_type": "成长任务",
+    "desc": "升级21块金土地",
+    "condition": "升级土地",
+    "total_progress": 21,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100182,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100183,
+    "task_type": "成长任务",
+    "desc": "等级提升至83级",
+    "condition": "达到等级",
+    "total_progress": 83,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100184,
+    "task_type": "成长任务",
+    "desc": "升级22块金土地",
+    "condition": "升级土地",
+    "total_progress": 22,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100185,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100186,
+    "task_type": "成长任务",
+    "desc": "等级提升至85级",
+    "condition": "达到等级",
+    "total_progress": 85,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100187,
+    "task_type": "成长任务",
+    "desc": "升级23块金土地",
+    "condition": "升级土地",
+    "total_progress": 23,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100188,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100189,
+    "task_type": "成长任务",
+    "desc": "等级提升至87级",
+    "condition": "达到等级",
+    "total_progress": 87,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100190,
+    "task_type": "成长任务",
+    "desc": "升级24块金土地",
+    "condition": "升级土地",
+    "total_progress": 24,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100191,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100192,
+    "task_type": "成长任务",
+    "desc": "等级提升至90级",
+    "condition": "达到等级",
+    "total_progress": 90,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101000,
+    "task_type": "成长任务",
+    "desc": "升级1块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100193,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100194,
+    "task_type": "成长任务",
+    "desc": "等级提升至92级",
+    "condition": "达到等级",
+    "total_progress": 92,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100195,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101001,
+    "task_type": "成长任务",
+    "desc": "等级提升至93级",
+    "condition": "达到等级",
+    "total_progress": 93,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101002,
+    "task_type": "成长任务",
+    "desc": "升级2块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 2,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101003,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100196,
+    "task_type": "成长任务",
+    "desc": "等级提升至95级",
+    "condition": "达到等级",
+    "total_progress": 95,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100197,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101004,
+    "task_type": "成长任务",
+    "desc": "等级提升至96级",
+    "condition": "达到等级",
+    "total_progress": 96,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101005,
+    "task_type": "成长任务",
+    "desc": "升级3块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 3,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101006,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100198,
+    "task_type": "成长任务",
+    "desc": "等级提升至98级",
+    "condition": "达到等级",
+    "total_progress": 98,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100199,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101007,
+    "task_type": "成长任务",
+    "desc": "等级提升至99级",
+    "condition": "达到等级",
+    "total_progress": 99,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101008,
+    "task_type": "成长任务",
+    "desc": "升级4块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 4,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101009,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 100200,
+    "task_type": "成长任务",
+    "desc": "等级提升至100级",
+    "condition": "达到等级",
+    "total_progress": 100,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101010,
+    "task_type": "成长任务",
+    "desc": "等级提升至102级",
+    "condition": "达到等级",
+    "total_progress": 102,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101011,
+    "task_type": "成长任务",
+    "desc": "升级5块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101012,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101013,
+    "task_type": "成长任务",
+    "desc": "等级提升至105级",
+    "condition": "达到等级",
+    "total_progress": 105,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101014,
+    "task_type": "成长任务",
+    "desc": "升级6块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101015,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101016,
+    "task_type": "成长任务",
+    "desc": "等级提升至108级",
+    "condition": "达到等级",
+    "total_progress": 108,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101017,
+    "task_type": "成长任务",
+    "desc": "升级7块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101018,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101019,
+    "task_type": "成长任务",
+    "desc": "等级提升至111级",
+    "condition": "达到等级",
+    "total_progress": 111,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101020,
+    "task_type": "成长任务",
+    "desc": "升级8块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101021,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101022,
+    "task_type": "成长任务",
+    "desc": "等级提升至114级",
+    "condition": "达到等级",
+    "total_progress": 114,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101023,
+    "task_type": "成长任务",
+    "desc": "升级9块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101024,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101025,
+    "task_type": "成长任务",
+    "desc": "等级提升至117级",
+    "condition": "达到等级",
+    "total_progress": 117,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101026,
+    "task_type": "成长任务",
+    "desc": "升级10块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 10,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101027,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101028,
+    "task_type": "成长任务",
+    "desc": "等级提升至120级",
+    "condition": "达到等级",
+    "total_progress": 120,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101029,
+    "task_type": "成长任务",
+    "desc": "升级11块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 11,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101030,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101031,
+    "task_type": "成长任务",
+    "desc": "等级提升至123级",
+    "condition": "达到等级",
+    "total_progress": 123,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101032,
+    "task_type": "成长任务",
+    "desc": "升级12块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 12,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101033,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101034,
+    "task_type": "成长任务",
+    "desc": "等级提升至126级",
+    "condition": "达到等级",
+    "total_progress": 126,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101035,
+    "task_type": "成长任务",
+    "desc": "升级13块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 13,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101036,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101037,
+    "task_type": "成长任务",
+    "desc": "等级提升至129级",
+    "condition": "达到等级",
+    "total_progress": 129,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101038,
+    "task_type": "成长任务",
+    "desc": "升级14块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 14,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101039,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101040,
+    "task_type": "成长任务",
+    "desc": "等级提升至132级",
+    "condition": "达到等级",
+    "total_progress": 132,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101041,
+    "task_type": "成长任务",
+    "desc": "升级15块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 15,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101042,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101043,
+    "task_type": "成长任务",
+    "desc": "等级提升至135级",
+    "condition": "达到等级",
+    "total_progress": 135,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101044,
+    "task_type": "成长任务",
+    "desc": "升级16块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 16,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101045,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101046,
+    "task_type": "成长任务",
+    "desc": "等级提升至138级",
+    "condition": "达到等级",
+    "total_progress": 138,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101047,
+    "task_type": "成长任务",
+    "desc": "升级17块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 17,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101048,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101049,
+    "task_type": "成长任务",
+    "desc": "等级提升至141级",
+    "condition": "达到等级",
+    "total_progress": 141,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101050,
+    "task_type": "成长任务",
+    "desc": "升级18块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 18,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101051,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101052,
+    "task_type": "成长任务",
+    "desc": "等级提升至144级",
+    "condition": "达到等级",
+    "total_progress": 144,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101053,
+    "task_type": "成长任务",
+    "desc": "升级19块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 19,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101054,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101055,
+    "task_type": "成长任务",
+    "desc": "等级提升至147级",
+    "condition": "达到等级",
+    "total_progress": 147,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101056,
+    "task_type": "成长任务",
+    "desc": "升级20块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 20,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101057,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101058,
+    "task_type": "成长任务",
+    "desc": "等级提升至150级",
+    "condition": "达到等级",
+    "total_progress": 150,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101059,
+    "task_type": "成长任务",
+    "desc": "升级21块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 21,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101060,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101061,
+    "task_type": "成长任务",
+    "desc": "等级提升至153级",
+    "condition": "达到等级",
+    "total_progress": 153,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101062,
+    "task_type": "成长任务",
+    "desc": "升级22块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 22,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101063,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101064,
+    "task_type": "成长任务",
+    "desc": "等级提升至156级",
+    "condition": "达到等级",
+    "total_progress": 156,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101065,
+    "task_type": "成长任务",
+    "desc": "升级23块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 23,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101066,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101067,
+    "task_type": "成长任务",
+    "desc": "等级提升至159级",
+    "condition": "达到等级",
+    "total_progress": 159,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101068,
+    "task_type": "成长任务",
+    "desc": "升级24块紫晶土地",
+    "condition": "升级土地",
+    "total_progress": 24,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101069,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101070,
+    "task_type": "成长任务",
+    "desc": "等级提升至160级",
+    "condition": "达到等级",
+    "total_progress": 160,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101071,
+    "task_type": "成长任务",
+    "desc": "升级1块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 1,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101072,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101073,
+    "task_type": "成长任务",
+    "desc": "等级提升至162级",
+    "condition": "达到等级",
+    "total_progress": 162,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101074,
+    "task_type": "成长任务",
+    "desc": "升级2块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 2,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101075,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101076,
+    "task_type": "成长任务",
+    "desc": "等级提升至164级",
+    "condition": "达到等级",
+    "total_progress": 164,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101077,
+    "task_type": "成长任务",
+    "desc": "升级3块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 3,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101078,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101079,
+    "task_type": "成长任务",
+    "desc": "等级提升至166级",
+    "condition": "达到等级",
+    "total_progress": 166,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101080,
+    "task_type": "成长任务",
+    "desc": "升级4块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 4,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101081,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101082,
+    "task_type": "成长任务",
+    "desc": "等级提升至168级",
+    "condition": "达到等级",
+    "total_progress": 168,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101083,
+    "task_type": "成长任务",
+    "desc": "升级5块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 5,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101084,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101085,
+    "task_type": "成长任务",
+    "desc": "等级提升至170级",
+    "condition": "达到等级",
+    "total_progress": 170,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101086,
+    "task_type": "成长任务",
+    "desc": "升级6块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 6,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101087,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101088,
+    "task_type": "成长任务",
+    "desc": "等级提升至172级",
+    "condition": "达到等级",
+    "total_progress": 172,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101089,
+    "task_type": "成长任务",
+    "desc": "升级7块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 7,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101090,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101091,
+    "task_type": "成长任务",
+    "desc": "等级提升至174级",
+    "condition": "达到等级",
+    "total_progress": 174,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101092,
+    "task_type": "成长任务",
+    "desc": "升级8块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 8,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101093,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101094,
+    "task_type": "成长任务",
+    "desc": "等级提升至176级",
+    "condition": "达到等级",
+    "total_progress": 176,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101095,
+    "task_type": "成长任务",
+    "desc": "升级9块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 9,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101096,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101097,
+    "task_type": "成长任务",
+    "desc": "等级提升至178级",
+    "condition": "达到等级",
+    "total_progress": 178,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101098,
+    "task_type": "成长任务",
+    "desc": "升级10块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 10,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101099,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101100,
+    "task_type": "成长任务",
+    "desc": "等级提升至180级",
+    "condition": "达到等级",
+    "total_progress": 180,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101101,
+    "task_type": "成长任务",
+    "desc": "升级11块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 11,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101102,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101103,
+    "task_type": "成长任务",
+    "desc": "等级提升至182级",
+    "condition": "达到等级",
+    "total_progress": 182,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101104,
+    "task_type": "成长任务",
+    "desc": "升级12块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 12,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101105,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101106,
+    "task_type": "成长任务",
+    "desc": "等级提升至185级",
+    "condition": "达到等级",
+    "total_progress": 185,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101107,
+    "task_type": "成长任务",
+    "desc": "升级13块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 13,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101108,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101109,
+    "task_type": "成长任务",
+    "desc": "等级提升至187级",
+    "condition": "达到等级",
+    "total_progress": 187,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101110,
+    "task_type": "成长任务",
+    "desc": "升级14块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 14,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101111,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101112,
+    "task_type": "成长任务",
+    "desc": "等级提升至192级",
+    "condition": "达到等级",
+    "total_progress": 192,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101113,
+    "task_type": "成长任务",
+    "desc": "升级15块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 15,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101114,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101115,
+    "task_type": "成长任务",
+    "desc": "等级提升至197级",
+    "condition": "达到等级",
+    "total_progress": 197,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101116,
+    "task_type": "成长任务",
+    "desc": "升级16块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 16,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101117,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101118,
+    "task_type": "成长任务",
+    "desc": "等级提升至202级",
+    "condition": "达到等级",
+    "total_progress": 202,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101119,
+    "task_type": "成长任务",
+    "desc": "升级17块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 17,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101120,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101121,
+    "task_type": "成长任务",
+    "desc": "等级提升至207级",
+    "condition": "达到等级",
+    "total_progress": 207,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101122,
+    "task_type": "成长任务",
+    "desc": "升级18块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 18,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101123,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101124,
+    "task_type": "成长任务",
+    "desc": "等级提升至212级",
+    "condition": "达到等级",
+    "total_progress": 212,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101125,
+    "task_type": "成长任务",
+    "desc": "升级19块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 19,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101126,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101127,
+    "task_type": "成长任务",
+    "desc": "等级提升至217级",
+    "condition": "达到等级",
+    "total_progress": 217,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101128,
+    "task_type": "成长任务",
+    "desc": "升级20块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 20,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101129,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101130,
+    "task_type": "成长任务",
+    "desc": "等级提升至222级",
+    "condition": "达到等级",
+    "total_progress": 222,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101131,
+    "task_type": "成长任务",
+    "desc": "升级21块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 21,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101132,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101133,
+    "task_type": "成长任务",
+    "desc": "等级提升至228级",
+    "condition": "达到等级",
+    "total_progress": 228,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101134,
+    "task_type": "成长任务",
+    "desc": "升级22块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 22,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101135,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101136,
+    "task_type": "成长任务",
+    "desc": "等级提升至234级",
+    "condition": "达到等级",
+    "total_progress": 234,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101137,
+    "task_type": "成长任务",
+    "desc": "升级23块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 23,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101138,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101139,
+    "task_type": "成长任务",
+    "desc": "等级提升至240级",
+    "condition": "达到等级",
+    "total_progress": 240,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101140,
+    "task_type": "成长任务",
+    "desc": "升级24块蓝晶土地",
+    "condition": "升级土地",
+    "total_progress": 24,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 101141,
+    "task_type": "成长任务",
+    "desc": "完成48次收获",
+    "condition": "收获自己N次",
+    "total_progress": 48,
+    "group": null,
+    "is_show_text": 0
+  },
+  {
+    "id": 200001,
+    "task_type": "每日任务",
+    "desc": "每日登录游戏",
+    "condition": "每日登录N次",
+    "total_progress": 1,
+    "group": 1,
+    "is_show_text": 0
+  },
+  {
+    "id": 200002,
+    "task_type": "每日任务",
+    "desc": "采摘1次果实",
+    "condition": "收获或者偷菜N次",
+    "total_progress": 1,
+    "group": 2,
+    "is_show_text": 0
+  },
+  {
+    "id": 200003,
+    "task_type": "每日任务",
+    "desc": "在1个好友农场进行互动",
+    "condition": "好友农场交互",
+    "total_progress": 1,
+    "group": 3,
+    "is_show_text": 0
+  },
+  {
+    "id": 200004,
+    "task_type": "每日任务",
+    "desc": "每日登录游戏",
+    "condition": "每日登录N次",
+    "total_progress": 1,
+    "group": 1,
+    "is_show_text": 0
+  },
+  {
+    "id": 200005,
+    "task_type": "每日任务",
+    "desc": "采摘1次果实",
+    "condition": "收获或者偷菜N次",
+    "total_progress": 1,
+    "group": 2,
+    "is_show_text": 0
+  },
+  {
+    "id": 200006,
+    "task_type": "每日任务",
+    "desc": "在1个好友农场进行互动",
+    "condition": "好友农场交互",
+    "total_progress": 1,
+    "group": 3,
+    "is_show_text": 0
+  },
+  {
+    "id": 200007,
+    "task_type": "每日任务",
+    "desc": "每日登录游戏",
+    "condition": "每日登录N次",
+    "total_progress": 1,
+    "group": 1,
+    "is_show_text": 0
+  },
+  {
+    "id": 200008,
+    "task_type": "每日任务",
+    "desc": "采摘1次果实",
+    "condition": "收获或者偷菜N次",
+    "total_progress": 1,
+    "group": 2,
+    "is_show_text": 0
+  },
+  {
+    "id": 200009,
+    "task_type": "每日任务",
+    "desc": "在1个好友农场进行互动",
+    "condition": "好友农场交互",
+    "total_progress": 1,
+    "group": 3,
+    "is_show_text": 0
+  },
+  {
+    "id": 200010,
+    "task_type": "每日任务",
+    "desc": "每日登录游戏",
+    "condition": "每日登录N次",
+    "total_progress": 1,
+    "group": 1,
+    "is_show_text": 0
+  },
+  {
+    "id": 200011,
+    "task_type": "每日任务",
+    "desc": "采摘1次果实",
+    "condition": "收获或者偷菜N次",
+    "total_progress": 1,
+    "group": 2,
+    "is_show_text": 0
+  },
+  {
+    "id": 200012,
+    "task_type": "每日任务",
+    "desc": "在1个好友农场进行互动",
+    "condition": "好友农场交互",
+    "total_progress": 1,
+    "group": 3,
+    "is_show_text": 0
+  },
+  {
+    "id": 200013,
+    "task_type": "每日任务",
+    "desc": "每日登录游戏",
+    "condition": "每日登录N次",
+    "total_progress": 1,
+    "group": 1,
+    "is_show_text": 0
+  },
+  {
+    "id": 200014,
+    "task_type": "每日任务",
+    "desc": "采摘1次果实",
+    "condition": "收获或者偷菜N次",
+    "total_progress": 1,
+    "group": 2,
+    "is_show_text": 0
+  },
+  {
+    "id": 200015,
+    "task_type": "每日任务",
+    "desc": "在1个好友农场进行互动",
+    "condition": "好友农场交互",
+    "total_progress": 1,
+    "group": 3,
+    "is_show_text": 0
+  },
+  {
+    "id": 200016,
+    "task_type": "每日任务",
+    "desc": "每日登录游戏",
+    "condition": "每日登录N次",
+    "total_progress": 1,
+    "group": 1,
+    "is_show_text": 0
+  },
+  {
+    "id": 200017,
+    "task_type": "每日任务",
+    "desc": "采摘1次果实",
+    "condition": "收获或者偷菜N次",
+    "total_progress": 1,
+    "group": 2,
+    "is_show_text": 0
+  },
+  {
+    "id": 200018,
+    "task_type": "每日任务",
+    "desc": "在1个好友农场进行互动",
+    "condition": "好友农场交互",
+    "total_progress": 1,
+    "group": 3,
+    "is_show_text": 0
+  },
+  {
+    "id": 200019,
+    "task_type": "每日任务",
+    "desc": "每日登录游戏",
+    "condition": "每日登录N次",
+    "total_progress": 1,
+    "group": 1,
+    "is_show_text": 0
+  },
+  {
+    "id": 200020,
+    "task_type": "每日任务",
+    "desc": "采摘1次果实",
+    "condition": "收获或者偷菜N次",
+    "total_progress": 1,
+    "group": 2,
+    "is_show_text": 0
+  },
+  {
+    "id": 200021,
+    "task_type": "每日任务",
+    "desc": "在1个好友农场进行互动",
+    "condition": "好友农场交互",
+    "total_progress": 1,
+    "group": 3,
+    "is_show_text": 0
+  },
+  {
+    "id": 300001,
+    "task_type": "家园成长任务",
+    "desc": "领养鸡幼崽3个",
+    "condition": "购买道具",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300002,
+    "task_type": "家园成长任务",
+    "desc": "饲养鸡幼崽3个",
+    "condition": "领养X幼崽N个",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300003,
+    "task_type": "家园成长任务",
+    "desc": "给牧草机添加牧草",
+    "condition": "给自己牧草机添加N份食材",
+    "total_progress": 10,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300004,
+    "task_type": "家园成长任务",
+    "desc": "生产3次",
+    "condition": "生产N次",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300005,
+    "task_type": "家园成长任务",
+    "desc": "收获鸡蛋9个",
+    "condition": "收获X产物N次",
+    "total_progress": 9,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300006,
+    "task_type": "家园成长任务",
+    "desc": "出售鸡蛋",
+    "condition": "出售X产物N次",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300007,
+    "task_type": "家园成长任务",
+    "desc": "收获整鸡3次",
+    "condition": "收获X产物N次",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300008,
+    "task_type": "家园成长任务",
+    "desc": "打开好友面板",
+    "condition": "客户端上报进度",
+    "total_progress": 1,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300009,
+    "task_type": "家园成长任务",
+    "desc": "领养鸭幼崽3个",
+    "condition": "购买道具",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300010,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至4级",
+    "condition": "达到牧场等级",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300011,
+    "task_type": "家园成长任务",
+    "desc": "生产3次",
+    "condition": "生产N次",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300012,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至5级",
+    "condition": "达到牧场等级",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300013,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至6级",
+    "condition": "达到牧场等级",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300014,
+    "task_type": "家园成长任务",
+    "desc": "收获鸭蛋30个",
+    "condition": "收获X产物N次",
+    "total_progress": 30,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300015,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至7级",
+    "condition": "达到牧场等级",
+    "total_progress": 7,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300016,
+    "task_type": "家园成长任务",
+    "desc": "收获鸭3个",
+    "condition": "收获X产物N次",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300017,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至8级",
+    "condition": "达到牧场等级",
+    "total_progress": 8,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300018,
+    "task_type": "家园成长任务",
+    "desc": "窝升级至2级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 2,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300019,
+    "task_type": "家园成长任务",
+    "desc": "领养4个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300020,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至9级",
+    "condition": "达到牧场等级",
+    "total_progress": 9,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300021,
+    "task_type": "家园成长任务",
+    "desc": "完成4次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300022,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至10级",
+    "condition": "达到牧场等级",
+    "total_progress": 10,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300023,
+    "task_type": "家园成长任务",
+    "desc": "牧草机升至2级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 2,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300024,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至11级",
+    "condition": "达到牧场等级",
+    "total_progress": 11,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300025,
+    "task_type": "家园成长任务",
+    "desc": "领养4个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300026,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至12级",
+    "condition": "达到牧场等级",
+    "total_progress": 12,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300027,
+    "task_type": "家园成长任务",
+    "desc": "生产4次",
+    "condition": "生产N次",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300028,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至13级",
+    "condition": "达到牧场等级",
+    "total_progress": 13,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300029,
+    "task_type": "家园成长任务",
+    "desc": "完成4次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300030,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至14级",
+    "condition": "达到牧场等级",
+    "total_progress": 14,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300031,
+    "task_type": "家园成长任务",
+    "desc": "生产4次",
+    "condition": "生产N次",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300032,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至15级",
+    "condition": "达到牧场等级",
+    "total_progress": 15,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300033,
+    "task_type": "家园成长任务",
+    "desc": "领养4个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300034,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至16级",
+    "condition": "达到牧场等级",
+    "total_progress": 16,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300035,
+    "task_type": "家园成长任务",
+    "desc": "窝升级至3级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300036,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至17级",
+    "condition": "达到牧场等级",
+    "total_progress": 17,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300037,
+    "task_type": "家园成长任务",
+    "desc": "完成5次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300038,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至18级",
+    "condition": "达到牧场等级",
+    "total_progress": 18,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300039,
+    "task_type": "家园成长任务",
+    "desc": "牧草机升至3级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300040,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至19级",
+    "condition": "达到牧场等级",
+    "total_progress": 19,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300041,
+    "task_type": "家园成长任务",
+    "desc": "领养5个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300042,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至20级",
+    "condition": "达到牧场等级",
+    "total_progress": 20,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300043,
+    "task_type": "家园成长任务",
+    "desc": "生产5次",
+    "condition": "生产N次",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300044,
+    "task_type": "家园成长任务",
+    "desc": "完成5次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300045,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至21级",
+    "condition": "达到牧场等级",
+    "total_progress": 21,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300046,
+    "task_type": "家园成长任务",
+    "desc": "解锁\"棚\"",
+    "condition": "拥有X建筑N座",
+    "total_progress": 1,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300047,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至22级",
+    "condition": "达到牧场等级",
+    "total_progress": 22,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300048,
+    "task_type": "家园成长任务",
+    "desc": "完成5次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300049,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至23级",
+    "condition": "达到牧场等级",
+    "total_progress": 23,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300050,
+    "task_type": "家园成长任务",
+    "desc": "完成5次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300051,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至24级",
+    "condition": "达到牧场等级",
+    "total_progress": 24,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300052,
+    "task_type": "家园成长任务",
+    "desc": "窝升级至4级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300053,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300054,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至25级",
+    "condition": "达到牧场等级",
+    "total_progress": 25,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300055,
+    "task_type": "家园成长任务",
+    "desc": "棚升至2级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 2,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300056,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至26级",
+    "condition": "达到牧场等级",
+    "total_progress": 26,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300057,
+    "task_type": "家园成长任务",
+    "desc": "牧草机升至4级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300058,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300059,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至27级",
+    "condition": "达到牧场等级",
+    "total_progress": 27,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300060,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300061,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至28级",
+    "condition": "达到牧场等级",
+    "total_progress": 28,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300062,
+    "task_type": "家园成长任务",
+    "desc": "棚升至3级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 3,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300063,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300064,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至29级",
+    "condition": "达到牧场等级",
+    "total_progress": 29,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300065,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300066,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至30级",
+    "condition": "达到牧场等级",
+    "total_progress": 30,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300067,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300068,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至31级",
+    "condition": "达到牧场等级",
+    "total_progress": 31,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300069,
+    "task_type": "家园成长任务",
+    "desc": "棚升至4级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 4,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300070,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至32级",
+    "condition": "达到牧场等级",
+    "total_progress": 32,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300071,
+    "task_type": "家园成长任务",
+    "desc": "窝升级至5级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300072,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300073,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至33级",
+    "condition": "达到牧场等级",
+    "total_progress": 33,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300074,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300075,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至34级",
+    "condition": "达到牧场等级",
+    "total_progress": 34,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300076,
+    "task_type": "家园成长任务",
+    "desc": "牧草机升至5级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300077,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300078,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至35级",
+    "condition": "达到牧场等级",
+    "total_progress": 35,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300079,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300080,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至36级",
+    "condition": "达到牧场等级",
+    "total_progress": 36,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300081,
+    "task_type": "家园成长任务",
+    "desc": "棚升至5级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 5,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300082,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300083,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至37级",
+    "condition": "达到牧场等级",
+    "total_progress": 37,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300084,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300085,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至38级",
+    "condition": "达到牧场等级",
+    "total_progress": 38,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300086,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300087,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至39级",
+    "condition": "达到牧场等级",
+    "total_progress": 39,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300088,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300089,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至40级",
+    "condition": "达到牧场等级",
+    "total_progress": 40,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300090,
+    "task_type": "家园成长任务",
+    "desc": "窝升级至6级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300091,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300092,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至42级",
+    "condition": "达到牧场等级",
+    "total_progress": 42,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300093,
+    "task_type": "家园成长任务",
+    "desc": "牧草机升至6级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300094,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300095,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至44级",
+    "condition": "达到牧场等级",
+    "total_progress": 44,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300096,
+    "task_type": "家园成长任务",
+    "desc": "棚升至6级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300097,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300098,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至46级",
+    "condition": "达到牧场等级",
+    "total_progress": 46,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300099,
+    "task_type": "家园成长任务",
+    "desc": "领养6个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300100,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300101,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至48级",
+    "condition": "达到牧场等级",
+    "total_progress": 48,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300102,
+    "task_type": "家园成长任务",
+    "desc": "窝升级至7级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 7,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300103,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300104,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至50级",
+    "condition": "达到牧场等级",
+    "total_progress": 50,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300105,
+    "task_type": "家园成长任务",
+    "desc": "领养10个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 10,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300106,
+    "task_type": "家园成长任务",
+    "desc": "牧草机升至7级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 7,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300107,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300108,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至52级",
+    "condition": "达到牧场等级",
+    "total_progress": 52,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300109,
+    "task_type": "家园成长任务",
+    "desc": "棚升至7级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 7,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300110,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300111,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至54级",
+    "condition": "达到牧场等级",
+    "total_progress": 54,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300112,
+    "task_type": "家园成长任务",
+    "desc": "领养6个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300113,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300114,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至56级",
+    "condition": "达到牧场等级",
+    "total_progress": 56,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300115,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300116,
+    "task_type": "家园成长任务",
+    "desc": "窝升级至8级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 8,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300117,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至58级",
+    "condition": "达到牧场等级",
+    "total_progress": 58,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300118,
+    "task_type": "家园成长任务",
+    "desc": "领养6个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300119,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300120,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至60级",
+    "condition": "达到牧场等级",
+    "total_progress": 60,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300121,
+    "task_type": "家园成长任务",
+    "desc": "牧草机升至8级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 8,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300122,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300123,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至62级",
+    "condition": "达到牧场等级",
+    "total_progress": 62,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300124,
+    "task_type": "家园成长任务",
+    "desc": "领养6个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300125,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300126,
+    "task_type": "家园成长任务",
+    "desc": "棚升至8级",
+    "condition": "拥有X建筑N等级",
+    "total_progress": 8,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300127,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至64级",
+    "condition": "达到牧场等级",
+    "total_progress": 64,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300128,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300129,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至66级",
+    "condition": "达到牧场等级",
+    "total_progress": 66,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300130,
+    "task_type": "家园成长任务",
+    "desc": "领养6个幼崽",
+    "condition": "购买N个幼崽",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300131,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300132,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至68级",
+    "condition": "达到牧场等级",
+    "total_progress": 68,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300133,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300134,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至70级",
+    "condition": "达到牧场等级",
+    "total_progress": 70,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300135,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300136,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至72级",
+    "condition": "达到牧场等级",
+    "total_progress": 72,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300137,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300138,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至74级",
+    "condition": "达到牧场等级",
+    "total_progress": 74,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300139,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300140,
+    "task_type": "家园成长任务",
+    "desc": "等级提升至76级",
+    "condition": "达到牧场等级",
+    "total_progress": 76,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 300141,
+    "task_type": "家园成长任务",
+    "desc": "完成6次收获",
+    "condition": "收获 N 次（主副都算）",
+    "total_progress": 6,
+    "group": 2001,
+    "is_show_text": 0
+  },
+  {
+    "id": 400001,
+    "task_type": "家园每日任务",
+    "desc": "完成1次生产",
+    "condition": "任意生产N次(主客态)",
+    "total_progress": 1,
+    "group": 1001,
+    "is_show_text": 0
+  },
+  {
+    "id": 400002,
+    "task_type": "家园每日任务",
+    "desc": "清理1次牧场",
+    "condition": "任意清理N次(主客态)",
+    "total_progress": 1,
+    "group": 1002,
+    "is_show_text": 0
+  },
+  {
+    "id": 400003,
+    "task_type": "家园每日任务",
+    "desc": "完成1次收获",
+    "condition": "任意收获N次(主客态)",
+    "total_progress": 1,
+    "group": 1003,
+    "is_show_text": 0
+  }
+]

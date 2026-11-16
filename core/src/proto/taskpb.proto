@@ -67,7 +67,9 @@ message TaskInfo {
 // ============ 请求/回复 ============
 
 // --- 获取任务信息 ---
-message TaskInfoRequest {}
+message TaskInfoRequest {
+    int32 global_scene_id = 1;
+}
 
 message TaskInfoReply {
     TaskInfo task_info = 1;

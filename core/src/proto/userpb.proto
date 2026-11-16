@@ -149,8 +149,8 @@ message BasicInfo {
 }
 
 message ShareInfo {
-    int64 status = 1;
-    int64 count = 2;
+    int64 share_count = 1;
+    bool is_claimed = 2;
 }
 
 message BasicExtraInfo {

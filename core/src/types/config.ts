@@ -1,3 +1,4 @@
+import type { RanchAutomationConfig } from '../config/ranch-automation';
 export {};
 export type PlantingStrategy =
   | 'preferred'
@@ -14,7 +15,7 @@ export type FertilizerMode = 'both' | 'normal' | 'organic' | 'smart' | 'none';
 
 export type FertilizerLandType = 'blue-crystal' | 'purple-gold' | 'gold' | 'black' | 'red' | 'normal';
 
-export interface AutomationConfig {
+export interface AutomationConfig extends RanchAutomationConfig {
   farm: boolean;
   farm_harvest_tiangong: boolean;
   farm_push: boolean;
