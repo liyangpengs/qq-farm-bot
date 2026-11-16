@@ -51,6 +51,12 @@ const ranchSwitches = [
   ['ranch_task', '自动领取任务奖励'],
   ['ranch_share', '每日分享礼包'],
 ] as const
+const ranchFriendSwitches = [
+  ['ranch_friend_steal', '自动偷取产物'],
+  ['ranch_friend_clean', '自动清理'],
+  ['ranch_stroke', '自动抚摸动物'],
+  ['ranch_friend_mosquito', '自动放蚊子'],
+] as const
 const ranchStrategies = [
   { label: '按已解锁等级', value: 'level' },
   { label: '指定动物', value: 'preferred' },
@@ -82,6 +88,16 @@ const ranchStrategies = [
             </div>
             <div class="automation-setting-item">
               <BaseInput v-model.number="settings.automation.ranch_check_minutes" class="w-full" label="巡查间隔（分钟）" type="number" min="1" max="60" step="1" />
+            </div>
+          </div>
+          <div v-if="panel === 'automation'" class="mt-4">
+            <h4 class="mb-2 text-sm font-bold">
+              好友互动
+            </h4>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div v-for="[key, label] in ranchFriendSwitches" :key="key" class="automation-setting-item">
+                <BaseSwitch v-model="settings.automation[key]" :label="label" />
+              </div>
             </div>
           </div>
           <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2">

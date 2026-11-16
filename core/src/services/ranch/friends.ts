@@ -1,9 +1,12 @@
+import ranchLimits from '../../gameConfig/ranch/MCRanchFacilityConfig.json';
 export {};
 
 const { rpc, inScene } = require('./transport');
 const network = require('../../utils/network');
-const { error, positiveId, quantity, itemDto, sumItems } = require('./model');
-const { runWithSendContext } = require('./context');
+const { error, positiveId, positiveCount, quantity, itemDto, sumItems } = require('./model');
+const { animalDto } = require('./state');
+const reservations = require('./operation-state');
+const { getAmbientSendContext, runWithSendContext } = require('./context');
 const { logWarn } = require('../../utils/utils');
 
 function targets(ranches: any[]): any[] {
@@ -20,14 +23,18 @@ async function visit(hostGid: unknown, run: (entry: any, ranches: any[], host: s
     return inScene(async () => {
         const socket = network.getWs();
         let result: any;
+        let entryRejected = false;
         try {
             const entry = await rpc('enterFriend', { host_gid: host, reason: 2 });
             if (quantity(entry.basic?.gid) !== host || !entry.homestead_cells) throw error('RANCH_RESPONSE_MISMATCH', '好友牧场回包与目标不匹配');
             const detail = await rpc('animals', { host_gid: host });
             result = await run(entry, detail.ranches, host);
             return result;
+        } catch (error: any) {
+            entryRejected = error.name === 'GatewayError' && error.serviceName === 'gamepb.visitpb.VisitService' && error.methodName === 'EnterHomestead';
+            throw error;
         } finally {
-            if (network.getWs() === socket) {
+            if (!entryRejected && network.getWs() === socket) {
                 try {
                     await runWithSendContext({ check: () => null, onSent: () => {} }, () => rpc('leaveFriend', { host_gid: host }));
                 } catch (error: any) {
@@ -43,12 +50,147 @@ async function visit(hostGid: unknown, run: (entry: any, ranches: any[], host: s
 async function getFriend(hostGid: unknown): Promise<any> {
     return visit(hostGid, async (entry, ranches, host) => {
         const eligible = targets(ranches);
+        const times = await getInteractionTimes();
         return { gid: host, name: entry.basic.name, level: Number(entry.basic.big_farm_level),
             canSteal: eligible.length > 0, stealableShelves: eligible.length,
+            cleanableHazards: ranches.reduce((sum, ranch) => sum + cleanableHazards(ranch).length, 0),
+            strokeRemaining: times.stroke, mosquitoRemaining: times.putMosquito,
             ranches: ranches.map(ranch => ({ id: quantity(ranch.ranch_inst_id),
+                name: ranch.husbandry_type === 1 ? '窝' : '棚',
+                ...mosquitoState(ranch),
+                animals: ranch.animals.map((animal: any) => ({ ...animalDto(animal),
+                    stroked: hasStroked(animal), canStroke: times.stroke > 0 && canStroke(animal) })),
                 shelves: ranch.shelves.map((shelf: any) => ({ slot: shelf.slot_index,
                     canSteal: eligible.some(target => target.ranchId === quantity(ranch.ranch_inst_id) && target.slot === shelf.slot_index),
                     products: shelf.lots.map((lot: any) => itemDto({ id: lot.item_id, count: lot.remain_num })) })) })) };
+    });
+}
+
+async function getInteractionTimes(): Promise<any> {
+    const reply = await rpc('opTimes', { op_ids: [] });
+    const remaining = (id: number) => {
+        const op = reply.ops.find((row: any) => quantity(row.op_id) === String(id));
+        if (!op) throw error('RANCH_RESPONSE_MISMATCH', '牧场互动剩余次数未返回');
+        const count = Number(quantity(op.remaining_times));
+        if (!Number.isSafeInteger(count) || count < 0) throw error('RANCH_RESPONSE_MISMATCH', '牧场互动剩余次数无效');
+        return count;
+    };
+    return { stroke: remaining(11009), putMosquito: remaining(11003), release: remaining(11008) };
+}
+
+function hasStroked(animal: any): boolean {
+    const gid = quantity(network.getUserState().gid);
+    return !!animal.mutation?.stroked_gids.some((id: any) => quantity(id) === gid);
+}
+
+function canStroke(animal: any): boolean {
+    return !!animal.mutation?.strokable && !hasStroked(animal);
+}
+
+function mosquitoState(ranch: any): any {
+    const configId = { 1: 6001001, 2: 6002001 }[ranch.husbandry_type as 1 | 2];
+    const mosquitoLimit = ranchLimits.find(row => row.id === configId)?.mosquito_max_count ?? 0;
+    const mosquitoes = ranch.hazards.filter((hazard: any) => hazard.hazard_type === 1).length;
+    return { mosquitoes, mosquitoLimit, mosquitoRoom: Math.max(0, mosquitoLimit - mosquitoes) };
+}
+
+function cleanableHazards(ranch: any): any[] {
+    const gid = quantity(network.getUserState().gid);
+    return ranch.hazards.filter((hazard: any) => hazard.hazard_type !== 1 || quantity(hazard.owner) !== gid);
+}
+
+function interactionPlan(action: string, input: any, ranches: any[], host: string, times: any): any {
+    if (action === 'cleanFriend') {
+        const pens = ranches.filter(ranch => cleanableHazards(ranch).length);
+        const payload = { host_gid: host, ranch_inst_ids: pens.map(ranch => quantity(ranch.ranch_inst_id)) };
+        const hazards = pens.flatMap(ranch => cleanableHazards(ranch).map((hazard: any) => `${quantity(ranch.ranch_inst_id)}:${quantity(hazard.hazard_id)}`));
+        return { action, label: '清理好友牧场', payload, count: hazards.length, target: `ranch:cleanFriend:${host}`,
+            signature: JSON.stringify({ action, payload, hazards }) };
+    }
+    const ranchId = positiveId(input.ranchId, '牧场设施');
+    const ranch = ranches.find(row => quantity(row.ranch_inst_id) === ranchId);
+    if (!ranch) throw error('RANCH_STATE_CHANGED', '好友栏舍已变化，请刷新');
+    if (times[action] <= 0) throw error('RANCH_INTERACTION_LIMIT', '今日互动次数已用完');
+    let payload: any; let label: string; let marker: any;
+    if (action === 'stroke') {
+        const animalId = positiveCount(input.animalId);
+        const animal = ranch.animals.find((row: any) => row.animal_inst_id === animalId);
+        if (!animal || !canStroke(animal)) throw error('RANCH_STATE_CHANGED', '这只动物已抚摸或当前不能抚摸');
+        payload = { host_gid: host, target: { ranch_inst_id: ranchId, animal_inst_id: animalId } };
+        label = `抚摸${animalDto(animal).name}`;
+        marker = quantity(animal.animal_id);
+    } else {
+        const state = mosquitoState(ranch);
+        if (!state.mosquitoLimit) throw error('RANCH_CONFIG_UNKNOWN', '该栏舍的蚊子上限尚未确认');
+        if (!state.mosquitoRoom) throw error('RANCH_HAZARD_FULL', `该栏舍已有 ${state.mosquitoLimit} 只蚊子`);
+        payload = { host_gid: host, ranch_inst_id: ranchId, op_id: 11003, count: 1 };
+        label = `向好友${ranch.husbandry_type === 1 ? '窝' : '棚'}放蚊子`;
+        // 同一栏舍的未决投放始终共用目标，不因新污物而重复提交。
+        marker = { mosquitoes: state.mosquitoes, limit: state.mosquitoLimit, hazards: ranch.hazards.map((hazard: any) => quantity(hazard.hazard_id)) };
+    }
+    return { action, label, payload, marker, remaining: times[action], count: 1,
+        target: `ranch:${action}:${host}:${ranchId}${action === 'stroke' ? `:${payload.target.animal_inst_id}` : ''}`,
+        signature: JSON.stringify({ action, payload, marker }) };
+}
+
+async function prepareInteraction(action: string, input: any): Promise<any> {
+    return visit(input.hostGid, async (_entry, ranches, host) => {
+        const plan = interactionPlan(action, input, ranches, host, action === 'cleanFriend' ? null : await getInteractionTimes());
+        return { action, label: plan.label, costs: [], costItems: [], rewards: [], count: plan.count,
+            expected: { signature: plan.signature }, skipped: plan.count === 0 };
+    });
+}
+
+async function commitInteraction(plan: any): Promise<any> {
+    if (!plan.count) return { action: plan.action, status: 'skipped', costs: [], rewards: [], completed: 0, snapshot: null };
+    return reservations.forCurrentAccount().spend({ target: plan.target, label: plan.label, costs: [], balances: [] }, async () => {
+        const reply = await rpc(plan.action === 'cleanFriend' ? 'clean' : plan.action, plan.payload, true);
+        const remaining = Number(quantity(reply.remaining_times));
+        const invalid = () => { throw error('RANCH_RESULT_UNKNOWN', `${plan.label}结果未能确认，请刷新核对，勿重复提交`); };
+        if (plan.action !== 'cleanFriend' && remaining !== plan.remaining - 1) invalid();
+        let rewards: any[];
+        let completed = 1;
+        if (plan.action === 'cleanFriend') {
+            const keys = new Set<string>();
+            for (const row of reply.op_results) {
+                const key = `${quantity(row.facility_inst_id)}:${quantity(row.target_id)}`;
+                if (row.kind !== 3 || !plan.payload.ranch_inst_ids.includes(quantity(row.facility_inst_id))
+                    || BigInt(quantity(row.target_id)) <= 0n || keys.has(key) || row.costs.length) invalid();
+                keys.add(key);
+            }
+            completed = reply.op_results.length;
+            rewards = reply.op_results.flatMap((row: any) => row.rewards);
+        } else if (plan.action === 'stroke') {
+            const target = plan.payload.target;
+            const result = reply.op_result;
+            const animal = reply.ranches.find((ranch: any) => quantity(ranch.ranch_inst_id) === target.ranch_inst_id)
+                ?.animals.find((row: any) => row.animal_inst_id === target.animal_inst_id);
+            if (!result || result.kind !== 1 || quantity(result.facility_inst_id) !== target.ranch_inst_id
+                || quantity(result.target_id) !== String(target.animal_inst_id) || result.costs.length
+                || !animal || quantity(animal.animal_id) !== plan.marker || !hasStroked(animal)
+                || reply.triggered && !animal.mutation?.mutation_type) invalid();
+            rewards = result.rewards;
+        } else {
+            const owned = reply.hazards.filter((hazard: any) => hazard.hazard_type === 1 && quantity(hazard.owner) === quantity(network.getUserState().gid));
+            const mosquitoes = reply.hazards.filter((hazard: any) => hazard.hazard_type === 1);
+            if (quantity(reply.actual_count) !== '1' || owned.filter((hazard: any) => !plan.marker.hazards.includes(quantity(hazard.hazard_id))).length !== 1 || mosquitoes.length > plan.marker.limit
+                || new Set(reply.hazards.map((hazard: any) => quantity(hazard.hazard_id))).size !== reply.hazards.length) invalid();
+            rewards = reply.rewards;
+        }
+        if (rewards.some((item: any) => BigInt(quantity(item.count)) <= 0n)) invalid();
+        const items = sumItems(rewards);
+        return { action: plan.action, status: completed ? 'confirmed' : 'skipped', snapshot: null, costs: [], rewards: items, completed,
+            remainingTimes: plan.action === 'cleanFriend' ? undefined : remaining, triggered: reply.triggered === true, refreshRequired: true,
+            notice: `${plan.label}${completed ? '完成' : '当前已无可清理项目'}${reply.triggered ? '，触发巨大变异' : ''}${items.length ? `，获得 ${items.map((item: any) => `${item.name} ×${item.count}`).join('、')}` : ''}` };
+    });
+}
+
+async function interact(action: string, input: any): Promise<any> {
+    return visit(input.hostGid, async (_entry, ranches, host) => {
+        const plan = interactionPlan(action, input, ranches, host, action === 'cleanFriend' ? null : await getInteractionTimes());
+        if (!plan.count) return commitInteraction(plan);
+        if (input.expected?.signature !== plan.signature) throw error('RANCH_OFFER_CHANGED', '好友牧场状态已变化，请重新确认');
+        return commitInteraction(plan);
     });
 }
 
@@ -67,6 +209,12 @@ async function steal(input: any): Promise<any> {
         const plan = quote(host, ranches);
         if (plan.skipped) return { status: 'skipped', snapshot: null, costs: [], rewards: [], completed: 0, refreshRequired: true };
         if (input.expected?.signature !== plan.expected.signature) throw error('RANCH_OFFER_CHANGED', '好友牧场可偷产物已变化，请重新确认');
+        return commitSteal(host, ranches, plan);
+    });
+}
+
+async function commitSteal(host: string, ranches: any[], plan: any): Promise<any> {
+    return reservations.forCurrentAccount().spend({ target: `ranch:steal:${host}`, label: plan.label, costs: [], balances: [] }, async () => {
         // 原生一键偷取使用空 targets，由服务端筛选当前可偷货架。
         const reply = await rpc('steal', { host_gid: host, targets: [] }, true);
         const eligible = targets(ranches);
@@ -83,10 +231,55 @@ async function steal(input: any): Promise<any> {
         const completed = reply.op_results.length;
         const rewards = sumItems(reply.op_results.flatMap((row: any) => row.rewards));
         const notice = rewards.length ? `获得 ${rewards.map((item: any) => `${item.name} ×${item.count}`).join('、')}` : '当前没有可偷取的产物';
-        return { status: completed ? 'confirmed' : 'skipped', snapshot: null, costs: [],
+        return { action: 'steal', status: completed ? 'confirmed' : 'skipped', snapshot: null, costs: [],
             rewards, completed, refreshRequired: true,
             notice: completed < plan.count ? `${notice}；已完成 ${completed} / ${plan.count} 个货架，请刷新核对` : notice };
     });
 }
 
-module.exports = { getFriend, prepareSteal, steal };
+// 每位好友只进出一次，各动作仍使用手动入口的资格检查和回包确认。
+async function automateFriend(hostGid: unknown, enabled: (action: string) => boolean): Promise<any> {
+    return visit(hostGid, async (_entry, ranches, host) => {
+        const results: any[] = [];
+        const times = enabled('stroke') || enabled('putMosquito') ? await getInteractionTimes() : {};
+        async function act(action: string, run: () => Promise<any>): Promise<any> {
+            if (!enabled(action)) return null;
+            const parent = getAmbientSendContext();
+            const outcome = await runWithSendContext({ ...parent,
+                check: (service: string, method: string) => parent?.check(service, method) || (enabled(action) ? null
+                    : error('BUILTIN_PAUSED', '好友互动开关已关闭')),
+                onSent: (service: string, method: string) => parent?.onSent(service, method),
+            }, run);
+            if (outcome.status === 'confirmed') results.push(outcome);
+            return outcome;
+        }
+        if (enabled('cleanFriend')) {
+            const cleaned = await act('cleanFriend', () => commitInteraction(interactionPlan('cleanFriend', {}, ranches, host, null)));
+            if (cleaned?.status === 'confirmed') ranches = (await rpc('animals', { host_gid: host })).ranches;
+        }
+        const stealPlan = quote(host, ranches);
+        if (!stealPlan.skipped) await act('steal', () => commitSteal(host, ranches, stealPlan));
+        for (const ranch of ranches) {
+            for (const animal of ranch.animals) {
+                if (!enabled('stroke') || times.stroke <= 0) break;
+                if (!canStroke(animal)) continue;
+                const input = { ranchId: quantity(ranch.ranch_inst_id), animalId: animal.animal_inst_id };
+                const outcome = await act('stroke', () => commitInteraction(interactionPlan('stroke', input, ranches, host, times)));
+                if (outcome) times.stroke = outcome.remainingTimes;
+            }
+            const toPlace = Math.min(times.putMosquito || 0, mosquitoState(ranch).mosquitoRoom);
+            for (let count = 0; count < toPlace && enabled('putMosquito') && times.putMosquito > 0 && mosquitoState(ranch).mosquitoRoom > 0; count++) {
+                const input = { ranchId: quantity(ranch.ranch_inst_id) };
+                const outcome = await act('putMosquito', () => commitInteraction(interactionPlan('putMosquito', input, ranches, host, times)));
+                if (!outcome) break;
+                times.putMosquito = outcome.remainingTimes;
+                const latest = (await rpc('animals', { host_gid: host })).ranches.find((row: any) => quantity(row.ranch_inst_id) === input.ranchId);
+                if (!latest) break;
+                ranch.hazards = latest.hazards;
+            }
+        }
+        return { results, times };
+    });
+}
+
+module.exports = { getFriend, prepareSteal, steal, getInteractionTimes, prepareInteraction, interact, automateFriend };

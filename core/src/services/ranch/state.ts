@@ -26,6 +26,23 @@ async function resourceBalance(raw: any, id: number): Promise<any> {
     return raw.diamondBalance;
 }
 
+function animalDto(animal: any): any {
+    const cfg = animalMap.get(Number(animal.animal_id));
+    const stageNames = ['未知', '幼崽期', '成长期', '生产期', '成熟期', '可收获'];
+    const nextTimes = [animal.infant_ready_at_ms, animal.grow_ready_at_ms, animal.produce_ready_at_ms, animal.mature_ready_at_ms].map(Number).filter(time => time > getServerTimeSec() * 1000);
+    const mutation = animal.mutation;
+    return {
+        id: animal.animal_inst_id, ranchId: quantity(animal.ranch_inst_id), animalId: Number(animal.animal_id), slot: animal.slot_index,
+        name: `${mutation?.mutation_type ? '巨大' : ''}${cfg?.name || `动物${animal.animal_id}`}`, image: itemDto({ id: (mutation?.mutation_type && mutationMap.get(Number(animal.animal_id))?.giant_product_item) || cfg?.product_item?.id || Number(animal.animal_id), count: 1 }).image,
+        stage: animal.stage, stageName: animal.can_harvest ? '可收获' : animal.can_deliver ? '可生产' : animal.grass_blocked ? '缺少牧草' : stageNames[animal.stage],
+        nextAtMs: nextTimes.length ? Math.min(...nextTimes) : null, grassBlocked: animal.grass_blocked,
+        produceCount: animal.produce_count, maxProduceCount: cfg?.max_produce_count ?? null,
+        canProduce: animal.can_deliver, canHarvest: animal.can_harvest, canFeed: animal.can_feed, canRelease: animal.can_donate,
+        limitedCanUsed: animal.limited_can_used,
+        mutation: mutation ? { type: mutation.mutation_type, source: mutation.source, weightX10: mutation.weight_display_x10, finalWeightX10: mutation.weight_final_x10, tier: mutation.tier, canStroke: mutation.strokable } : null,
+    };
+}
+
 function facilityDto(facility: any, level: number): any {
     const metadata = facilityMap.get(Number(facility.facility_id));
     const next = facilityMap.get(metadata?.next_facility_id);
@@ -51,22 +68,7 @@ function facilityDto(facility: any, level: number): any {
             shelves: facility.ranch.shelves.map((shelf: any) => ({ slot: shelf.slot_index, remaining: quantity(shelf.total_remain), canCollect: shelf.can_collect,
                 products: shelf.lots.map((lot: any) => ({ ...itemDto({ id: lot.item_id, count: lot.remain_num }), stolen: quantity(lot.stolen_num) })) })),
             hazards: facility.ranch.hazards.map((hazard: any) => ({ id: quantity(hazard.hazard_id), type: hazard.hazard_type })),
-            animals: facility.ranch.animals.map((animal: any) => {
-                const cfg = animalMap.get(Number(animal.animal_id));
-                const stageNames = ['未知', '幼崽期', '成长期', '生产期', '成熟期', '可收获'];
-                const nextTimes = [animal.infant_ready_at_ms, animal.grow_ready_at_ms, animal.produce_ready_at_ms, animal.mature_ready_at_ms].map(Number).filter(time => time > getServerTimeSec() * 1000);
-                const mutation = animal.mutation;
-                return {
-                    id: animal.animal_inst_id, ranchId: quantity(animal.ranch_inst_id), animalId: Number(animal.animal_id), slot: animal.slot_index,
-                    name: `${mutation?.mutation_type ? '巨大' : ''}${cfg?.name || `动物${animal.animal_id}`}`, image: itemDto({ id: (mutation?.mutation_type && mutationMap.get(Number(animal.animal_id))?.giant_product_item) || cfg?.product_item?.id || Number(animal.animal_id), count: 1 }).image,
-                    stage: animal.stage, stageName: animal.can_harvest ? '可收获' : animal.can_deliver ? '可生产' : animal.grass_blocked ? '缺少牧草' : stageNames[animal.stage],
-                    nextAtMs: nextTimes.length ? Math.min(...nextTimes) : null, grassBlocked: animal.grass_blocked,
-                    produceCount: animal.produce_count, maxProduceCount: cfg?.max_produce_count ?? null,
-                    canProduce: animal.can_deliver, canHarvest: animal.can_harvest, canFeed: animal.can_feed,
-                    limitedCanUsed: animal.limited_can_used,
-                    mutation: mutation ? { type: mutation.mutation_type, source: mutation.source, weightX10: mutation.weight_display_x10, finalWeightX10: mutation.weight_final_x10, tier: mutation.tier, canStroke: mutation.strokable } : null,
-                };
-            }),
+            animals: facility.ranch.animals.map(animalDto),
         } : null,
     };
 }
@@ -229,4 +231,4 @@ async function resourceBalances(keys: string[]): Promise<any[]> {
     });
 }
 
-module.exports = { getState, loadRaw, snapshot, balance, bagItems, inventory, taskList, catalog, market, canCatalog, resourceBalance, isRanchResource, resourceBalances };
+module.exports = { getState, loadRaw, snapshot, balance, bagItems, inventory, taskList, catalog, market, canCatalog, resourceBalance, isRanchResource, resourceBalances, animalDto };

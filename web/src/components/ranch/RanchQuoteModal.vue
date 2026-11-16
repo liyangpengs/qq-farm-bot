@@ -19,7 +19,7 @@ function costName(item: { id: number, name: string }) {
 </script>
 
 <template>
-  <ConfirmModal :show="!!pending" :title="quote?.label || '确认牧场操作'" message="" :loading="busy" confirm-text="确认" @cancel="cancel" @confirm="confirm">
+  <ConfirmModal :show="!!pending" :title="quote?.label || '确认牧场操作'" message="" :loading="busy" :type="quote?.action === 'release' ? 'danger' : 'primary'" :confirm-text="quote?.action === 'release' ? '确认放生' : '确认'" @cancel="cancel" @confirm="confirm">
     <div v-if="quote" class="quote">
       <p v-if="quote.count > 1" class="quote__count">
         本次共 <b>{{ quote.count }}</b> 项
@@ -40,8 +40,8 @@ function costName(item: { id: number, name: string }) {
           <b class="quote__amount">×{{ formatCount(reward.count) }}</b>
         </div>
       </section>
-      <p v-if="!quote.costItems.length && !quote.rewards.length" class="quote__plain">
-        确认执行这次操作？
+      <p v-if="quote.message || !quote.costItems.length && !quote.rewards.length" class="quote__plain">
+        {{ quote.message || '确认执行这次操作？' }}
       </p>
     </div>
   </ConfirmModal>

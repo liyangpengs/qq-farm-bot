@@ -3,6 +3,7 @@ import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { formatCount, useRanchActions } from '@/components/ranch/ranch-shared'
+import RanchAnimalCard from '@/components/ranch/RanchAnimalCard.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
@@ -149,6 +150,28 @@ async function reloadList() {
               <p v-if="detail.notice" class="friend-shelves__notice" role="alert">
                 {{ detail.notice }}
               </p>
+              <div class="friend-interactions">
+                <span>今日可抚摸 <b>{{ detail.strokeRemaining }}</b> 次</span>
+                <span>今日可放蚊子 <b>{{ detail.mosquitoRemaining }}</b> 次</span>
+                <NButton size="small" secondary :disabled="disabled || !detail.cleanableHazards" @click="request('cleanFriend', { hostGid: friend.gid })">
+                  一键清理
+                </NButton>
+              </div>
+              <section v-for="pen in detail.ranches" :key="pen.id" class="friend-pen">
+                <div class="friend-shelves__head">
+                  <h4>{{ pen.name }} <small>蚊子 {{ pen.mosquitoes }} / {{ pen.mosquitoLimit }}</small></h4>
+                  <NButton size="small" secondary :disabled="disabled || !pen.mosquitoRoom || !detail.mosquitoRemaining" :aria-label="`向好友${pen.name}放蚊子`" @click="request('putMosquito', { hostGid: friend.gid, ranchId: pen.id })">
+                    放蚊子
+                  </NButton>
+                </div>
+                <div class="friend-pen__animals">
+                  <RanchAnimalCard
+                    v-for="animal in pen.animals" :key="animal.id" :animal="animal" :pen="pen.name"
+                    friend actionable :disabled="disabled"
+                    @stroke="request('stroke', { hostGid: friend.gid, ranchId: pen.id, animalId: animal.id })"
+                  />
+                </div>
+              </section>
               <div class="friend-shelves__head">
                 <span><span class="i-carbon-box" aria-hidden="true" />货架产物</span>
                 <NButton size="small" type="primary" :disabled="disabled || !detail.canSteal" @click="request('steal', { hostGid: friend.gid })">
@@ -184,6 +207,38 @@ async function reloadList() {
 </template>
 
 <style scoped>
+.friend-interactions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.friend-interactions b {
+  color: var(--ui-primary);
+}
+.friend-pen {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+.friend-pen h4 {
+  margin: 0;
+  font-size: 14px;
+}
+.friend-pen h4 small {
+  margin-left: 6px;
+  color: var(--ui-subtle);
+  font-weight: normal;
+}
+.friend-pen__animals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+}
+
 .friends {
   display: flex;
   min-width: 0;
