@@ -73,7 +73,7 @@ const stockTiles = computed(() => {
 const todo = computed(() => [
   { key: 'harvest', label: '可收获', icon: 'i-carbon-wheat text-amber-500', value: animals.value.filter(({ animal }) => animal.canHarvest).length + shelvesReady.value },
   { key: 'produce', label: '可生产', icon: 'i-carbon-circle-dash text-green-500', value: animals.value.filter(({ animal }) => animal.canProduce).length },
-  { key: 'feed', label: '可催生', icon: 'i-carbon-flash text-sky-500', value: animals.value.filter(({ animal }) => animal.canFeed).length },
+  { key: 'feed', label: '可喂养', icon: 'i-carbon-flash text-sky-500', value: animals.value.filter(({ animal }) => animal.canFeed).length },
   { key: 'clean', label: '待清理', icon: 'i-carbon-clean text-violet-400', value: hazards.value },
 ])
 

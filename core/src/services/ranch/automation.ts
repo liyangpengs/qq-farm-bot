@@ -14,6 +14,25 @@ const { getAmbientSendContext, runWithSendContext } = require('./context');
 const daily = require('./daily');
 
 let nextCheckAt = 0;
+let nextFriendIndex = 0;
+let friendVisits = 0;
+let pendingFriendGid: string | null = null;
+let cycleStartedAt = 0;
+let cycleChanged = false;
+const completedPhases = new Set<string>();
+const completedSteps = new Set<string>();
+const PATROL_SLICE_MS = 5000;
+const SCENE_REENTRY_MS = 20_000;
+
+function resetCycle(): void {
+    completedPhases.clear();
+    completedSteps.clear();
+    friendVisits = 0;
+    pendingFriendGid = null;
+    cycleStartedAt = 0;
+    cycleChanged = false;
+}
+const FRIEND_CONTROLS: Record<string, string> = { stroke: 'ranch_stroke', steal: 'ranch_friend_steal', cleanFriend: 'ranch_friend_clean', putMosquito: 'ranch_friend_mosquito' };
 const enabled = (key: string) => getAutomation()[key] === true;
 const due = (state: any) => !state.doneToday && Date.now() >= (state.nextCheckAt || 0);
 
@@ -33,14 +52,45 @@ function selectAnimal(goods: any[], settings: RanchAutomationConfig, kind: numbe
     return candidates.sort((a, b) => level(b) - level(a) || b.animal.id - a.animal.id)[0];
 }
 
-async function run(): Promise<void> {
+async function run(options: { farmDeadline?: () => number } = {}): Promise<void> {
     if (getRoutineState().doneToday) return;
     const auto: RanchAutomationConfig = getAutomation();
-    nextCheckAt = Date.now() + auto.ranch_check_minutes * 60_000;
+    if (!cycleStartedAt) cycleStartedAt = Date.now();
+    nextCheckAt = cycleStartedAt + auto.ranch_check_minutes * 60_000;
     try {
         await inScene(async (cells: any) => {
+            const startedAt = Date.now();
+            let steps = 0;
+            const shouldYield = () => Date.now() >= Math.min(startedAt + PATROL_SLICE_MS, options.farmDeadline?.() ?? Infinity);
+            const checkpoint = () => {
+                if (steps > 0 && shouldYield()) throw Object.assign(new Error('牧场巡查让路'), { code: 'RANCH_PATROL_YIELD' });
+            };
+            async function phase(name: string, work: () => Promise<any>): Promise<void> {
+                if (completedPhases.has(name)) return;
+                await work();
+                completedPhases.add(name);
+            }
             let raw = await loadRaw(cells);
-            let changed = false;
+            let nextActionAt = Infinity;
+            const updateDeadline = () => {
+                const state = snapshot(raw);
+                const upcoming = state.facilities.flatMap((f: any) => [
+                    ...(auto.ranch_harvest || auto.ranch_produce ? (f.ranch?.animals || []).map((a: any) => a.nextAtMs) : []),
+                    auto.ranch_upgrade && f.upgradeState ? (f.upgradeEndTime < 100_000_000_000 ? f.upgradeEndTime * 1000 : f.upgradeEndTime) : 0,
+                ]).filter((at: any) => at > state.serverTime);
+                nextActionAt = upcoming.length ? Date.now() + Math.min(...upcoming) - state.serverTime : Infinity;
+                // 续跑期间出现新成熟动物时，先处理自家产出，再接着原来的进度。
+                for (const [action, flag] of [['harvest', 'can_harvest'], ['produce', 'can_deliver']]) {
+                    const ready = raw.cells.facilities.some((f: any) => f.ranch?.animals.some((a: any) => a[flag])
+                        || action === 'harvest' && f.ranch?.shelves.some((s: any) => s.can_collect));
+                    if (ready && enabled(action === 'harvest' ? 'ranch_harvest' : 'ranch_produce')) {
+                        completedPhases.delete(action);
+                        completedSteps.delete(`${action}:{"all":true}`);
+                        nextActionAt = Math.min(nextActionAt, Date.now());
+                    }
+                }
+            };
+            updateDeadline();
             const available = (id: number) => {
                 const funds = balance(raw.bag, id);
                 return BigInt(funds.total) - BigInt(funds.locked) - BigInt(reservations.forCurrentAccount().reserved(`item:${id}`));
@@ -53,115 +103,174 @@ async function run(): Promise<void> {
             async function act(key: string, action: string, input: any = {}, currency?: number): Promise<boolean> {
                 const isEnabled = () => enabled(key) && (key !== 'ranch_grass_buy' || enabled('ranch_grass'));
                 if (!isEnabled()) return false;
+                const step = `${action}:${JSON.stringify(input)}`;
+                if (completedSteps.has(step)) return false;
+                checkpoint();
+                let label = action;
                 try {
                     const quote = await prepareAction(action, input);
-                    if (quote.skipped || currency && quote.costItems.some((cost: any) => cost.id !== currency)) return false;
+                    label = quote.label;
+                    if (quote.skipped || currency && quote.costItems.some((cost: any) => cost.id !== currency)) {
+                        completedSteps.add(step);
+                        steps++;
+                        return false;
+                    }
                     if (!isEnabled()) return false;
+                    checkpoint();
                     const parent = getAmbientSendContext();
                     const result = await runWithSendContext({
                         check: (service: string, method: string) => parent?.check(service, method) || (isEnabled() ? null
                             : Object.assign(new Error('牧场操作开关已关闭'), { code: 'RANCH_AUTOMATION_DISABLED' })),
                         onSent: (service: string, method: string) => parent?.onSent(service, method),
                     }, () => operate(action, { ...input, expected: quote.expected }));
+                    completedSteps.add(step);
+                    steps++;
                     if (result.status === 'skipped') return false;
-                    changed = true;
+                    cycleChanged = true;
                     log('牧场', `${quote.label}${result.notice ? `：${result.notice}` : '完成'}`, { module: 'ranch', event: `ranch_${action}`, result: 'ok' });
                     raw = await loadRaw();
+                    updateDeadline();
                     return true;
                 } catch (error: any) {
                     // 状态或余额变化交给下一次巡查重新报价；已发出但结果未知的写入由持久账本保护。
                     if (['INSUFFICIENT_BALANCE', 'RESERVE_PROTECTED', 'PENDING_CONFIRMATION', 'RANCH_OFFER_CHANGED', 'GOODS_UNAVAILABLE', 'RANCH_STATE_CHANGED'].includes(error.code)) {
-                        log('牧场', `${action} 暂未执行：${error.message}`, { module: 'ranch', event: `ranch_${action}`, result: 'skipped' });
+                        completedSteps.add(step);
+                        steps++;
+                        log('牧场', `${label} 暂未执行：${error.message}`, { module: 'ranch', event: `ranch_${action}`, result: 'skipped' });
                         return false;
                     }
                     throw error;
                 }
             }
 
-            await act('ranch_harvest', 'harvest', { all: true });
-            await act('ranch_produce', 'produce', { all: true });
-            await act('ranch_clean', 'clean');
-            await act('ranch_sell', 'sell', { all: true });
+            await phase('harvest', () => act('ranch_harvest', 'harvest', { all: true }));
+            await phase('produce', () => act('ranch_produce', 'produce', { all: true }));
+            await phase('clean', () => act('ranch_clean', 'clean'));
+            await phase('sell', () => act('ranch_sell', 'sell', { all: true }));
 
-            if (enabled('ranch_upgrade')) {
-                for (const facility of snapshot(raw).facilities) {
-                    const end = facility.upgradeEndTime < 100_000_000_000 ? facility.upgradeEndTime * 1000 : facility.upgradeEndTime;
-                    if (facility.active && facility.upgradeState && (facility.upgradeState === 2 || end <= getServerTimeSec() * 1000)) {
-                        await act('ranch_upgrade', 'completeUpgrade', { facilityId: facility.id });
-                    } else if (facility.next?.available) {
-                        await act('ranch_upgrade', 'upgrade', { facilityId: facility.id }, 1007);
-                    }
-                }
-            }
-
-            if (enabled('ranch_buy') && raw.cells.facilities.some((f: any) => f.state === 1 && f.ranch && f.ranch.animal_count < f.ranch.capacity)) {
-                const shop = await catalog(raw, 5);
-                for (const original of raw.cells.facilities.filter((f: any) => f.state === 1 && f.ranch)) {
-                    const id = quantity(original.instance_id);
-                    const selected = selectAnimal(shop.goods, auto, original.ranch.husbandry_type);
-                    const stock = inventory(raw).filter((item: any) => !item.locked && item.animalId && BigInt(item.count) > 0n
-                        && cubMap.get(item.id).husbandry_type === (original.ranch.husbandry_type === 1 ? '窝' : '棚')
-                        && (auto.ranch_strategy === 'bag_priority' || item.animalId === selected?.animal.id)).sort((a: any, b: any) => b.animalId - a.animalId);
-                    const room = () => {
-                        const current = raw.cells.facilities.find((f: any) => quantity(f.instance_id) === id);
-                        return current.ranch.capacity - current.ranch.animal_count;
-                    };
-                    for (const item of stock) {
-                        const count = Number(BigInt(Math.max(0, room())) < available(item.id) ? BigInt(Math.max(0, room())) : available(item.id));
-                        if (count > 0) await act('ranch_buy', 'place', { ranchId: id, itemId: item.id, count });
-                    }
-                    if (room() > 0 && selected) {
-                        const count = affordable(selected, Math.min(room(), selected.maxCount, selected.remaining ?? Infinity));
-                        if (count > 0) await act('ranch_buy', 'buy', { shopId: 5, goodsId: selected.id, count, autoPlace: true }, 1007);
-                    }
-                }
-            }
-
-            if (enabled('ranch_grass')) {
-                for (const original of raw.cells.facilities.filter((f: any) => f.state === 1 && f.feed_machine)) {
-                    const id = quantity(original.instance_id);
-                    const room = original.capacity - original.feed_machine.feed_count;
-                    if (room <= 0) continue;
-                    const stock = Math.max(0, Number(available(7001)));
-                    if (stock < room && enabled('ranch_grass_buy')) {
-                        const shop = await catalog(raw, 6);
-                        const good = shop.goods.find((g: any) => g.available && g.reward.id === 7001 && g.reward.count === '1' && g.price.id === 1007 && BigInt(g.price.count) > 0n);
-                        if (good) {
-                            const count = affordable(good, Math.min(room - stock, good.maxCount, good.remaining ?? Infinity));
-                            if (count > 0) await act('ranch_grass_buy', 'buy', { shopId: 6, goodsId: good.id, count }, 1007);
+            await phase('upgrade', async () => {
+                if (enabled('ranch_upgrade')) {
+                    for (const facility of snapshot(raw).facilities) {
+                        const end = facility.upgradeEndTime < 100_000_000_000 ? facility.upgradeEndTime * 1000 : facility.upgradeEndTime;
+                        if (facility.active && facility.upgradeState && (facility.upgradeState === 2 || end <= getServerTimeSec() * 1000)) {
+                            await act('ranch_upgrade', 'completeUpgrade', { facilityId: facility.id });
+                        } else if (facility.next?.available) {
+                            await act('ranch_upgrade', 'upgrade', { facilityId: facility.id }, 1007);
                         }
                     }
-                    const count = Math.min(room, Number(available(7001)));
-                    if (count > 0) await act('ranch_grass', 'addGrass', { facilityId: id, count });
                 }
-            }
+            });
 
-            if (enabled('ranch_fill_cans')) {
-                for (const item of inventory(raw).filter((item: any) => item.can && !item.locked)) {
-                    const count = Number(BigInt(item.count) < available(item.id) ? BigInt(item.count) : available(item.id));
-                    if (count > 0) await act('ranch_fill_cans', 'useCan', { uid: item.uid, count });
+            await phase('buy', async () => {
+                if (enabled('ranch_buy') && raw.cells.facilities.some((f: any) => f.state === 1 && f.ranch && f.ranch.animal_count < f.ranch.capacity)) {
+                    const shop = await catalog(raw, 5);
+                    for (const original of raw.cells.facilities.filter((f: any) => f.state === 1 && f.ranch)) {
+                        const id = quantity(original.instance_id);
+                        const selected = selectAnimal(shop.goods, auto, original.ranch.husbandry_type);
+                        const stock = inventory(raw).filter((item: any) => !item.locked && item.animalId && BigInt(item.count) > 0n
+                            && cubMap.get(item.id).husbandry_type === (original.ranch.husbandry_type === 1 ? '窝' : '棚')
+                            && (auto.ranch_strategy === 'bag_priority' || item.animalId === selected?.animal.id)).sort((a: any, b: any) => b.animalId - a.animalId);
+                        const room = () => {
+                            const current = raw.cells.facilities.find((f: any) => quantity(f.instance_id) === id);
+                            return current.ranch.capacity - current.ranch.animal_count;
+                        };
+                        for (const item of stock) {
+                            const count = Number(BigInt(Math.max(0, room())) < available(item.id) ? BigInt(Math.max(0, room())) : available(item.id));
+                            if (count > 0) await act('ranch_buy', 'place', { ranchId: id, itemId: item.id, count });
+                        }
+                        if (room() > 0 && selected) {
+                            const count = affordable(selected, Math.min(room(), selected.maxCount, selected.remaining ?? Infinity));
+                            if (count > 0) await act('ranch_buy', 'buy', { shopId: 5, goodsId: selected.id, count, autoPlace: true }, 1007);
+                        }
+                    }
                 }
-            }
-            if (enabled('ranch_feed_normal') && available(7003) > 0n) await act('ranch_feed_normal', 'feed', { all: true, bucketType: 2 });
-            if (enabled('ranch_feed_organic') && available(7004) > 0n) await act('ranch_feed_organic', 'feed', { all: true, bucketType: 1 });
+            });
 
-            if (changed) daily.markTasksChanged();
-            if (enabled('ranch_task') && due(daily.getTaskRoutineState())) await daily.claimTasks();
-            if (enabled('ranch_share') && due(daily.getShareRoutineState())) await daily.claimShare();
-            // 成长、生产和建筑完成时间可提前唤醒；仍由现有 30 秒例程统一调度。
-            const state = snapshot(raw);
-            const upcoming = state.facilities.flatMap((f: any) => [
-                ...(f.ranch?.animals || []).map((a: any) => a.nextAtMs),
-                f.upgradeState ? (f.upgradeEndTime < 100_000_000_000 ? f.upgradeEndTime * 1000 : f.upgradeEndTime) : 0,
-            ]).filter((at: any) => at > state.serverTime);
-            if (upcoming.length) nextCheckAt = Math.min(nextCheckAt, Date.now() + Math.max(30_000, Math.min(...upcoming) - state.serverTime));
-            if (changed) nextCheckAt = Math.min(nextCheckAt, Date.now() + 30_000);
+            await phase('grass', async () => {
+                if (enabled('ranch_grass')) {
+                    for (const original of raw.cells.facilities.filter((f: any) => f.state === 1 && f.feed_machine)) {
+                        const id = quantity(original.instance_id);
+                        const room = original.capacity - original.feed_machine.feed_count;
+                        if (room <= 0) continue;
+                        const stock = Math.max(0, Number(available(7001)));
+                        if (stock < room && enabled('ranch_grass_buy')) {
+                            const shop = await catalog(raw, 6);
+                            const good = shop.goods.find((g: any) => g.available && g.reward.id === 7001 && g.reward.count === '1' && g.price.id === 1007 && BigInt(g.price.count) > 0n);
+                            if (good) {
+                                const count = affordable(good, Math.min(room - stock, good.maxCount, good.remaining ?? Infinity));
+                                if (count > 0) await act('ranch_grass_buy', 'buy', { shopId: 6, goodsId: good.id, count }, 1007);
+                            }
+                        }
+                        const count = Math.min(room, Number(available(7001)));
+                        if (count > 0) await act('ranch_grass', 'addGrass', { facilityId: id, count });
+                    }
+                }
+            });
+
+            await phase('cans', async () => {
+                if (enabled('ranch_fill_cans')) {
+                    for (const item of inventory(raw).filter((item: any) => item.can && !item.locked)) {
+                        const count = Number(BigInt(item.count) < available(item.id) ? BigInt(item.count) : available(item.id));
+                        if (count > 0) await act('ranch_fill_cans', 'useCan', { uid: item.uid, count });
+                    }
+                }
+            });
+
+            await phase('feed-normal', async () => { if (enabled('ranch_feed_normal') && available(7003) > 0n) await act('ranch_feed_normal', 'feed', { all: true, bucketType: 2 }); });
+            await phase('feed-organic', async () => { if (enabled('ranch_feed_organic') && available(7004) > 0n) await act('ranch_feed_organic', 'feed', { all: true, bucketType: 1 }); });
+
+            await phase('friends', async () => {
+                if (Object.values(FRIEND_CONTROLS).some(enabled)) {
+                    checkpoint();
+                    const interactions = require('./friends');
+                    const times = await interactions.getInteractionTimes();
+                    const wanted = (action: string) => enabled(FRIEND_CONTROLS[action])
+                        && (!['stroke', 'putMosquito'].includes(action) || times[action] > 0);
+                    if (Object.keys(FRIEND_CONTROLS).some(wanted)) {
+                        const friends = await require('../friend').getFriendsList();
+                        // 沿用本轮巡查，每轮最多拜访三位，避免长期占用农牧场共用连接。
+                        for (; friendVisits < Math.min(3, friends.length) && Object.keys(FRIEND_CONTROLS).some(wanted); friendVisits++) {
+                            checkpoint();
+                            const friend = friends.find((row: any) => String(row.gid) === pendingFriendGid) || friends[nextFriendIndex % friends.length];
+                            try {
+                                const result = await interactions.automateFriend(friend.gid, wanted, shouldYield);
+                                Object.assign(times, result.times);
+                                steps++;
+                                for (const outcome of result.results) {
+                                    daily.markTasksChanged();
+                                    log('牧场', `${friend.name}：${outcome.notice}`, { module: 'ranch', event: `ranch_${outcome.action}`, result: 'ok' });
+                                }
+                                if (result.yielded) {
+                                    pendingFriendGid = String(friend.gid);
+                                    throw Object.assign(new Error('牧场好友巡查让路'), { code: 'RANCH_PATROL_YIELD' });
+                                }
+                            } catch (error: any) {
+                                if (error.name !== 'GatewayError' || error.methodName !== 'EnterHomestead') throw error;
+                                log('牧场', `暂不能拜访 ${friend.name}：${error.message}`, { module: 'ranch', event: 'ranch_friend', result: 'skipped' });
+                            }
+                            pendingFriendGid = null;
+                            nextFriendIndex++;
+                        }
+                    }
+                }
+            });
+
+            if (cycleChanged) daily.markTasksChanged();
+            await phase('tasks', async () => { if (enabled('ranch_task') && due(daily.getTaskRoutineState())) { checkpoint(); await daily.claimTasks(); steps++; } });
+            await phase('share', async () => { if (enabled('ranch_share') && due(daily.getShareRoutineState())) { checkpoint(); await daily.claimShare(); steps++; } });
+            nextCheckAt = Math.max(Date.now() + SCENE_REENTRY_MS, Math.min(nextCheckAt, nextActionAt, cycleChanged ? Date.now() + 30_000 : Infinity));
+            resetCycle();
         });
     } catch (error: any) {
+        if (error.code === 'RANCH_PATROL_YIELD') {
+            nextCheckAt = Date.now() + SCENE_REENTRY_MS;
+            return;
+        }
+        resetCycle();
         if (error.code === 'RANCH_AUTOMATION_DISABLED') return;
         nextCheckAt = Date.now() + Math.max(auto.ranch_check_minutes, 10) * 60_000;
         log('牧场', `日常牧场巡查失败：${error.message}`, { module: 'ranch', event: 'ranch_automation', result: 'error' });
     }
 }
 
-module.exports = { run, getRoutineState, selectAnimal, resetSchedule: () => { nextCheckAt = 0; } };
+module.exports = { run, getRoutineState, selectAnimal, resetSchedule: () => { nextCheckAt = 0; resetCycle(); } };

@@ -1,0 +1,12 @@
+[
+  {
+    "id": 6001001,
+    "dung_max_count": 5,
+    "mosquito_max_count": 3
+  },
+  {
+    "id": 6002001,
+    "dung_max_count": 5,
+    "mosquito_max_count": 3
+  }
+]

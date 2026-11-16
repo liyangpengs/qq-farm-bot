@@ -674,6 +674,8 @@ async function sellAllFruits(): Promise<void> {
         const names: string[] = [];
         for (const item of items) {
             const id: number = toNum(item.id);
+            // 牧草也是农场果实，保留所有批次供牧草机使用。
+            if (id === 7001) continue;
             const count: number = toNum(item.count);
             const expireTime: number = getItemExpireTime(item);
             if (isFruitItemId(id) && count > 0

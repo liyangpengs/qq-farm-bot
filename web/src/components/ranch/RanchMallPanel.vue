@@ -57,7 +57,7 @@ const status = computed(() => {
       return { text: '', tone: 'muted' as const }
     return market.present ? { text: '仓鼠驿站今日到访，可用便便兑换', tone: 'muted' as const } : { text: '仓鼠驿站当前未到访', tone: 'warning' as const }
   }
-  return { text: props.tab === 'shop' ? '牧场商店 · 购买幼崽与饲料' : '罐头商城 · 罐头可为动物催生', tone: 'muted' as const }
+  return { text: props.tab === 'shop' ? '牧场商店 · 购买幼崽与饲料' : '罐头商城 · 使用罐头喂养动物', tone: 'muted' as const }
 })
 /** 余额栏只列当前商品实际用到的货币（集市同时用便便和松果，罐头商城可能用钻石）。 */
 const currencies = computed(() => {

@@ -92,7 +92,7 @@ function caption(item: any) {
   if (!item)
     return ''
   if (item.can?.speed_up_secs)
-    return `每个可催生 ${formatDuration(item.can.speed_up_secs)} · 库存 ${formatCount(item.count)}`
+    return `每个可加速 ${formatDuration(item.can.speed_up_secs)} · 库存 ${formatCount(item.count)}`
   const price = item.sellPrices?.[0]
   return price ? `单价 ${formatCount(price.count)} ${price.name} · 库存 ${formatCount(item.count)}` : `库存 ${formatCount(item.count)}`
 }

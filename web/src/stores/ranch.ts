@@ -13,6 +13,7 @@ export interface RanchQuote {
   expected: { signature: string }
   skipped: boolean
   count: number
+  message?: string
 }
 
 export const useRanchStore = defineStore('ranch', () => {
