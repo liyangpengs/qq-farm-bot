@@ -36,7 +36,11 @@ async function acknowledge() {
   <EmptyState v-else-if="!state.unlocked" title="牧场尚未开放" :description="state.reason" icon="i-carbon-locked" />
   <template v-else>
     <div v-for="operation in state.pendingOperations" :key="operation.id" class="ranch-gate__message" role="status">
-      <span class="min-w-0 flex-1">{{ operation.label }}：{{ operation.message }}</span>
+      <span class="min-w-0 flex-1">
+        {{ operation.label }}
+        <span v-for="cost in operation.costs" :key="cost.resourceKey" class="ml-2">{{ cost.name }} ×{{ cost.amount }}</span>
+        <span class="mt-1 block">{{ operation.message }}</span>
+      </span>
       <NButton size="small" :disabled="busy" @click="pending = operation">
         核对结果
       </NButton>

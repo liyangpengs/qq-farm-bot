@@ -51,6 +51,7 @@ async function planAction(action: string, input: any, raw: any): Promise<any> {
         plan.payload = { goods_id: goodsId, num: count, price: good.price.count, auto_add: input.autoPlace === true };
         plan.costItems = [itemDto({ id: good.price.id, count: BigInt(good.price.count) * BigInt(count) })];
         plan.expectedRewards = [itemDto({ id: good.reward.id, count: BigInt(good.reward.count) * BigInt(count) })];
+        plan.label = `购买${plan.expectedRewards[0].name} ×${plan.expectedRewards[0].count}`;
         plan.marker = shop.shopId;
     } else if (action === 'buyCan') {
         const current = await canCatalog(raw, Number(input.slotType ?? 6));
@@ -243,6 +244,7 @@ async function operate(action: string, input: any = {}): Promise<any> {
     if (['stroke', 'putMosquito', 'cleanFriend'].includes(action)) return require('./friends').interact(action, input);
     if (action === 'acknowledge') return inScene(async () => {
         reservations.forCurrentAccount().acknowledge(String(input.id));
+        require('./automation').resetSchedule();
         return { status: 'confirmed', refreshRequired: true, costs: [], rewards: [] };
     });
     if (action === 'steal') return require('./friends').steal(input);
