@@ -2,7 +2,7 @@ import { useStorage } from '@vueuse/core'
 import axios from 'axios'
 import NProgress from 'nprogress'
 import { createRouter, createWebHistory } from 'vue-router'
-import { menuRoutes } from './menu'
+import { allMenuRoutes } from './menu'
 import 'nprogress/nprogress.css'
 
 NProgress.configure({ showSpinner: false })
@@ -43,7 +43,7 @@ const router = createRouter({
     {
       path: '/',
       component: () => import('@/layouts/DefaultLayout.vue'),
-      children: menuRoutes.map(route => ({
+      children: allMenuRoutes.map(route => ({
         path: route.path,
         name: route.name,
         component: route.component,

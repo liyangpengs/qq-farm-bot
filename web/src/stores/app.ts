@@ -8,6 +8,7 @@ export const useAppStore = defineStore('app', () => {
   const sidebarOpen = ref(false)
   // 活动详情有自己的标题栏，打开时布局隐藏通用页头并让活动外壳撑满内容区。
   const activityDetailOpen = ref(false)
+  const spaceSwitching = ref(false)
   const sidebarCollapsed = useStorage('sidebar_collapsed', false)
   // 默认跟随系统；index.html 中的内联脚本在首屏渲染前读取同一个键，避免闪烁。
   const themeMode = useStorage<ThemeMode>('theme_mode', 'system')
@@ -47,6 +48,7 @@ export const useAppStore = defineStore('app', () => {
     sidebarOpen,
     sidebarCollapsed,
     activityDetailOpen,
+    spaceSwitching,
     toggleSidebar,
     closeSidebar,
     openSidebar,

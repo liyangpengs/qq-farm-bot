@@ -6,6 +6,8 @@ import { useRoute } from 'vue-router'
 import MobileBottomNav from '@/components/MobileBottomNav.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import Sidebar from '@/components/Sidebar.vue'
+import { SPACE_TRANSITION_STYLE, spaceTransition } from '@/components/space-transition'
+import SpaceTransition from '@/components/SpaceTransition.vue'
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
@@ -41,7 +43,12 @@ useResizeObserver(scrollEl, measureScrollbar)
 </script>
 
 <template>
-  <div class="liquid-layout w-screen flex overflow-hidden">
+  <div
+    class="liquid-layout w-screen flex overflow-hidden"
+    :data-space-phase="spaceTransition?.phase"
+    :style="SPACE_TRANSITION_STYLE"
+    :inert="!!spaceTransition"
+  >
     <div
       v-if="sidebarOpen"
       class="navigation-overlay fixed inset-0 z-40 lg:hidden"
@@ -68,21 +75,36 @@ useResizeObserver(scrollEl, measureScrollbar)
           @scroll.passive="onPageScroll"
         >
           <RouterView v-slot="{ Component, route: currentRoute }">
-            <Transition name="page-fade" mode="out-in">
-              <component :is="Component" :key="currentRoute.path" />
-            </Transition>
+            <div :key="currentRoute.path" class="page-view min-h-0 min-w-0 w-full flex flex-1 flex-col">
+              <component :is="Component" />
+            </div>
           </RouterView>
         </div>
       </div>
     </main>
 
     <MobileBottomNav v-if="!route.meta.fullBleed" />
+    <SpaceTransition />
   </div>
 </template>
 
 <style scoped>
 .liquid-layout {
   height: 100dvh;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-view {
+    animation: page-arrive 160ms ease-out;
+  }
+}
+@keyframes page-arrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .navigation-overlay {
@@ -139,30 +161,13 @@ useResizeObserver(scrollEl, measureScrollbar)
 /* 活动详情隐藏通用页头；普通详情沿用页面滚动，游戏外壳保留内部滚动。 */
 .page-scroll--fill > :deep(*) {
   margin-block-start: 0;
-}
-
-.page-scroll--fill > :deep(.activity-shell) {
   flex: 1 1 auto;
   min-height: 0;
 }
 
-.page-fade-enter-active {
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
-}
-
-.page-fade-leave-active {
-  transition: opacity 0.1s ease;
-}
-
-.page-fade-enter-from {
-  opacity: 0;
-  transform: translateY(3px);
-}
-
-.page-fade-leave-to {
-  opacity: 0;
+.page-scroll--fill :deep(.activity-shell) {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 @media (max-width: 1023px) {

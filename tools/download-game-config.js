@@ -12,6 +12,7 @@ const BUNDLE_NAME = 'mainscene';
 const ALL_CONFIG_DIR = 'allconfig';
 const SELECTED_RESOURCES = [
     { name: 'ItemInfo', path: 'config/ItemInfo', assetName: 'ItemInfo' },
+    { name: 'Goods', path: 'config/Goods', assetName: 'Goods' },
     { name: 'Plant', path: 'config/Plant', assetName: 'Plant' },
     { name: 'RoleLevel', path: 'config/RoleLevel', assetName: 'RoleLevel' },
     { name: 'Land', path: 'config/Land', assetName: 'Land' },

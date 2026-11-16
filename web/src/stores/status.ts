@@ -35,6 +35,7 @@ interface DailyGiftsResponse {
   timeZone?: string
   growth: DailyGift
   gifts: DailyGift[]
+  ranch?: { unlocked: boolean, gifts: Array<Partial<DailyGift> & { key: string }> }
 }
 
 export const useStatusStore = defineStore('status', () => {

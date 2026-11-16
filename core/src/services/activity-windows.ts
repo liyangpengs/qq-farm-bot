@@ -34,7 +34,7 @@ async function refreshActivityWindows(): Promise<ReadonlyMap<string, ActivityWin
     if (pendingRefresh) return pendingRefresh;
     pendingRefresh = (async () => {
         const body: Uint8Array = types.ActivityListRequest.encode(
-            types.ActivityListRequest.create({})
+            types.ActivityListRequest.create({ game_scene_id: 1 })
         ).finish();
         const { body: replyBody } = await sendMsgAsync(
             'gamepb.activitypb.ActivityService',

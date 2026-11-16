@@ -1,4 +1,5 @@
 import type { SellConditionContext } from './sell-conditions';
+import shopGoodsConfig from '../gameConfig/Goods.json';
 
 export {};
 /**
@@ -147,6 +148,7 @@ const fruitToPlant = new Map<number, PlantItem>();
 let itemInfoConfig: ItemInfo[] | null = null;
 const itemInfoMap = new Map<number, ItemInfo>();
 const seedItemMap = new Map<number, ItemInfo>();
+const shopGoodsMap = new Map(shopGoodsConfig.map(goods => [goods.id, goods]));
 const itemImageIds = new Set<number>();
 const iconImageIds = new Map<string, number>();
 const assetImageIds = new Map<string, number>();
@@ -479,6 +481,10 @@ function getItemById(itemId: number): ItemInfo | undefined {
     return itemInfoMap.get(Number(itemId) || 0);
 }
 
+function getShopGoodsById(goodsId: number) {
+    return shopGoodsMap.get(goodsId);
+}
+
 /**
  * 解析 sells 字段，格式为 "货币ID:价格" 或 "货币ID1:价格1;货币ID2:价格2"
  * 返回 [{ currencyId, price }, ...]
@@ -743,6 +749,7 @@ module.exports = {
     getFruitName,
     getPlantByFruitId,
     getItemById,
+    getShopGoodsById,
     getItemImageById,
     getSeedPrice,
     getFruitPrice,
