@@ -117,7 +117,9 @@ const question = computed(() => questions.value[questionIndex.value])
 const answers = computed(() => state.value?.personality?.answers || {})
 const allAnswered = computed(() => questions.value.length > 0 && questions.value.every(q => answers.value[q.id]))
 const isLast = computed(() => questionIndex.value === questions.value.length - 1)
-function startSurvey() {
+async function startSurvey() {
+  if (disabled.value || !await store.request('saveAnswers', { answers: {}, clear: true }) || needsRefresh.value)
+    return
   answering.value = true
   questionIndex.value = 0
 }
@@ -125,7 +127,7 @@ async function answer(value: number) {
   if (!question.value || disabled.value)
     return
   const index = questionIndex.value
-  const saved = await store.request('saveAnswers', { answers: { [question.value.id]: value }, clear: index === 0 })
+  const saved = await store.request('saveAnswers', { answers: { [question.value.id]: value } })
   if (saved && index < questions.value.length - 1 && questionIndex.value === index)
     questionIndex.value++
 }
