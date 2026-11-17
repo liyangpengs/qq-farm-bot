@@ -263,7 +263,7 @@ onBeforeUnmount(() => store.reset())
 
     <NModal v-model:show="rewardsOpen">
       <NCard class="max-w-xl w-[calc(100vw-32px)]" title="藏品评分奖励" closable @close="rewardsOpen = false">
-        <div class="milestone-list custom-scrollbar">
+        <div class="milestone-list dialog-scroll custom-scrollbar">
           <div v-for="milestone in data?.milestones" :key="milestone.level" class="milestone" :class="{ 'is-claimed': milestone.claimed, 'is-reached': milestone.reached && !milestone.claimed }">
             <div class="milestone__score">
               <b>{{ milestone.score.toLocaleString() }}</b><small>评分</small>

@@ -20,12 +20,16 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ submit: [count: number], close: [] }>()
 const count = ref<number | null>(1)
-const limit = computed(() => Math.max(1, Math.min(2147483647, Math.floor(props.max) || 1)))
+const limit = computed(() => Math.max(0, Math.min(2147483647, Math.floor(props.max))))
 const valid = computed(() => props.ready && Number.isSafeInteger(count.value) && count.value! >= 1 && count.value! <= limit.value)
 
 watch(() => props.show, (show) => {
   if (show)
     count.value = 1
+})
+watch(limit, (maximum) => {
+  if (count.value !== null && count.value > maximum)
+    count.value = Math.max(1, maximum)
 })
 </script>
 
@@ -44,8 +48,8 @@ watch(() => props.show, (show) => {
         <div class="amount__row">
           <span>数量</span>
           <div class="amount__stepper">
-            <NInputNumber v-model:value="count" :min="1" :max="limit" :precision="0" class="w-32" aria-label="数量" />
-            <NButton size="small" secondary :disabled="count === limit" @click="count = limit">
+            <NInputNumber v-model:value="count" :min="1" :max="limit || 1" :precision="0" :disabled="limit < 1" class="w-32" aria-label="数量" />
+            <NButton size="small" secondary :disabled="limit < 1 || count === limit" @click="count = limit">
               最大
             </NButton>
           </div>

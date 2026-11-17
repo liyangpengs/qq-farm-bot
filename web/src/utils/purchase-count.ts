@@ -1,12 +1,11 @@
 /**
  * 购买数量上限计算：取限购剩余与按余额可购数量的较小值。
- * 每种费用按 floor(余额 / 单价) 计算可购数；单价无效（<0）或余额未知的费用不参与约束。
- * 没有任何费用参与约束时返回 Infinity，由调用方与限购、硬上限取最小值。
+ * 购买确认按每份费用和对应余额计算，余额未确认时不可购买。
  */
 export interface PurchaseCost {
   id?: number | string
-  count?: number
-  balance?: number | null
+  count?: number | string
+  balance?: number | string | null
 }
 
 export function affordableCount(costs: PurchaseCost[]): number {
@@ -26,9 +25,16 @@ export function affordableCount(costs: PurchaseCost[]): number {
 export function purchaseMaxCount(options: { limitRemaining?: number | null, costs?: PurchaseCost[], cap?: number }): number {
   const cap = options.cap ?? 9999
   const limit = options.limitRemaining
-  return Math.max(1, Math.min(
-    cap,
-    limit != null && Number.isFinite(Number(limit)) ? Math.max(0, Number(limit)) : cap,
-    affordableCount(options.costs || []),
-  ))
+  let maximum = BigInt(Math.max(0, Math.floor(Math.min(cap, limit ?? cap))))
+  for (const cost of options.costs || []) {
+    if (cost.count == null || cost.balance == null)
+      return 0
+    const unitPrice = BigInt(cost.count)
+    if (unitPrice <= 0n)
+      return 0
+    const affordable = BigInt(cost.balance) / unitPrice
+    if (affordable < maximum)
+      maximum = affordable
+  }
+  return Number(maximum < 0n ? 0n : maximum)
 }

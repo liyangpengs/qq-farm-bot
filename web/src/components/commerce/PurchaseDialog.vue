@@ -30,9 +30,15 @@ const insufficient = computed(() => {
 })
 
 watch(() => [props.open, props.goods?.id], () => count.value = 1)
+watch(maxCount, () => setCount(count.value))
 
 function setCount(value: number) {
-  count.value = Math.min(maxCount.value, Math.max(1, Math.floor(value) || 1))
+  count.value = Math.max(1, Math.min(maxCount.value, Math.floor(value) || 1))
+}
+function inputCount(event: Event) {
+  const input = event.target as HTMLInputElement
+  setCount(Number(input.value))
+  input.value = String(count.value)
 }
 </script>
 
@@ -62,11 +68,11 @@ function setCount(value: number) {
         </button>
       </header>
 
-      <div class="purchase-body">
+      <div class="purchase-body dialog-scroll">
         <div class="purchase-section-label">
           每份包含<span v-if="goods.rewards.length > 1"> · {{ goods.rewards.length }} 件</span>
         </div>
-        <ul class="purchase-rewards">
+        <ul class="purchase-rewards dialog-scroll">
           <li v-for="reward in goods.rewards" :key="reward.id">
             <CommerceItemImage :src="reward.image" :alt="reward.name" size="sm" />
             <span class="purchase-rewards__name">{{ reward.name }}</span>
@@ -83,7 +89,7 @@ function setCount(value: number) {
             <button type="button" title="减少" aria-label="减少" :disabled="pending || count <= 1" @click="setCount(count - 1)">
               <span class="i-carbon-subtract" />
             </button>
-            <input :value="count" inputmode="numeric" aria-label="购买数量" :disabled="pending" @input="setCount(Number(($event.target as HTMLInputElement).value))">
+            <input :value="count" inputmode="numeric" aria-label="购买数量" :disabled="pending || maxCount < 1" @input="inputCount">
             <button type="button" title="增加" aria-label="增加" :disabled="pending || count >= maxCount" @click="setCount(count + 1)">
               <span class="i-carbon-add" />
             </button>
@@ -114,7 +120,7 @@ function setCount(value: number) {
         <NButton :disabled="pending" @click="emit('close')">
           取消
         </NButton>
-        <NButton type="primary" :loading="pending" :disabled="pending || insufficient || balanceUnknown || !goods.purchasable" @click="emit('confirm', count)">
+        <NButton type="primary" :loading="pending" :disabled="pending || maxCount < 1 || insufficient || balanceUnknown || !goods.purchasable" @click="emit('confirm', count)">
           {{ pending ? '购买中' : goods.isFree ? '确认领取' : '确认购买' }}
         </NButton>
       </footer>
@@ -238,7 +244,8 @@ function setCount(value: number) {
   min-height: 0;
   flex-direction: column;
   gap: 14px;
-  padding: 16px 20px 4px;
+  margin-inline: var(--ui-dialog-scroll-inset);
+  padding: 16px calc(20px - var(--ui-dialog-scroll-inset)) 4px;
   overflow-y: auto;
 }
 
@@ -253,7 +260,8 @@ function setCount(value: number) {
   max-height: 232px;
   gap: 2px;
   margin: -6px 0 0;
-  padding: 6px;
+  padding-block: 6px;
+  padding-inline-start: 6px;
   overflow-y: auto;
   border-radius: var(--ui-radius-control);
   background: var(--ui-surface-soft);

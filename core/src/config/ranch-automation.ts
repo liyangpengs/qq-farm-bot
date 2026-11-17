@@ -6,6 +6,7 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_buy: true,
     ranch_upgrade: true,
     ranch_sell: true,
+    ranch_market_organic: true,
     ranch_grass: true,
     ranch_grass_buy: true,
     ranch_grass_threshold_percent: 20,
