@@ -10,10 +10,13 @@ import RanchGate from '@/components/ranch/RanchGate.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRanchStore } from '@/stores/ranch'
+import { useToastStore } from '@/stores/toast'
+import { purchaseMaxCount } from '@/utils/purchase-count'
 
 const props = defineProps<{ tab: 'shop' | 'market' | 'cans' }>()
 const { state, loading } = storeToRefs(useRanchStore())
 const { disabled, request } = useRanchActions()
+const toast = useToastStore()
 
 const shopId = ref(5)
 const canSlot = ref(6)
@@ -73,7 +76,14 @@ const currencies = computed(() => {
   return [...result.values()]
 })
 function maxCount(good: any) {
-  return Math.max(1, Math.min(Number(good.maxCount) || 999, good.remaining ?? 999))
+  return purchaseMaxCount({
+    cap: Number(good.maxCount ?? 999),
+    limitRemaining: good.remaining ?? null,
+    costs: good.free ? [] : [{ count: good.price.count, balance: balanceOf(good) }],
+  })
+}
+function balanceOf(good: any) {
+  return good.price.balance ?? state.value?.currencies?.find((c: any) => Number(c.id) === Number(good.price.id))?.count
 }
 function unavailableReason(good: any) {
   if (good.available)
@@ -87,19 +97,25 @@ function unavailableReason(good: any) {
   return '暂不可购买'
 }
 
-const active = ref<any>(null)
+const activeId = ref<number | string | null>(null)
+const active = computed(() => allGoods.value.find(good => good.id === activeId.value) ?? null)
 function input(good: any, count: number) {
   return { goodsId: good.id, count, shopId: shopId.value, slotType: canSlot.value, autoPlace: props.tab === 'shop' && autoPlace.value }
 }
 function buy(good: any) {
+  const maximum = maxCount(good)
+  if (maximum < 1) {
+    toast.error(balanceOf(good) == null ? '余额未确认，请刷新商品' : `${good.price.name}余额不足`)
+    return
+  }
   // 只能买一个时直接进入确认，省掉选数量这一步。
-  if (maxCount(good) <= 1)
+  if (maximum === 1)
     void request(ACTION[props.tab], input(good, 1))
-  else active.value = good
+  else activeId.value = good.id
 }
 function submit(count: number) {
   const good = active.value
-  active.value = null
+  activeId.value = null
   if (good)
     void request(ACTION[props.tab], input(good, count))
 }
@@ -108,7 +124,7 @@ function priceCaption(good: any) {
     return ''
   if (good.free)
     return '免费领取'
-  const balance = good.price.balance === null || good.price.balance === undefined ? '' : ` · 余额 ${formatCount(good.price.balance)}`
+  const balance = balanceOf(good) == null ? '' : ` · 余额 ${formatCount(balanceOf(good))}`
   return `单价 ${formatCount(good.price.count)} ${good.price.name}${balance}`
 }
 </script>
@@ -177,7 +193,13 @@ function priceCaption(good: any) {
                 <strong :title="good.price.name">{{ formatCount(good.price.count) }}</strong>
               </template>
             </div>
-            <NButton size="small" type="primary" :secondary="!good.free" :disabled="disabled || !good.available" @click="buy(good)">
+            <NButton
+              size="small"
+              :type="maxCount(good) > 0 ? 'primary' : 'default'"
+              :secondary="!good.free"
+              :disabled="disabled || !good.available || maxCount(good) < 1"
+              @click="buy(good)"
+            >
               {{ good.free ? '领取' : VERB[tab] }}
             </NButton>
           </div>
@@ -193,7 +215,7 @@ function priceCaption(good: any) {
       :caption="priceCaption(active)"
       :max="active ? maxCount(active) : 1"
       :submit-text="VERB[tab]"
-      @close="active = null"
+      @close="activeId = null"
       @submit="submit"
     />
   </div>

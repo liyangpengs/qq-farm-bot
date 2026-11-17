@@ -25,6 +25,8 @@ export type AutomationSettingsFormModel = Pick<
 withDefaults(defineProps<{
   inRanch?: boolean
   panel?: 'automation' | 'strategy'
+  /** 页面级统一保存时隐藏表单自带的底部按钮。 */
+  hideSave?: boolean
   ranchAnimalOptions?: Array<{ value: number, label: string, kind: string }>
   saving: boolean
   fertilizerLandTypeOptions: Array<{ label: string, value: string }>
@@ -42,6 +44,7 @@ const ranchSwitches = [
   ['ranch_buy', '自动补栏（金券）'],
   ['ranch_upgrade', '自动升级建筑（金券）'],
   ['ranch_sell', '自动出售产物'],
+  ['ranch_market_organic', '仓鼠集市兑换有机化肥（便便）'],
   ['ranch_clean', '自动清理'],
   ['ranch_grass', '自动补充牧草'],
   ['ranch_grass_buy', '牧草不足时购买（金券）'],
@@ -50,6 +53,7 @@ const ranchSwitches = [
   ['ranch_feed_organic', '有机罐头喂养'],
   ['ranch_task', '自动领取任务奖励'],
   ['ranch_share', '每日分享礼包'],
+  ['ranch_daily_benefit', '每日商城福利'],
 ] as const
 const ranchFriendSwitches = [
   ['ranch_friend_steal', '自动偷取产物'],
@@ -85,6 +89,12 @@ const ranchStrategies = [
           <div v-if="panel === 'automation'" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div v-for="[key, label] in ranchSwitches" :key="key" class="automation-setting-item">
               <BaseSwitch v-model="settings.automation[key]" :label="label" :disabled="key === 'ranch_grass_buy' && !settings.automation.ranch_grass" />
+            </div>
+            <div class="col-span-full text-xs text-gray-500 dark:text-gray-400">
+              仓鼠集市仅用便便，优先兑换4小时再兑换1小时；每6小时检查，便便增加即触发兑换。
+            </div>
+            <div class="automation-setting-item">
+              <BaseInput v-model.number="settings.automation.ranch_grass_threshold_percent" class="w-full" label="牧草余量低于（%）时补满" type="number" min="1" max="100" step="1" :disabled="!settings.automation.ranch_grass" />
             </div>
             <div class="automation-setting-item">
               <BaseInput v-model.number="settings.automation.ranch_check_minutes" class="w-full" label="巡查间隔（分钟）" type="number" min="1" max="60" step="1" />
@@ -405,7 +415,7 @@ const ranchStrategies = [
       </div>
     </div>
 
-    <div class="flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
+    <div v-if="!hideSave" class="flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
       <BaseButton variant="primary" size="sm" :loading="saving" @click="emit('save')">
         保存自动控制
       </BaseButton>

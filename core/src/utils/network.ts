@@ -707,6 +707,9 @@ function handleNotify(msg: any): void {
                         } else if (delta !== 0) {
                             userState.coupon = Math.max(0, Number(userState.coupon || 0) + delta);
                         }
+                    } else if (id === 7002 && delta > 0) {
+                        // 便便增加即唤醒牧场例程，读取最新余额后判断是否达到门槛；无需等待六小时兜底。
+                        networkEvents.emit('ranchMarketStockReady', { id, count, delta });
                     } else if (id === 1005) {
                         if (count > 0) {
                             userState.goldBean = count;

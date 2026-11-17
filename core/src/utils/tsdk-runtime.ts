@@ -11,10 +11,10 @@ const { ensureDataDir, getResourcePath } = require('../config/runtime-paths');
 const { log, logWarn } = require('./utils');
 
 const TSDK_VERSION = 'v3.9.0.1794737607';
-const TSDK_SHA256 = '4e186bfebac906400f3d44aea110de973c6b8941689506858ca6a4466c88b5df';
+const TSDK_SHA256 = 'ab6eb0f0ee86ce8984b0c37a481ff51e7722961ff0b50a9f91e2fa9ff351ce74';
 const TSDK_BUILDS = Object.freeze({
     qq: { file: 'tsdk.wasm', version: TSDK_VERSION, sha256: TSDK_SHA256 },
-    wx: { file: 'tsdk-wx.wasm', version: 'v3.9.0.1794737041', sha256: '8f338c01ceed85cae2eb0e2cd20815dec495f22e4b4b50fca2040fdd8a9e3cdf' },
+    wx: { file: 'tsdk-wx.wasm', version: 'v3.9.0.1794837963', sha256: 'd14a4f5d59c8a27128019dbad25fe3cd3d5243dfc389eb9bcbb345efb1cebc9a' },
 });
 const MINI_PROGRAM_APP_IDS = Object.freeze({
     qq: '1112386029',

@@ -12,6 +12,7 @@ const {
     getFriendsListCacheTtlSec,
 } = require('../../models/store');
 const { getUserState } = require('../../utils/network');
+const { isGatewayYieldError } = require('../../utils/low-priority-gate');
 const { toNum, getServerTimeSec, getSystemClockMinutes, log, logWarn, sleep, randomDelay } = require('../../utils/utils');
 
 const {
@@ -800,6 +801,8 @@ export async function visitFriend(
     try {
         enterReply = await enterFriendFarm(gid);
     } catch (e: any) {
+        // 连接异常交给整轮巡查处理，不能当作单个好友失败后继续扫名单。
+        if (isGatewayYieldError(e) || String(e.message).includes('stage=pending')) throw e;
         const handled: { handled: boolean; kind: string } = handleFriendEnterError(gid, name, e);
         if (handled.handled && handled.kind === 'blacklist') {
             return { acted: false, entered: false };

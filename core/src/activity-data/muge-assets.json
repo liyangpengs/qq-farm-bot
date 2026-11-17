@@ -1,0 +1,104 @@
+[
+  {
+    "file": "friend-recall/icon.png",
+    "path": "gui/texture/icon/icon_banner_friendrecall/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/extraRes/native/96/962cba3e-b739-4386-bc0c-f70176d3f791.86b12.png",
+    "sha256": "fd97c7ea29a88cc04bba44d9b0b4baba889efdeb1810477da082f030cc36a875",
+    "width": 100,
+    "height": 100
+  },
+  {
+    "file": "muge/personality-1.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_1/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/86/86f5a146-c6e8-4d49-9cc2-64b1dce732a5.03274.png",
+    "sha256": "83a4f97b4c9eeea3ce6d42cdc49dfe956ac0c80f842ea2f4ec1c447bacb8fb31",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-2.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_2/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/c3/c3840c95-a20a-4217-ab9e-50a597af65bc.a1ebf.png",
+    "sha256": "65ddf1207b902229bf600280ab7c76fddf093b565ef5272e52d9da1ddc915b7d",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-3.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_3/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/7d/7de8aa2f-87a4-438c-921e-424701d7b7a9.e2b21.png",
+    "sha256": "9ac622610d57c97de9bd3b00eeb8cca1e53cc5f456453f55f0e958b65523ddbf",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-4.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_4/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/77/77194d78-1f9f-4b17-ad3f-adbd780a909c.5a29e.png",
+    "sha256": "8923fb1e360410d79795dd02954c7cb745e76048b908f26c5ac7e963faf93361",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-5.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_5/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/2f/2fd29945-9f1a-4cfd-96d9-98b55aace1ea.0d84b.png",
+    "sha256": "647b3de763c897066c698995fefc8f917ae3299dece38019aa73671f1b476d11",
+    "width": 577,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-6.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_6/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/3a/3af516ea-c687-4a61-9764-832e650be648.b0d4f.png",
+    "sha256": "11960027c5b5bf8d596fbe9c31e9802a3c34eef982b82e7e6434121057b9b693",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-7.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_7/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/c0/c0bc26c4-3549-4fc7-bf82-7753c4be4db0.1d053.png",
+    "sha256": "abda572ed2ee25e407b30ffb6262db33780289b8b689edec4e9515e99538abff",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-8.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_8/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/e0/e04d8841-9aed-419c-9f19-4fb9b85bf52f.8e53f.png",
+    "sha256": "b67d7c230bb971f8975343432ee484a5df236b3c133ef3fe1e97dbb7826b2b4a",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-9.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_9/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/fc/fc43a0db-8a18-468c-bdc0-289ce11004d8.c0149.png",
+    "sha256": "c70d1b5b9f08b5fd6bae30f1b05269e64a736ca6e689596435c368c98d12ffbb",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/personality-10.png",
+    "path": "gui/texture/muge/personaShare/img_muge_persona_share_10/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/delayRes/native/da/da804da9-e56c-4aa4-ade0-92c6f6a2a1f4.dc75d.png",
+    "sha256": "a77ac7da0c2b7bdd764da671b2d7826050b16fbb85f6df1de9434d70f391063c",
+    "width": 570,
+    "height": 776
+  },
+  {
+    "file": "muge/icon.png",
+    "path": "gui/texture/v2/icon_rightMenu_muge/spriteFrame",
+    "url": "https://cdn-resource.nqf.qq.com/release/remote/extraRes/native/1a/1a39a37cf.22f7c.png",
+    "rect": {
+      "x": 94,
+      "y": 929,
+      "width": 97,
+      "height": 91
+    },
+    "width": 97,
+    "height": 91,
+    "sha256": "8103a669e31fcc648a707f544db38717de6cb825cb01772125a28137e2fa3ac3"
+  }
+]

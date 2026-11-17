@@ -51,9 +51,10 @@ const overview = computed(() => {
     doneToday: !!state.value?.dailyShare?.claimed || !!shareAuto.doneToday,
   }
   const [email, vip, month] = SHARED_GIFTS.map(shared)
+  const benefit = { enabled: true, ...auto('mall_free_gifts'), key: 'mall_free_gifts', label: '每日福利', doneToday: !!state.value?.dailyBenefit?.claimed || !!auto('mall_free_gifts').doneToday }
   return {
     timeZone: dailyGifts.value?.timeZone,
-    gifts: [taskGift, email, shareGift, vip, month].filter(Boolean),
+    gifts: [taskGift, benefit, email, shareGift, vip, month].filter(Boolean),
   }
 })
 

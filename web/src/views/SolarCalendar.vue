@@ -267,7 +267,7 @@ onUnmounted(() => sequence++)
 
     <NModal v-if="question" :show="true" :mask-closable="!busy" :close-on-esc="!busy" @update:show="!busy && (questionId = 0)">
       <NCard :title="`${question.name} · 节令问答`" :closable="!busy" class="solar-question" role="dialog" aria-modal="true" :aria-label="question.name" @close="questionId = 0">
-        <div class="question-scroll">
+        <div class="question-scroll dialog-scroll">
           <p class="question-text">
             {{ question.question }}
           </p>
@@ -681,7 +681,12 @@ onUnmounted(() => sequence++)
   border-radius: 12px;
 }
 .solar-question :deep(.n-card-content) {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.question-scroll {
   min-height: 0;
   overflow-y: auto;
 }

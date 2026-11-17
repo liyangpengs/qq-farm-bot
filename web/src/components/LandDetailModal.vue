@@ -42,7 +42,7 @@ function format(value: unknown) {
       <template #header>
         <span class="font-display">土地详情 <span class="text-sm opacity-50">#{{ land?.id }}</span></span>
       </template>
-      <template v-if="info">
+      <div v-if="info" class="land-detail-scroll dialog-scroll">
         <div class="land-detail-levels" :class="{ 'land-detail-levels--compare': info.next && info.current }">
           <div v-if="info.current" class="land-detail-soil">
             <img :src="info.current.image" :alt="info.current.name" width="84" height="70">
@@ -107,7 +107,7 @@ function format(value: unknown) {
             当前可{{ info.mode === 'unlock' ? '解锁' : '升级' }}
           </p>
         </section>
-      </template>
+      </div>
       <p v-else>
         土地详情暂未获取，请刷新农场。
       </p>
@@ -119,8 +119,16 @@ function format(value: unknown) {
 .land-detail-modal {
   width: min(480px, calc(100vw - 24px));
   max-height: calc(100dvh - 32px);
-  overflow-y: auto;
   border-radius: 20px;
+}
+.land-detail-modal :deep(.n-card-content) {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+.land-detail-scroll {
+  min-height: 0;
+  overflow-y: auto;
 }
 .land-detail-levels {
   display: grid;

@@ -1,23 +1,26 @@
 import animals from '../gameConfig/ranch/MCAnimalConfig.json';
 
 export const RANCH_AUTOMATION_DEFAULTS = {
-    ranch_harvest: false,
-    ranch_produce: false,
-    ranch_buy: false,
-    ranch_upgrade: false,
-    ranch_sell: false,
-    ranch_grass: false,
-    ranch_grass_buy: false,
-    ranch_fill_cans: false,
-    ranch_feed_normal: false,
-    ranch_feed_organic: false,
-    ranch_clean: false,
-    ranch_stroke: false,
-    ranch_friend_steal: false,
-    ranch_friend_clean: false,
-    ranch_friend_mosquito: false,
+    ranch_harvest: true,
+    ranch_produce: true,
+    ranch_buy: true,
+    ranch_upgrade: true,
+    ranch_sell: true,
+    ranch_market_organic: true,
+    ranch_grass: true,
+    ranch_grass_buy: true,
+    ranch_grass_threshold_percent: 20,
+    ranch_fill_cans: true,
+    ranch_feed_normal: true,
+    ranch_feed_organic: true,
+    ranch_clean: true,
+    ranch_stroke: true,
+    ranch_friend_steal: true,
+    ranch_friend_clean: true,
+    ranch_friend_mosquito: true,
     ranch_task: true,
     ranch_share: true,
+    ranch_daily_benefit: true,
     ranch_check_minutes: 5,
     ranch_strategy: 'level' as 'level' | 'preferred' | 'bag_priority',
     ranch_bag_fallback: 'level' as 'level' | 'preferred',
@@ -46,6 +49,13 @@ export function normalizeRanchSetting(key: string, value: unknown): boolean | nu
         const number = Number(value);
         if (!Number.isInteger(number) || number < 1 || number > 60) {
             throw Object.assign(new Error('牧场巡查间隔必须是 1–60 的整数分钟'), { code: 'INVALID_CONFIG' });
+        }
+        return number;
+    }
+    if (key === 'ranch_grass_threshold_percent') {
+        const number = Number(value);
+        if (!Number.isInteger(number) || number < 1 || number > 100) {
+            throw Object.assign(new Error('牧草补充阈值必须是 1–100 的整数百分比'), { code: 'INVALID_CONFIG' });
         }
         return number;
     }

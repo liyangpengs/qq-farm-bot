@@ -422,7 +422,7 @@ watch(currentAccountId, () => {
         共 {{ protectLogsTotal }} 条记录
       </p>
       <EmptyState v-if="!protectLogs.length" bare title="暂无守护记录" icon="i-carbon-security" />
-      <ul v-else class="protect-log-list custom-scrollbar">
+      <ul v-else class="protect-log-list dialog-scroll custom-scrollbar">
         <li v-for="logItem in protectLogs" :key="logItem.id" class="protect-log-row">
           <img v-if="logItem.friendAvatar" :src="logItem.friendAvatar" :alt="logItem.friendName" class="protect-log-avatar">
           <span v-else class="protect-log-avatar protect-log-avatar--empty"><span class="i-carbon-user" aria-hidden="true" /></span>
@@ -1063,7 +1063,8 @@ p {
 .protect-log-list {
   max-height: min(600px, calc(100vh - 180px));
   margin: 10px 0 0;
-  padding: 0;
+  padding-block: 0;
+  padding-inline-start: 0;
   overflow-y: auto;
   list-style: none;
 }

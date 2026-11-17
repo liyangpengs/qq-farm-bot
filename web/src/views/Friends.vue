@@ -1427,7 +1427,7 @@ async function handleBatchAddKnownFriendGids() {
             删除未同步（{{ unsyncedGidCount }}）
           </BaseButton>
         </div>
-        <div class="gid-list-scroll">
+        <div class="gid-list-scroll dialog-scroll">
           <div v-if="filteredKnownFriendGids.length === 0" class="py-8 text-center text-gray-500 dark:text-gray-400">
             暂无数据
           </div>
