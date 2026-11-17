@@ -117,7 +117,9 @@ const question = computed(() => questions.value[questionIndex.value])
 const answers = computed(() => state.value?.personality?.answers || {})
 const allAnswered = computed(() => questions.value.length > 0 && questions.value.every(q => answers.value[q.id]))
 const isLast = computed(() => questionIndex.value === questions.value.length - 1)
-function startSurvey() {
+async function startSurvey() {
+  if (disabled.value || !await store.request('saveAnswers', { answers: {}, clear: true }) || needsRefresh.value)
+    return
   answering.value = true
   questionIndex.value = 0
 }
@@ -125,7 +127,7 @@ async function answer(value: number) {
   if (!question.value || disabled.value)
     return
   const index = questionIndex.value
-  const saved = await store.request('saveAnswers', { answers: { [question.value.id]: value }, clear: index === 0 })
+  const saved = await store.request('saveAnswers', { answers: { [question.value.id]: value } })
   if (saved && index < questions.value.length - 1 && questionIndex.value === index)
     questionIndex.value++
 }
@@ -168,7 +170,7 @@ watch(currentAccountId, () => {
           </template>
         </NButton>
         <img src="/activity-assets/muge/icon.png" alt="" width="32" height="32" class="muge-head__icon">
-        <div class="min-w-0">
+        <div class="muge-head__text min-w-0">
           <h1>牧歌初启</h1>
           <p v-if="period">
             <span class="i-carbon-calendar" aria-hidden="true" />{{ period.text }}
@@ -1040,8 +1042,47 @@ details:not([open]) > .muge-section__head > i {
 }
 
 @media (max-width: 640px) {
+  .muge-head {
+    display: grid;
+    grid-template-columns: auto 32px minmax(0, 1fr) auto;
+    gap: 4px 8px;
+  }
+
+  .muge-head__lead,
+  .muge-head__text {
+    display: contents;
+  }
+
+  .muge-head__icon {
+    grid-area: 1 / 2;
+  }
+
+  .muge-head h1 {
+    grid-area: 1 / 3;
+  }
+
+  .muge-head__actions {
+    grid-area: 1 / 4;
+  }
+
+  .muge-head p {
+    grid-area: 2 / 2 / auto / -1;
+    flex-wrap: wrap;
+    margin-top: 0;
+    white-space: normal;
+  }
+
   .muge-head__actions .muge-head__rules-label {
     display: none;
+  }
+
+  .muge-tabs {
+    --n-tab-gap: 10px !important;
+    --n-tab-font-size: 13px !important;
+  }
+
+  .muge-tab {
+    gap: 4px;
   }
 
   .muge-bar {
