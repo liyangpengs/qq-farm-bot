@@ -65,7 +65,7 @@ export function provideRanchActions(): RanchActions {
       await ranch.reload(chosen.accountId)
   }
 
-  // 操作结果用轻提示告知；失败信息留在页面上，便于刷新核对。
+  // 操作成功用轻提示告知；失败提示由当前面板的 RanchGate 统一展示。
   watch(notice, (message) => {
     if (!message)
       return

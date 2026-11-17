@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
 import { useRanchStore } from '@/stores/ranch'
+import { useToastStore } from '@/stores/toast'
 
-/** 牧场面板的统一状态：首次读取、读取失败、未开放；有数据后的失败信息显示在内容上方。 */
+/** 首次读取失败保留重试入口；已有数据时用轻提示展示错误，待核对操作保留确认入口。 */
 defineEmits<{ retry: [] }>()
 const ranch = useRanchStore()
 const { state, error, busy } = storeToRefs(ranch)
+const toast = useToastStore()
+watch(error, (message) => {
+  if (message && state.value)
+    toast.error(message)
+}, { immediate: true })
 const { currentAccountId } = storeToRefs(useAccountStore())
 const pending = ref<{ id: string, label: string } | null>(null)
 async function acknowledge() {
@@ -44,13 +50,6 @@ async function acknowledge() {
       <NButton size="small" :disabled="busy" @click="pending = operation">
         核对结果
       </NButton>
-    </div>
-    <div v-if="error" class="ranch-gate__message" role="alert">
-      <span class="i-carbon-warning-alt" aria-hidden="true" />
-      <span class="min-w-0 flex-1">{{ error }}</span>
-      <button type="button" title="关闭消息" aria-label="关闭消息" @click="error = ''">
-        <span class="i-carbon-close" />
-      </button>
     </div>
     <slot />
     <ConfirmModal

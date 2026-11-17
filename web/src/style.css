@@ -58,6 +58,8 @@ textarea * {
   --ui-table-head: #edf2eb;
   --ui-radius-control: 10px;
   --ui-radius-card: 14px;
+  --ui-dialog-scroll-gap: 12px;
+  --ui-dialog-scroll-inset: 8px;
   --ui-shadow-sm: 0 1px 2px rgba(45, 66, 52, 0.04), 0 6px 20px rgba(45, 66, 52, 0.05);
   --ui-shadow-md: 0 12px 32px rgba(55, 75, 61, 0.1);
   --ui-shadow-lg: 0 24px 64px rgba(55, 75, 61, 0.15);
@@ -298,6 +300,33 @@ textarea * {
   background: transparent;
 }
 
+/* 弹窗内容与滚动条留出间距，滚动条外侧沿用卡片的内边距。 */
+.dialog-scroll {
+  --ui-dialog-scroll-thumb: var(--ui-muted);
+  padding-inline-end: var(--ui-dialog-scroll-gap);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-dialog-scroll-thumb) transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dialog-scroll {
+    --ui-dialog-scroll-thumb: transparent;
+  }
+
+  .dialog-scroll:hover,
+  .dialog-scroll:focus-within {
+    --ui-dialog-scroll-thumb: var(--ui-muted);
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --ui-dialog-scroll-gap: 8px;
+    --ui-dialog-scroll-inset: 6px;
+  }
+}
+
 ::-webkit-scrollbar-thumb {
   background: rgba(100, 116, 139, 0.38);
   border: 2px solid transparent;
@@ -321,6 +350,26 @@ textarea * {
   background: rgba(148, 163, 184, 0.68);
   border: 2px solid transparent;
   background-clip: padding-box;
+}
+
+@supports not (scrollbar-color: auto) {
+  .dialog-scroll {
+    scrollbar-width: auto;
+  }
+
+  .dialog-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .dialog-scroll::-webkit-scrollbar-thumb,
+  .dialog-scroll::-webkit-scrollbar-thumb:hover,
+  .dark .dialog-scroll::-webkit-scrollbar-thumb,
+  .dark .dialog-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--ui-dialog-scroll-thumb);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
 }
 
 /* 暗色模式下 select option 文字可见（仅 farm-input 下拉框） */

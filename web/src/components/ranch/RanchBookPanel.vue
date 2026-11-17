@@ -158,7 +158,7 @@ async function scrollToNext() {
 
         <NModal v-model:show="detailsOpen" @after-enter="scrollToNext">
           <NCard title="巨大图鉴体重奖励" closable class="book-rewards-modal max-w-2xl w-[calc(100vw-24px)]" @close="detailsOpen = false">
-            <div ref="rewardList" class="reward-list custom-scrollbar" role="region" aria-label="体重奖励" tabindex="0">
+            <div ref="rewardList" class="reward-list dialog-scroll custom-scrollbar" role="region" aria-label="体重奖励" tabindex="0">
               <div
                 v-for="level in levels"
                 :key="level.id"
@@ -217,7 +217,7 @@ async function scrollToNext() {
   max-height: calc(100dvh - 32px);
 }
 
-.book-rewards-modal :deep(.n-card__content) {
+.book-rewards-modal :deep(.n-card-content) {
   display: flex;
   min-height: 0;
   flex-direction: column;

@@ -649,7 +649,7 @@ onBeforeUnmount(() => {
       :closable="!loading && !wxLoading && !qqLoading"
       @close="close"
     >
-      <div class="account-modal-content overflow-y-auto">
+      <div class="account-modal-content dialog-scroll overflow-y-auto">
         <!-- 错误信息 -->
         <div v-if="errorMessage" class="mb-4 rounded-xl p-3 text-sm" style="background: rgba(239, 68, 68, 0.1); color: #ef4444">
           {{ errorMessage }}
