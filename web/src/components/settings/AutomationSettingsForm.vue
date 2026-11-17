@@ -53,6 +53,7 @@ const ranchSwitches = [
   ['ranch_task', '自动领取任务奖励'],
   ['ranch_share', '每日分享礼包'],
   ['ranch_daily_benefit', '每日商城福利'],
+  ['ranch_muge', '牧歌初启奖励'],
 ] as const
 const ranchFriendSwitches = [
   ['ranch_friend_steal', '自动偷取产物'],

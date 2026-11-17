@@ -12,6 +12,7 @@ const { getShopGoodsById } = require('../../config/gameConfig');
 const reservations = require('./operation-state');
 const { getAmbientSendContext, runWithSendContext } = require('./context');
 const daily = require('./daily');
+const muge = require('./muge');
 
 let nextCheckAt = 0;
 let nextFriendIndex = 0;
@@ -266,6 +267,7 @@ async function run(options: { farmDeadline?: () => number } = {}): Promise<void>
             await phase('tasks', async () => { if (enabled('ranch_task') && due(daily.getTaskRoutineState())) { checkpoint(); await daily.claimTasks(); steps++; } });
             await phase('share', async () => { if (enabled('ranch_share') && due(daily.getShareRoutineState())) { checkpoint(); await daily.claimShare(); steps++; } });
             await phase('benefit', async () => { if (enabled('ranch_daily_benefit') && due(daily.getBenefitRoutineState())) { checkpoint(); await daily.claimBenefit(); steps++; } });
+            await phase('muge', async () => { if (enabled('ranch_muge') && muge.mugeDue()) { checkpoint(); await muge.claimMuge(); steps++; } });
             nextCheckAt = Math.max(Date.now() + SCENE_REENTRY_MS, Math.min(nextCheckAt, nextActionAt, cycleChanged ? Date.now() + 30_000 : Infinity));
             resetCycle();
         });

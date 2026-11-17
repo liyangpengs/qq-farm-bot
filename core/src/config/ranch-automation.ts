@@ -20,6 +20,7 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_task: true,
     ranch_share: true,
     ranch_daily_benefit: true,
+    ranch_muge: true,
     ranch_check_minutes: 5,
     ranch_strategy: 'level' as 'level' | 'preferred' | 'bag_priority',
     ranch_bag_fallback: 'level' as 'level' | 'preferred',
