@@ -193,7 +193,13 @@ function priceCaption(good: any) {
                 <strong :title="good.price.name">{{ formatCount(good.price.count) }}</strong>
               </template>
             </div>
-            <NButton size="small" type="primary" :secondary="!good.free" :disabled="disabled || !good.available" @click="buy(good)">
+            <NButton
+              size="small"
+              :type="maxCount(good) > 0 ? 'primary' : 'default'"
+              :secondary="!good.free"
+              :disabled="disabled || !good.available || maxCount(good) < 1"
+              @click="buy(good)"
+            >
               {{ good.free ? '领取' : VERB[tab] }}
             </NButton>
           </div>
