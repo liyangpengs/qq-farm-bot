@@ -128,11 +128,18 @@ let shutdownStarted: boolean = false;
 let runtimeGeneration: number = 0;
 let lastDailyRunDate: string = '';
 let ranchRoutineQueued = false;
+let onRanchMarketStockReady: (() => void) | null = null;
 
 function ranchNextRunAt(): number {
     if (ranchRoutineQueued) return Infinity;
     const state = ranchAutomation.getRoutineState();
     return state.doneToday ? Infinity : state.nextCheckAt;
+}
+
+function wakeRanchMarketExchange(): void {
+    if (!loginReady || !getAutomation().ranch_market_organic) return;
+    ranchAutomation.resetMarketSchedule();
+    scheduleUnifiedNextTick();
 }
 
 function runRanchRoutine(detached = false): Promise<void> {
@@ -685,6 +692,10 @@ async function startBot(config: any): Promise<void> {
         };
         networkEvents.on('farmHarvested', onFarmHarvested);
 
+        if (onRanchMarketStockReady) networkEvents.off('ranchMarketStockReady', onRanchMarketStockReady);
+        onRanchMarketStockReady = wakeRanchMarketExchange;
+        networkEvents.on('ranchMarketStockReady', onRanchMarketStockReady);
+
         if (onDogSkillGiftPending) {
             networkEvents.off('dogSkillGiftPending', onDogSkillGiftPending);
         }
@@ -765,6 +776,10 @@ function detachRuntimeListeners(): void {
     if (onFarmHarvested) {
         networkEvents.off('farmHarvested', onFarmHarvested);
         onFarmHarvested = null;
+    }
+    if (onRanchMarketStockReady) {
+        networkEvents.off('ranchMarketStockReady', onRanchMarketStockReady);
+        onRanchMarketStockReady = null;
     }
     if (onDogSkillGiftPending) {
         networkEvents.off('dogSkillGiftPending', onDogSkillGiftPending);
