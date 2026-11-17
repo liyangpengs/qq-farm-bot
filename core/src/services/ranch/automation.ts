@@ -100,10 +100,10 @@ async function run(options: { farmDeadline?: () => number } = {}): Promise<void>
                 const count = money > 0n ? money / BigInt(good.price.count) : 0n;
                 return Number(count < BigInt(wanted) ? count : BigInt(wanted));
             };
-            async function act(key: string, action: string, input: any = {}, currency?: number): Promise<boolean> {
+            async function act(key: string, action: string, input: any = {}, currency?: number, progress?: string): Promise<boolean> {
                 const isEnabled = () => enabled(key) && (key !== 'ranch_grass_buy' || enabled('ranch_grass'));
                 if (!isEnabled()) return false;
-                const step = `${action}:${JSON.stringify(input)}`;
+                const step = `${action}:${JSON.stringify(input)}${progress === undefined ? '' : `:${progress}`}`;
                 if (completedSteps.has(step)) return false;
                 checkpoint();
                 let label = action;
@@ -190,15 +190,22 @@ async function run(options: { farmDeadline?: () => number } = {}): Promise<void>
                 if (enabled('ranch_grass')) {
                     for (const original of raw.cells.facilities.filter((f: any) => f.state === 1 && f.feed_machine)) {
                         const id = quantity(original.instance_id);
-                        const room = original.capacity - original.feed_machine.feed_count;
-                        if (room <= 0) continue;
-                        const stock = Math.max(0, Number(available(7001)));
+                        let room = original.capacity - original.feed_machine.feed_count;
+                        if (room <= 0 || original.feed_machine.feed_count * 100 >= original.capacity * auto.ranch_grass_threshold_percent) continue;
+                        let stock = Math.max(0, Number(available(7001)));
                         if (stock < room && enabled('ranch_grass_buy')) {
                             const shop = await catalog(raw, 6);
                             const good = shop.goods.find((g: any) => g.available && g.reward.id === 7001 && g.reward.count === '1' && g.price.id === 1007 && BigInt(g.price.count) > 0n);
                             if (good) {
-                                const count = affordable(good, Math.min(room - stock, good.maxCount, good.remaining ?? Infinity));
-                                if (count > 0) await act('ranch_grass_buy', 'buy', { shopId: 6, goodsId: good.id, count }, 1007);
+                                while (stock < room) {
+                                    const count = affordable(good, Math.min(room - stock, good.maxCount, good.remaining ?? Infinity));
+                                    // 按已到账库存区分限购批次，续跑时重新读取缺额，沿用农场到期让路。
+                                    if (count <= 0 || !await act('ranch_grass_buy', 'buy', { shopId: 6, goodsId: good.id, count }, 1007, `${id}:${stock}`)) break;
+                                    if (good.remaining !== null) good.remaining -= count;
+                                    const current = raw.cells.facilities.find((f: any) => quantity(f.instance_id) === id);
+                                    room = current.capacity - current.feed_machine.feed_count;
+                                    stock = Math.max(0, Number(available(7001)));
+                                }
                             }
                         }
                         const count = Math.min(room, Number(available(7001)));
