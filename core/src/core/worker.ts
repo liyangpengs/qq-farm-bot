@@ -32,7 +32,7 @@ const {
     openCharitySettlementGiftPacksSilently,
 } = require('../services/warehouse');
 const { checkAndClaimDogSkillGifts } = require('../services/dog-skill-gifts');
-const { isGatewayHealthyForBusiness, nextBusinessBackoffMs } = require('../utils/low-priority-gate');
+const { isGatewayHealthyForBusiness, isGatewayIdleForLowPriority, nextBusinessBackoffMs } = require('../utils/low-priority-gate');
 const { connect, cleanup, getWs, getUserState, networkEvents, getGatewayLoad } = require('../utils/network');
 const { loadProto } = require('../utils/proto');
 const { runWithRequestClass } = require('../utils/request-context');
@@ -113,8 +113,8 @@ let farmTaskRunning: boolean = false;
 let nextFarmRunAt: number = 0;
 let friendTaskRunning: boolean = false;
 let nextFriendRunAt: number = 0;
-// 网关卡住时两条定时任务各自的退避时长（毫秒），0 表示按正常间隔跑
-const businessBackoffMs: Record<string, number> = { farm: 0, friend: 0 };
+// 网关卡住时各定时任务的退避时长（毫秒），0 表示按正常间隔跑
+const businessBackoffMs: Record<string, number> = { farm: 0, friend: 0, ranch: 0 };
 let lastStatusHash: string = '';
 let lastStatusSentAt: number = 0;
 let onSellGain: ((deltaGold: any) => void) | null = null;
@@ -128,12 +128,17 @@ let shutdownStarted: boolean = false;
 let runtimeGeneration: number = 0;
 let lastDailyRunDate: string = '';
 let ranchRoutineQueued = false;
+let initialFarmCheckDone = false;
+let initialFriendCheckDone = false;
+let ranchDeferredUntil = 0;
 let onRanchMarketStockReady: (() => void) | null = null;
 
 function ranchNextRunAt(): number {
-    if (ranchRoutineQueued) return Infinity;
+    // 首轮农场和好友巡查先完成；长好友轮次的访问间隔也不插入场景切换。
+    if (!unifiedSchedulerRunning || ranchRoutineQueued || farmTaskRunning || friendTaskRunning
+        || !initialFarmCheckDone || !initialFriendCheckDone) return Infinity;
     const state = ranchAutomation.getRoutineState();
-    return state.doneToday ? Infinity : state.nextCheckAt;
+    return state.doneToday ? Infinity : Math.max(state.nextCheckAt, ranchDeferredUntil);
 }
 
 function wakeRanchMarketExchange(): void {
@@ -148,12 +153,23 @@ function runRanchRoutine(detached = false): Promise<void> {
     ranchRoutineQueued = true;
     return runExclusiveAutomationTask('ranch_routine', async () => {
         if (!loginReady || generation !== runtimeGeneration) return;
+        // 排队期间农场可能已到期，拿到锁后重新判断，避免空切一次牧场。
+        if (farmTaskRunning || friendTaskRunning || Date.now() >= Math.min(nextFarmRunAt, nextFriendRunAt)) return;
+        const deferMs = nextBusinessTickDeferMs('ranch');
+        if (deferMs > 0) {
+            ranchDeferredUntil = Date.now() + deferMs;
+            return;
+        }
+        if (!isGatewayIdleForLowPriority(getGatewayLoad())) {
+            ranchDeferredUntil = Date.now() + 1000;
+            return;
+        }
         const state = ranchAutomation.getRoutineState();
         if (state.doneToday || Date.now() < state.nextCheckAt) return;
-        await ranchAutomation.run({ farmDeadline: () => Math.min(
-            nextFarmRunAt || Infinity,
-            friendTaskRunning ? Date.now() : nextFriendRunAt || Infinity,
-        ) });
+        await runWithRequestClass('friend', () => ranchAutomation.run({
+            farmDeadline: () => Math.min(nextFarmRunAt, friendTaskRunning ? Date.now() : nextFriendRunAt),
+            canContinue: () => loginReady && generation === runtimeGeneration && isGatewayHealthyForBusiness(getGatewayLoad()),
+        }));
     }, { detached }).finally(() => {
         ranchRoutineQueued = false;
         scheduleUnifiedNextTick();
@@ -170,7 +186,6 @@ async function runDailyRoutines(force: boolean = false): Promise<void> {
         await performDailyMonthCardGift(force);
         await buyFreeGifts(force);
         await performDailyVipGift(force);
-        await runRanchRoutine();
     } catch (e: any) {
         log('系统', `每日任务调度失败: ${e.message}`, { module: 'system', event: '每日任务', result: 'error' });
     }
@@ -187,7 +202,6 @@ function startDailyRoutineTimer(runImmediately: boolean = true): void {
     if (runImmediately) runExclusiveAutomationTask('daily_routines', () => runDailyRoutines(true)).catch(() => null);
     workerScheduler.setIntervalTask('daily_routine_interval', 30 * 1000, () => {
         if (!loginReady) return;
-        void runRanchRoutine(true).catch((error: any) => logWarn('牧场', `牧场例程失败：${error.message}`));
         const today = getSystemDateKey();
         if (today === lastDailyRunDate) {
             const email = getEmailDailyState();
@@ -256,7 +270,7 @@ function resetUnifiedSchedule(): void {
     businessBackoffMs.friend = 0;
 }
 
-const BUSINESS_TICK_LABEL: Record<string, string> = { farm: '农场定时任务', friend: '好友定时任务' };
+const BUSINESS_TICK_LABEL: Record<string, string> = { farm: '农场定时任务', friend: '好友定时任务', ranch: '牧场定时任务' };
 
 function describeGatewayStall(load: any): string {
     const parts: string[] = [];
@@ -328,6 +342,7 @@ async function runFarmTick(auto: any): Promise<void> {
     } finally {
         nextFarmRunAt = Date.now() + farmMs;
         farmTaskRunning = false;
+        initialFarmCheckDone = true;
     }
 }
 
@@ -342,6 +357,7 @@ async function runFriendTick(auto: any): Promise<void> {
     // friend 总开关仍控制好友任务总入口；关闭时也要推进到期时间，避免调度器每秒空转。
     if (!auto.friend) {
         nextFriendRunAt = Date.now() + friendMs;
+        initialFriendCheckDone = true;
         return;
     }
 
@@ -362,6 +378,7 @@ async function runFriendTick(auto: any): Promise<void> {
         if (generation === runtimeGeneration) {
             nextFriendRunAt = Date.now() + friendMs;
             friendTaskRunning = false;
+            initialFriendCheckDone = true;
             scheduleUnifiedNextTick();
         }
     }
@@ -414,6 +431,10 @@ function scheduleUnifiedNextTick(): void {
 
 function startUnifiedScheduler(): void {
     if (unifiedSchedulerRunning) return;
+    initialFarmCheckDone = false;
+    initialFriendCheckDone = false;
+    ranchDeferredUntil = 0;
+    businessBackoffMs.ranch = 0;
     unifiedSchedulerRunning = true;
     resetUnifiedSchedule();
     scheduleUnifiedNextTick();
