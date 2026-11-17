@@ -1,0 +1,79 @@
+syntax = "proto3";
+package gamepb.activitypb;
+import "corepb.proto";
+
+message MugeHead {
+    int64 id = 1;
+    int64 group_id = 2;
+    int64 type = 3;
+    string name = 4;
+    string desc = 5;
+    int64 start_time = 6;
+    int64 end_time = 7;
+    int32 status = 20;
+}
+message MugeTier {
+    int64 tier_id = 1;
+    int64 threshold = 2;
+    repeated corepb.Item reward = 3;
+    int32 status = 4;
+}
+message MugeGlobalCount { int64 total = 1; repeated MugeTier tiers = 2; }
+message MugeCountedFriend { int64 gid = 1; }
+message MugeInviteFriend { repeated MugeTier tiers = 1; repeated MugeCountedFriend counted_friends = 2; }
+message MugeTask {
+    int64 task_id = 1;
+    int64 progress = 2;
+    int64 target = 3;
+    int32 status = 4;
+    repeated corepb.Item reward = 5;
+    string desc = 6;
+    int64 unlock_day = 7;
+}
+message MugeHandbook { repeated MugeTask tasks = 1; int64 tier_points = 2; repeated MugeTier tiers = 3; }
+message MugeSurvey {
+    map<int64, int64> answers = 1;
+    int64 personality_id = 2;
+    int64 settle_count = 3;
+    bool share_reward_claimed = 4;
+}
+message MugeActivity {
+    MugeHead head = 1;
+    MugeHandbook task = 124;
+    MugeInviteFriend invite_friend = 125;
+    MugeGlobalCount global_count = 126;
+    MugeSurvey survey = 127;
+}
+message MugeGroup { MugeHead head = 1; repeated MugeActivity children = 2; }
+message MugeListReply { repeated MugeGroup groups = 1; }
+message MugeTierClaimRequest { int64 tier_id = 1; }
+message MugeTaskClaimRequest { int64 task_id = 1; }
+message MugeSurveySaveRequest { map<int64, int64> answers = 1; bool clear = 2; }
+message MugeEmpty {}
+message MugeSurveyShareRequest { string share_id = 1; }
+message MugeOperateRequest {
+    int64 id = 1;
+    int64 cmd = 2;
+    MugeTaskClaimRequest task_claim = 182;
+    MugeTierClaimRequest task_tier_claim = 183;
+    MugeTierClaimRequest invite_friend_tier_claim = 184;
+    MugeTierClaimRequest global_count_claim_tier = 185;
+    MugeSurveySaveRequest survey_save_progress = 186;
+    MugeEmpty survey_settle = 187;
+    MugeSurveyShareRequest survey_claim_share_reward = 189;
+}
+message MugeTierClaimReply { repeated int64 claimed_ids = 1; repeated corepb.Item awards = 2; }
+message MugeSurveyResult { int64 personality_id = 1; int64 percent_bp = 2; }
+message MugeSurveyShareReply { repeated corepb.Item awards = 1; }
+message MugeOperateReply {
+    int64 id = 1;
+    int64 cmd = 2;
+    MugeActivity activity = 3;
+    MugeTierClaimReply task_claim = 182;
+    MugeTierClaimReply task_tier_claim = 183;
+    MugeTierClaimReply invite_friend_tier_claim = 184;
+    MugeTierClaimReply global_count_claim_tier = 185;
+    MugeEmpty survey_save_progress = 186;
+    MugeSurveyResult survey_settle = 187;
+    MugeSurveyShareReply survey_claim_share_reward = 189;
+}
