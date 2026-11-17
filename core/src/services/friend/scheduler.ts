@@ -4,7 +4,8 @@
 
 const { CONFIG } = require('../../config/config');
 const crypto = require('node:crypto');
-const { getUserState, networkEvents } = require('../../utils/network');
+const { getUserState, getGatewayLoad, networkEvents } = require('../../utils/network');
+const { isGatewayHealthyForBusiness, isGatewayYieldError } = require('../../utils/low-priority-gate');
 const { toNum, getSystemDateKey, log, logWarn, randomDelay, sleep } = require('../../utils/utils');
 const { getDataFile } = require('../../config/runtime-paths');
 const { createScheduler } = require('../scheduler');
@@ -310,7 +311,7 @@ export async function checkFriends(options: CheckFriendsOptions = {}): Promise<b
     const roundDate = getSystemDateKey();
     const canContinue = (): boolean => generation === friendLoopGeneration
         && !!getUserState().gid && isAutomationOn('friend') && !inFriendQuietHours()
-        && getSystemDateKey() === roundDate;
+        && getSystemDateKey() === roundDate && isGatewayHealthyForBusiness(getGatewayLoad());
 
     async function waitStealGap(target: any): Promise<void> {
         let remainingMs = getStealDelaySeconds(accountId) * 1000;
@@ -423,6 +424,7 @@ export async function checkFriends(options: CheckFriendsOptions = {}): Promise<b
                     });
                 }, { detached: true });
             } catch (e: any) {
+                if (isGatewayYieldError(e) || String(e.message).includes('stage=pending')) throw e;
                 log('好友', `巡查好友失败: ${target.name}, 错误: ${e.message}`, {
                     module: 'friend', event: '好友巡查失败', friendName: target.name, error: e.message,
                 });
