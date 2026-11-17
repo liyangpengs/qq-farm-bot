@@ -170,7 +170,7 @@ watch(currentAccountId, () => {
           </template>
         </NButton>
         <img src="/activity-assets/muge/icon.png" alt="" width="32" height="32" class="muge-head__icon">
-        <div class="min-w-0">
+        <div class="muge-head__text min-w-0">
           <h1>牧歌初启</h1>
           <p v-if="period">
             <span class="i-carbon-calendar" aria-hidden="true" />{{ period.text }}
@@ -1042,8 +1042,47 @@ details:not([open]) > .muge-section__head > i {
 }
 
 @media (max-width: 640px) {
+  .muge-head {
+    display: grid;
+    grid-template-columns: auto 32px minmax(0, 1fr) auto;
+    gap: 4px 8px;
+  }
+
+  .muge-head__lead,
+  .muge-head__text {
+    display: contents;
+  }
+
+  .muge-head__icon {
+    grid-area: 1 / 2;
+  }
+
+  .muge-head h1 {
+    grid-area: 1 / 3;
+  }
+
+  .muge-head__actions {
+    grid-area: 1 / 4;
+  }
+
+  .muge-head p {
+    grid-area: 2 / 2 / auto / -1;
+    flex-wrap: wrap;
+    margin-top: 0;
+    white-space: normal;
+  }
+
   .muge-head__actions .muge-head__rules-label {
     display: none;
+  }
+
+  .muge-tabs {
+    --n-tab-gap: 10px !important;
+    --n-tab-font-size: 13px !important;
+  }
+
+  .muge-tab {
+    gap: 4px;
   }
 
   .muge-bar {
