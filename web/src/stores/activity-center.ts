@@ -892,7 +892,7 @@ function normalizeSolarTerms(value: unknown): SolarTermsDto | null {
   }
 }
 
-function normalizeActivityDirectory(value: unknown): ActivityDirectoryItemDto[] {
+export function normalizeActivityDirectory(value: unknown): ActivityDirectoryItemDto[] {
   return records(value).map((entry) => {
     const detailTarget = text(entry.detailTarget, entry.detail_target)
     const normalizedDetailTarget = ['travel', 'constellation', 'shop', 'solar', 'qixi', 'qingmei', 'charity', 'weather', 'pet', 'wish', 'happy', 'milk', 'muge'].includes(detailTarget)

@@ -6,7 +6,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import api from '@/api'
 import { activityHasGameplay } from '@/components/activity/gameplays'
 import { useAccountStore } from '@/stores/account'
-import { useActivityCenterStore } from '@/stores/activity-center'
+import { normalizeActivityDirectory, useActivityCenterStore } from '@/stores/activity-center'
 import PetMascot from './PetMascot.vue'
 import { useActivityClock } from './useActivityClock'
 
@@ -146,7 +146,7 @@ async function load(force = false) {
         return false
       if (!response.data?.ok)
         throw new Error(response.data?.error || '读取牧场活动失败')
-      ranchDirectory.value = response.data.data.activities
+      ranchDirectory.value = normalizeActivityDirectory(response.data.data.activities)
       ranchClockOffset.value = response.data.data.serverTime * 1000 - Date.now()
       ranchLoadedAccountId.value = id
       return true
