@@ -80,9 +80,12 @@ function selectTab(key: string) {
 </template>
 
 <style scoped>
+/* 活动详情铺满内容区时，把剩余高度继续传给活动外壳。 */
 .ranch-page {
   display: flex;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
 }
 

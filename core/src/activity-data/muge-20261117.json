@@ -1,0 +1,414 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "title": "你一般什么时候上线玩农场：",
+      "options": [
+        {
+          "value": 1,
+          "text": "睁眼就开始玩，玩到睡前",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "偶尔想起来才上线玩一下",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "好友给我发链接了我就点进去玩玩",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "有人偷我菜的时候",
+          "label": "D"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "进入农场，你会先：",
+      "options": [
+        {
+          "value": 1,
+          "text": "收自己的菜",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "先去偷好友的菜",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "领每日任务奖励",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "给没熟的菜施肥催熟",
+          "label": "D"
+        },
+        {
+          "value": 5,
+          "text": "和小狗互动",
+          "label": "E"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "你喜欢在菜地里种：",
+      "options": [
+        {
+          "value": 1,
+          "text": "当前等级金币收益最高的作物",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "当前等级经验收益最高的作物",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "活动限定作物",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "仓库里有啥种啥",
+          "label": "D"
+        },
+        {
+          "value": 5,
+          "text": "感兴趣的植物",
+          "label": "E"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "用化肥催熟的菜被好友偷了，你：",
+      "options": [
+        {
+          "value": 1,
+          "text": "笑一笑算了",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "迅速删除农场好友",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "记在心里，一定要偷回来",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "截图发给朋友怒斥",
+          "label": "D"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "朋友私发你农场链接，你：",
+      "options": [
+        {
+          "value": 1,
+          "text": "从来不点",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "看心情点",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "回个表情包",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "每次都点进去玩两下",
+          "label": "D"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "你的留言板：",
+      "options": [
+        {
+          "value": 1,
+          "text": "不爱玩",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "精心打理标语",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "这是什么",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "经常和朋友互动",
+          "label": "D"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "你会计算作物成熟时间吗：",
+      "options": [
+        {
+          "value": 1,
+          "text": "不会，想起来了才进农场",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "会，有个模糊的印象",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "会，反复查看确认",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "不会，催肥大师不需要记时间",
+          "label": "D"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "你的农场装扮是：",
+      "options": [
+        {
+          "value": 1,
+          "text": "最新活动款",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "混搭喜欢的装扮",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "唯爱默认小屋",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "必须套装",
+          "label": "D"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "手机电量剩 20% 时，你：",
+      "options": [
+        {
+          "value": 1,
+          "text": "不慌，先把菜偷了，到5%再充",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "立刻充电",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "开启省电模式",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "不会让手机电量低于20%",
+          "label": "D"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "在农场你最享受的瞬间是？",
+      "options": [
+        {
+          "value": 1,
+          "text": "算好时间卡点收菜，一秒不差",
+          "label": "A"
+        },
+        {
+          "value": 2,
+          "text": "拜访好友时正好偷走好友刚成熟的菜",
+          "label": "B"
+        },
+        {
+          "value": 3,
+          "text": "精心装扮自己的农场",
+          "label": "C"
+        },
+        {
+          "value": 4,
+          "text": "什么都不干，挂机听背景音",
+          "label": "D"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "id": 1,
+      "image": "/activity-assets/muge/personality-1.png"
+    },
+    {
+      "id": 2,
+      "image": "/activity-assets/muge/personality-2.png"
+    },
+    {
+      "id": 3,
+      "image": "/activity-assets/muge/personality-3.png"
+    },
+    {
+      "id": 4,
+      "image": "/activity-assets/muge/personality-4.png"
+    },
+    {
+      "id": 5,
+      "image": "/activity-assets/muge/personality-5.png"
+    },
+    {
+      "id": 6,
+      "image": "/activity-assets/muge/personality-6.png"
+    },
+    {
+      "id": 7,
+      "image": "/activity-assets/muge/personality-7.png"
+    },
+    {
+      "id": 8,
+      "image": "/activity-assets/muge/personality-8.png"
+    },
+    {
+      "id": 9,
+      "image": "/activity-assets/muge/personality-9.png"
+    },
+    {
+      "id": 10,
+      "image": "/activity-assets/muge/personality-10.png"
+    }
+  ],
+  "tasks": [
+    {
+      "id": 1,
+      "points": 10
+    },
+    {
+      "id": 2,
+      "points": 10
+    },
+    {
+      "id": 3,
+      "points": 10
+    },
+    {
+      "id": 4,
+      "points": 10
+    },
+    {
+      "id": 5,
+      "points": 10
+    },
+    {
+      "id": 6,
+      "points": 10
+    },
+    {
+      "id": 7,
+      "points": 10
+    },
+    {
+      "id": 8,
+      "points": 10
+    },
+    {
+      "id": 9,
+      "points": 10
+    },
+    {
+      "id": 10,
+      "points": 10
+    },
+    {
+      "id": 11,
+      "points": 10
+    },
+    {
+      "id": 12,
+      "points": 10
+    },
+    {
+      "id": 13,
+      "points": 10
+    },
+    {
+      "id": 14,
+      "points": 10
+    },
+    {
+      "id": 15,
+      "points": 10
+    },
+    {
+      "id": 16,
+      "points": 10
+    },
+    {
+      "id": 17,
+      "points": 10
+    },
+    {
+      "id": 18,
+      "points": 10
+    },
+    {
+      "id": 19,
+      "points": 10
+    },
+    {
+      "id": 20,
+      "points": 15
+    },
+    {
+      "id": 21,
+      "points": 15
+    },
+    {
+      "id": 22,
+      "points": 20
+    },
+    {
+      "id": 23,
+      "points": 20
+    },
+    {
+      "id": 24,
+      "points": 20
+    }
+  ]
+}

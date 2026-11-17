@@ -14,7 +14,7 @@ const appStore = useAppStore()
 const route = useRoute()
 const { sidebarOpen, activityDetailOpen } = storeToRefs(appStore)
 // 页头固定在滚动区之外；活动详情自带标题栏，打开时隐藏通用页头。
-const activityDetail = computed(() => route.name === 'activity-center' && activityDetailOpen.value)
+const activityDetail = computed(() => ['activity-center', 'ranch-activity-center'].includes(String(route.name)) && activityDetailOpen.value)
 const showPageHeader = computed(() => !route.meta.fullBleed && !activityDetail.value)
 const scrolled = ref(false)
 const scrollEl = ref<HTMLElement | null>(null)

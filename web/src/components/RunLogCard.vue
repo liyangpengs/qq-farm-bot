@@ -124,6 +124,7 @@ const events = [
   { label: '恢复场景', value: 'ranch_scene_restore' },
   { label: '牧场任务', value: 'ranch_task_claim' },
   { label: '牧场分享礼包', value: 'ranch_daily_share' },
+  { label: '牧场每日福利', value: 'ranch_daily_benefit' },
 ]
 
 const eventLabelMap: Record<string, string> = Object.fromEntries(

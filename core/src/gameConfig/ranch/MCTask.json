@@ -3388,7 +3388,7 @@
     "task_type": "家园成长任务",
     "desc": "给牧草机添加牧草",
     "condition": "给自己牧草机添加N份食材",
-    "total_progress": 10,
+    "total_progress": 1,
     "group": 2001,
     "is_show_text": 0
   },

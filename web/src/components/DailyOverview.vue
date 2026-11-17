@@ -55,6 +55,8 @@ function getGiftStatusText(gift: any) {
     return '领取失败'
   if (gift.result === 'partial')
     return '部分领取失败'
+  if (gift.key === 'mall_free_gifts' && gift.result === 'none' && gift.doneToday)
+    return '今日无可领福利'
   if (gift.key === 'daily_share' && gift.mode === 'check_only')
     return '仅检测/待人工确认'
   if (gift.key === 'vip_daily_gift' && (gift.isVip === false || (gift.isVip == null && gift.hasGift === false)))

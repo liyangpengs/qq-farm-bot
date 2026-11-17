@@ -513,6 +513,18 @@ function getActivityCenterSnapshot(shopOverride: any = null) {
     return request;
 }
 
+async function getRanchActivityDirectorySnapshot() {
+    const body = types.ActivityListRequest.encode({ game_scene_id: 2 }).finish();
+    const response = await sendMsgAsync('gamepb.activitypb.ActivityService', 'List', body);
+    const reply = types.ActivityListReply.decode(response.body);
+    // all_activities 是两边共用的时间目录；牧场只展示场景 2 实际下发的活动组。
+    const windows = reply.activities.flatMap((group: any) => [group, ...group.children]).map((entry: any) => ({
+        id: String(entry.activity.activity_id), name: entry.activity.name,
+        beginTime: int64Number(entry.activity.begin_time), endTime: int64Number(entry.activity.end_time),
+    }));
+    return { serverTime: getServerTimeSec(), activities: buildActivityDirectory(windows, null, null, null, null) };
+}
+
 async function getActivityDirectorySnapshot() {
     const activityWindows = await getActivityWindows();
     return {
@@ -542,6 +554,7 @@ module.exports = {
     reconcileCharityProgressState,
     buildActivityDirectory,
     getActivityDirectorySnapshot,
+    getRanchActivityDirectorySnapshot,
     getActivityCenterSnapshot,
     getCurrentSeasonEvent,
     getCurrentStellarActivity,

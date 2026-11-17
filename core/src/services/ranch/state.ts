@@ -203,6 +203,7 @@ async function getState(view = 'animals', shopId?: number, hostGid?: string): Pr
             state.tasks = taskList(await rpc('tasks', { global_scene_id: 2 }));
             // 每日首次分享状态随任务和活动页面返回。
             state.dailyShare = require('./daily-share').getState();
+            state.dailyBenefit = await require('./daily-benefit').read();
         }
         if (view === 'illustrated') state.book = await require('./book').getBook();
         if (view === 'activities') {

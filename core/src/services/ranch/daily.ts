@@ -9,6 +9,7 @@ export {};
 const { isUnlocked } = require('./transport');
 const { prepareAction, operate } = require('./actions');
 const dailyShare = require('./daily-share');
+const dailyBenefit = require('./daily-benefit');
 const { log } = require('../../utils/utils');
 const { getAutomation } = require('../../models/store');
 const gameDate = () => dailyShare.getState().dateKey;
@@ -32,6 +33,7 @@ function emptyState(): RoutineState {
 
 let share: RoutineState = emptyState();
 let tasks: RoutineState = emptyState();
+let benefit: RoutineState = emptyState();
 
 function today(state: RoutineState): RoutineState {
     return state.dateKey === gameDate() ? state : emptyState();
@@ -101,6 +103,25 @@ async function claimTasks(): Promise<void> {
     }
 }
 
+async function claimBenefit(): Promise<void> {
+    benefit = today(benefit);
+    const now = Date.now();
+    try {
+        const outcome = await dailyBenefit.claim();
+        benefit = { ...benefit, doneToday: true, lastAt: outcome.claimed && !outcome.skipped ? now : 0, nextCheckAt: 0, result: outcome.claimed ? 'ok' : 'none', lastError: '' };
+        if (!outcome.skipped) log('牧场', `每日福利已领取：${rewardText(outcome.rewards)}`, { module: 'ranch', event: 'ranch_daily_benefit', result: 'ok' });
+    } catch (error: any) {
+        const unknown = isUnknown(error);
+        benefit = { ...benefit, doneToday: unknown, lastAt: now, nextCheckAt: unknown ? 0 : now + RETRY_MS, result: 'error', lastError: String(error?.message || error) };
+        log('牧场', `每日福利领取失败：${benefit.lastError}`, { module: 'ranch', event: 'ranch_daily_benefit', result: 'error' });
+    }
+}
+
+function getBenefitRoutineState(): { doneToday: boolean, nextCheckAt: number } {
+    benefit = today(benefit);
+    return { doneToday: benefit.doneToday || !isUnlocked() || !!dailyBenefit.getCachedState()?.claimed, nextCheckAt: benefit.nextCheckAt };
+}
+
 /** 供每日例程判断是否到期：分享以游戏端领取标记为准，任务按复查间隔。 */
 function getShareRoutineState(): { doneToday: boolean, nextCheckAt: number } {
     share = today(share);
@@ -113,13 +134,15 @@ function getTaskRoutineState(): { doneToday: boolean, nextCheckAt: number } {
 }
 
 /** 每日礼包页的牧场部分：键名与农场一致，前端用同一套格子展示。 */
-function getOverview(taskEnabled: boolean, shareEnabled = true): any {
+function getOverview(taskEnabled: boolean, shareEnabled = true, benefitEnabled = true): any {
     share = today(share);
     tasks = today(tasks);
+    benefit = today(benefit);
     const unlocked = isUnlocked();
     return {
         unlocked,
         gifts: [
+            { key: 'mall_free_gifts', label: '每日福利', enabled: benefitEnabled, doneToday: !!dailyBenefit.getCachedState()?.claimed || benefit.doneToday && benefit.result !== 'error', lastAt: benefit.lastAt, result: ['error', 'none'].includes(benefit.result) ? benefit.result : '', lastError: benefit.lastError },
             { key: 'task_claim', label: '每日任务', enabled: taskEnabled, lastAt: tasks.lastAt, result: tasks.result === 'error' ? 'error' : '', lastError: tasks.lastError },
             { key: 'daily_share', label: '分享礼包', enabled: shareEnabled, mode: 'auto_claim', doneToday: shareClaimed() || (share.doneToday && !['error', 'locked'].includes(share.result)), lastAt: share.lastAt,
                 result: share.result === 'error' ? 'error' : '', lastError: share.lastError },
@@ -132,4 +155,4 @@ function markTasksChanged(): void {
     if (tasks.result !== 'error') tasks.nextCheckAt = 0;
 }
 
-module.exports = { claimShare, claimTasks, getShareRoutineState, getTaskRoutineState, getOverview, markTasksChanged };
+module.exports = { claimShare, claimTasks, claimBenefit, getBenefitRoutineState, getShareRoutineState, getTaskRoutineState, getOverview, markTasksChanged };
