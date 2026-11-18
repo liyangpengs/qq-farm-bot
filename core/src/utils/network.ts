@@ -678,6 +678,12 @@ function handleNotify(msg: any): void {
             return;
         }
 
+        if (type === 'gamepb.shoppb.RotationShopNotify') {
+            const rotation = types.RanchRotationShopNotify.decode(eventBody).shops.find((shop: any) => toNum(shop.shop_id) === 7);
+            if (rotation) networkEvents.emit('ranchMarketVisitChanged', rotation);
+            return;
+        }
+
         // 物品变化通知
         if (type.includes('ItemNotify')) {
             try {
