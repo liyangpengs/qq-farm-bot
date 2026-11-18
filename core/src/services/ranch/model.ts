@@ -72,4 +72,13 @@ function levelInfo(exp: number): any {
     return { level: current.level, exp, currentExp: exp - current.exp, neededExp: next ? next.exp - current.exp : null };
 }
 
-module.exports = { animalMap, mutationMap, cubMap, canMap, facilityMap, itemMap, taskMap, error, positiveId, positiveCount, quantity, itemDto, pendingOperationView, sumItems, signature, levelInfo };
+function isLongestAnimalStage(animal: any): boolean {
+    const config = animalMap.get(Number(animal?.animal_id ?? animal?.animalId));
+    if (!config) return false;
+    const durations = [config.infant_sec, config.grow_sec, config.product_round_sec, config.mature_sec].map(Number);
+    const current = Number(animal.stage) - 1;
+    if (!Number.isInteger(current) || current < 0 || current >= durations.length) return false;
+    return Number.isFinite(durations[current]) && durations[current] === Math.max(...durations.filter(Number.isFinite));
+}
+
+module.exports = { animalMap, mutationMap, cubMap, canMap, facilityMap, itemMap, taskMap, error, positiveId, positiveCount, quantity, itemDto, pendingOperationView, sumItems, signature, levelInfo, isLongestAnimalStage };

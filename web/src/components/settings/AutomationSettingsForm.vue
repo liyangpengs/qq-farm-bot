@@ -69,6 +69,10 @@ const ranchStrategies = [
   { label: '指定动物', value: 'preferred' },
   { label: '优先背包幼崽', value: 'bag_priority' },
 ]
+const ranchFeedNormalStages = [
+  { label: '任意阶段（买来就用）', value: 'any' },
+  { label: '仅最长阶段（延后使用）', value: 'longest' },
+]
 </script>
 
 <template>
@@ -92,6 +96,9 @@ const ranchStrategies = [
           <div v-if="panel === 'automation'" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div v-for="[key, label] in ranchSwitches" :key="key" class="automation-setting-item">
               <BaseSwitch v-model="settings.automation[key]" :label="label" :disabled="key === 'ranch_grass_buy' && !settings.automation.ranch_grass" />
+            </div>
+            <div class="automation-setting-item">
+              <BaseSelect v-model="settings.automation.ranch_feed_normal_stage" label="普通罐头使用阶段" :options="ranchFeedNormalStages" :disabled="!settings.automation.ranch_feed_normal" />
             </div>
             <div class="col-span-full text-xs text-gray-500 dark:text-gray-400">
               仓鼠集市仅用便便，优先兑换4小时再兑换1小时；每6小时检查，便便增加即触发兑换。

@@ -301,7 +301,17 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                 }
             });
 
-            await phase('feed-normal', async () => { if (enabled('ranch_feed_normal') && available(7003) > 0n) await act('ranch_feed_normal', 'feed', { all: true, bucketType: 2 }); });
+            await phase('feed-normal', async () => {
+                if (!enabled('ranch_feed_normal') || available(7003) <= 0n) return;
+                const normalStage = auto.ranch_feed_normal_stage === 'longest' ? 'longest' : 'any';
+                if (normalStage === 'longest') {
+                    const { isLongestAnimalStage } = require('./model');
+                    const hasLongest = snapshot(raw).facilities.some((f: any) => (f.ranch?.animals || [])
+                        .some((animal: any) => animal.canFeed && !animal.limitedCanUsed && isLongestAnimalStage(animal)));
+                    if (!hasLongest) return;
+                }
+                await act('ranch_feed_normal', 'feed', { all: true, bucketType: 2, normalStage });
+            });
             await phase('feed-organic', async () => { if (enabled('ranch_feed_organic') && available(7004) > 0n) await act('ranch_feed_organic', 'feed', { all: true, bucketType: 1 }); });
 
             await phase('friends', async () => {
