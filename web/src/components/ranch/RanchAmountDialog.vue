@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
-import { NCard } from 'naive-ui/es/card'
 import { NInputNumber } from 'naive-ui/es/input-number'
 import { NModal } from 'naive-ui/es/modal'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 
-/** 先选数量（和放养设施），再交给报价确认框核对费用与内容。 */
+/** 牧场操作共用的数量弹窗，可在数量下展示结算信息。 */
 const props = withDefaults(defineProps<{
   show: boolean
   title: string
@@ -19,9 +18,10 @@ const props = withDefaults(defineProps<{
 }>(), { image: '', caption: '', submitText: '下一步', ready: true })
 
 const emit = defineEmits<{ submit: [count: number], close: [] }>()
+const quantityId = useId()
 const count = ref<number | null>(1)
 const limit = computed(() => Math.max(0, Math.min(2147483647, Math.floor(props.max))))
-const valid = computed(() => props.ready && Number.isSafeInteger(count.value) && count.value! >= 1 && count.value! <= limit.value)
+const quantity = computed(() => count.value !== null && Number.isSafeInteger(count.value) && count.value >= 1 && count.value <= limit.value ? count.value : null)
 
 watch(() => props.show, (show) => {
   if (show)
@@ -34,46 +34,50 @@ watch(limit, (maximum) => {
 </script>
 
 <template>
-  <NModal :show="show" @update:show="value => !value && emit('close')">
-    <NCard class="amount-card" :title="title" closable @close="emit('close')">
-      <div class="amount">
-        <div class="amount__item">
-          <span class="amount__well"><img v-if="image" :src="image" alt=""></span>
-          <div>
-            <strong>{{ name }}</strong>
-            <small v-if="caption">{{ caption }}</small>
-          </div>
-        </div>
-        <slot />
-        <div class="amount__row">
-          <span>数量</span>
-          <div class="amount__stepper">
-            <NInputNumber v-model:value="count" :min="1" :max="limit || 1" :precision="0" :disabled="limit < 1" class="w-32" aria-label="数量" />
-            <NButton size="small" secondary :disabled="limit < 1 || count === limit" @click="count = limit">
-              最大
-            </NButton>
-          </div>
+  <NModal
+    preset="card"
+    style="width: 400px; max-width: calc(100% - 32px)"
+    :show="show"
+    :title="title"
+    :aria-label="title"
+    closable
+    @update:show="value => !value && emit('close')"
+    @close="emit('close')"
+  >
+    <div class="amount">
+      <div class="amount__item">
+        <span class="amount__well"><img v-if="image" :src="image" alt=""></span>
+        <div>
+          <strong>{{ name }}</strong>
+          <small v-if="caption">{{ caption }}</small>
         </div>
       </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <NButton secondary @click="emit('close')">
-            取消
-          </NButton>
-          <NButton type="primary" :disabled="!valid" @click="emit('submit', count!)">
-            {{ submitText }}
+      <slot />
+      <div class="amount__row">
+        <label :for="quantityId">数量</label>
+        <div class="amount__stepper">
+          <NInputNumber v-model:value="count" :min="1" :max="limit || 1" :precision="0" :disabled="limit < 1" :input-props="{ id: quantityId, inputmode: 'numeric' }" class="w-32" />
+          <NButton size="small" secondary :disabled="limit < 1 || count === limit" @click="count = limit">
+            最大
           </NButton>
         </div>
-      </template>
-    </NCard>
+      </div>
+      <slot name="details" :count="quantity" />
+    </div>
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <NButton secondary @click="emit('close')">
+          取消
+        </NButton>
+        <NButton type="primary" :disabled="!ready || quantity === null" @click="quantity !== null && emit('submit', quantity)">
+          {{ submitText }}
+        </NButton>
+      </div>
+    </template>
   </NModal>
 </template>
 
 <style scoped>
-.amount-card {
-  width: min(400px, calc(100vw - 32px));
-}
-
 .amount {
   display: flex;
   flex-direction: column;

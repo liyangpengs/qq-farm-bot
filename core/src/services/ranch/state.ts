@@ -100,6 +100,7 @@ function inventory(raw: any): any[] {
             type: metadata?.type || 0, sellPrices: item.show?.sells?.map(itemDto) || [],
             canSell: !item.is_locked && !!item.show?.sells?.length && !item.show.sell_cond.length && [106, 107].includes(metadata?.type),
             can: canMap.get(Number(item.id)) || null, animalId: animal?.id || null, giantCub: !!animal?.giantCubItemId,
+            husbandryType: animal?.husbandry_type ?? null,
             product: item.item_detail?.ranch_product ? {
                 weightX10: item.item_detail.ranch_product.weight_x10, tier: item.item_detail.ranch_product.tier,
                 priceRate: quantity(item.item_detail.ranch_product.price_rate),

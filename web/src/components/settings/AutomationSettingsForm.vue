@@ -6,6 +6,7 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import HourInput from '@/components/ui/HourInput.vue'
+import RanchCubPriority from './RanchCubPriority.vue'
 
 export type AutomationSettingsFormModel = Pick<
   SettingsState,
@@ -28,10 +29,12 @@ withDefaults(defineProps<{
   /** 页面级统一保存时隐藏表单自带的底部按钮。 */
   hideSave?: boolean
   ranchAnimalOptions?: Array<{ value: number, label: string, kind: string }>
+  accountId?: string
+  connected?: boolean
   saving: boolean
   fertilizerLandTypeOptions: Array<{ label: string, value: string }>
   fertilizerOptions: Array<{ label: string, value: string }>
-}>(), { inRanch: false, panel: 'automation', ranchAnimalOptions: () => [] })
+}>(), { inRanch: false, panel: 'automation', ranchAnimalOptions: () => [], accountId: '', connected: false })
 
 const emit = defineEmits<{
   save: []
@@ -82,7 +85,7 @@ const ranchStrategies = [
                 {{ panel === 'strategy' ? '养殖策略' : '日常牧场' }}
               </h4>
               <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {{ panel === 'strategy' ? '按窝、棚空位补栏，优先使用所选动物的库存幼崽' : '管理生产、收获、补栏与每日奖励' }}
+                {{ panel === 'strategy' ? '按窝和棚的空位补栏' : '管理生产、收获、补栏与每日奖励' }}
               </p>
             </div>
           </div>
@@ -112,12 +115,19 @@ const ranchStrategies = [
           </div>
           <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <BaseSelect v-model="settings.automation.ranch_strategy" label="养殖策略" :options="ranchStrategies" />
-            <BaseSelect v-if="settings.automation.ranch_strategy === 'bag_priority'" v-model="settings.automation.ranch_bag_fallback" label="库存不足时" :options="ranchStrategies.slice(0, 2)" />
+            <BaseSelect v-if="settings.automation.ranch_strategy === 'bag_priority'" v-model="settings.automation.ranch_bag_fallback" label="同类幼崽用完后" :options="ranchStrategies.slice(0, 2)" />
             <template v-if="settings.automation.ranch_strategy === 'preferred' || settings.automation.ranch_strategy === 'bag_priority' && settings.automation.ranch_bag_fallback === 'preferred'">
               <BaseSelect v-model="settings.automation.ranch_coop_animal" label="窝 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '窝')]" />
               <BaseSelect v-model="settings.automation.ranch_shed_animal" label="棚 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '棚')]" />
             </template>
           </div>
+          <RanchCubPriority
+            v-if="panel === 'strategy' && settings.automation.ranch_strategy === 'bag_priority'"
+            v-model="settings.automation"
+            :account-id="accountId"
+            :connected="connected"
+            class="mt-4"
+          />
         </section>
       </div>
 
