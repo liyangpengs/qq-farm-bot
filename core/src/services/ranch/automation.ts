@@ -24,10 +24,13 @@ const completedSteps = new Set<string>();
 const PATROL_SLICE_MS = 5000;
 const SCENE_REENTRY_MS = 20_000;
 const MARKET_CHECK_MS = 6 * 60 * 60 * 1000;
-const MARKET_GOODS_PRIORITY = [80012, 80011];
+const MARKET_EXCHANGES = [
+    { currencyId: 7002, rewardPriority: [80012, 80011], minBalance: 3n },
+    { currencyId: 1008, rewardPriority: [80013, 80012, 80011], minBalance: 1n },
+];
 let nextMarketCheckAt = 0;
 let marketRunId = 0;
-let lastMarketPoop: bigint | null = null;
+const lastMarketBalances = new Map<number, bigint>();
 
 function resetCycle(): void {
     completedPhases.clear();
@@ -126,7 +129,7 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                 const count = money > 0n ? money / BigInt(good.price.count) : 0n;
                 return Number(count < BigInt(wanted) ? count : BigInt(wanted));
             };
-            async function act(key: string, action: string, input: any = {}, currency?: number, progress?: string): Promise<boolean> {
+            async function act(key: string, action: string, input: any = {}, currency?: number, progress?: string, expectedRewardId?: number): Promise<boolean> {
                 const isEnabled = () => enabled(key) && (key !== 'ranch_grass_buy' || enabled('ranch_grass'));
                 if (!isEnabled()) return false;
                 const step = `${action}:${JSON.stringify(input)}${progress === undefined ? '' : `:${progress}`}`;
@@ -137,7 +140,7 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     const quote = await prepareAction(action, input);
                     label = quote.label;
                     if (quote.skipped || currency && quote.costItems.some((cost: any) => cost.id !== currency)
-                        || key === 'ranch_market_organic' && (quote.rewards.length !== 1 || !MARKET_GOODS_PRIORITY.includes(Number(quote.rewards[0].id)))) {
+                        || expectedRewardId !== undefined && (quote.rewards.length !== 1 || Number(quote.rewards[0].id) !== expectedRewardId)) {
                         completedSteps.add(step);
                         steps++;
                         return false;
@@ -179,30 +182,34 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
 
             await phase('market-organic', async () => {
                 if (!enabled('ranch_market_organic')) return;
-                const poop = available(7002);
-                const stockReady = poop >= 3n && (lastMarketPoop === null || poop > lastMarketPoop);
+                const stockReady = MARKET_EXCHANGES.some(({ currencyId, minBalance }) => {
+                    const stock = available(currencyId);
+                    return stock >= minBalance && stock > (lastMarketBalances.get(currencyId) ?? 0n);
+                });
                 if (!marketDue() && !stockReady) return;
                 checkpoint();
                 const runId = marketRunId;
                 const current = await market(raw);
-                // 先兑尽 4 小时，再兑 1 小时；只使用便便，不碰松果或其它货币的同名商品。
                 if (current.opened && current.present) {
-                    for (const rewardId of MARKET_GOODS_PRIORITY) {
-                        for (const good of current.goods.filter((entry: any) => entry.available && Number(entry.reward.id) === rewardId && Number(entry.price.id) === 7002 && BigInt(entry.price.count) > 0n)) {
-                            while (good.available) {
-                                const stock = available(7002);
+                    for (const { currencyId, rewardPriority } of MARKET_EXCHANGES) {
+                        const goods = current.goods.filter((entry: any) => entry.available && Number(entry.price.id) === currencyId
+                            && BigInt(entry.price.count) > 0n && rewardPriority.includes(Number(entry.reward.id)));
+                        goods.sort((a: any, b: any) => rewardPriority.indexOf(Number(a.reward.id)) - rewardPriority.indexOf(Number(b.reward.id)));
+                        for (const good of goods) {
+                            while (good.remaining !== 0) {
+                                const stock = available(currencyId);
                                 const count = affordable(good, Math.min(good.remaining ?? 2147483647, 2147483647));
                                 if (count < 1) break;
-                                const exchanged = await act('ranch_market_organic', 'exchange', { goodsId: good.id, count }, 7002, `${runId}:${good.id}:${stock}`);
+                                const exchanged = await act('ranch_market_organic', 'exchange', { goodsId: good.id, count },
+                                    currencyId, `${runId}:${good.id}:${stock}`, Number(good.reward.id));
                                 if (!exchanged) break;
                                 if (good.remaining !== null) good.remaining = Math.max(0, good.remaining - count);
-                                if (good.remaining === 0) good.available = false;
                             }
                         }
                     }
                 }
                 // 完成后才推迟检查；让路时保留到期状态，到账通知也不能被旧一轮覆盖。
-                lastMarketPoop = available(7002);
+                for (const { currencyId } of MARKET_EXCHANGES) lastMarketBalances.set(currencyId, available(currencyId));
                 if (runId === marketRunId) nextMarketCheckAt = Date.now() + MARKET_CHECK_MS;
             });
 
@@ -360,10 +367,10 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
 
 module.exports = {
     run, getRoutineState, selectAnimal,
-    resetSchedule: () => { marketRunId++; nextCheckAt = 0; nextMarketCheckAt = 0; lastMarketPoop = null; resetCycle(); },
+    resetSchedule: () => { marketRunId++; nextCheckAt = 0; nextMarketCheckAt = 0; lastMarketBalances.clear(); resetCycle(); },
     resetMarketSchedule: () => {
         nextMarketCheckAt = 0;
-        lastMarketPoop = null;
+        lastMarketBalances.clear();
         marketRunId++;
         completedPhases.delete('market-organic');
         nextCheckAt = Math.min(nextCheckAt, Date.now() + SCENE_REENTRY_MS);

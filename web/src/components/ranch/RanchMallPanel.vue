@@ -76,7 +76,7 @@ const status = computed(() => {
     const market = state.value?.market
     if (!market)
       return { text: '', tone: 'muted' as const }
-    return market.present ? { text: '仓鼠驿站今日到访，可用便便兑换', tone: 'muted' as const } : { text: '仓鼠驿站当前未到访', tone: 'warning' as const }
+    return market.present ? { text: '仓鼠驿站今日到访，可用便便或松果兑换', tone: 'muted' as const } : { text: '仓鼠驿站当前未到访', tone: 'warning' as const }
   }
   return { text: props.tab === 'shop' ? '牧场商店 · 购买幼崽与饲料' : '罐头商城 · 使用罐头喂养动物', tone: 'muted' as const }
 })
