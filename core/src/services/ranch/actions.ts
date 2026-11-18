@@ -80,6 +80,7 @@ async function planAction(action: string, input: any, raw: any): Promise<any> {
         if (count > ranch.capacity - ranch.animal_count) throw error('RANCH_FULL', '窝或棚的空位不足');
         plan.payload = { items: Array.from({ length: count }, () => ({ ranch_inst_id: ranchId, animal_id: animal.id, giant_cub_item_id: animal.giantCubItemId })) };
         plan.costItems = [itemDto({ id: itemId, count })];
+        plan.label = `放养${plan.costItems[0].name} ×${count}`;
         plan.marker = { ranchId, animalId: animal.id, capacity: ranch.capacity, occupied: ranch.animal_count };
         plan.count = count;
     } else if (action === 'addGrass') {

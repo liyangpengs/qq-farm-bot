@@ -7,6 +7,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
 import { useSettingStore } from '@/stores/setting'
+import { useStatusStore } from '@/stores/status'
 
 // 牧场的自动化开关与养殖策略独立成页，避免和农场账号设置混在一起。
 const fertilizerLandTypeOptions = [
@@ -29,6 +30,7 @@ const fertilizerOptions = [
 const accountStore = useAccountStore()
 const settingStore = useSettingStore()
 const { currentAccountId } = storeToRefs(accountStore)
+const { currentAccountConnected } = storeToRefs(useStatusStore())
 const { settings, loading: settingsLoading, loadedAccountId } = storeToRefs(settingStore)
 
 const model = ref<any>({})
@@ -133,6 +135,8 @@ async function save() {
           panel="strategy"
           hide-save
           :ranch-animal-options="ranchAnimalOptions"
+          :account-id="currentAccountId"
+          :connected="currentAccountConnected"
           :saving="saving"
           :fertilizer-land-type-options="fertilizerLandTypeOptions"
           :fertilizer-options="fertilizerOptions"

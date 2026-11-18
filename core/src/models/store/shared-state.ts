@@ -291,6 +291,10 @@ function cloneAccountConfig(base: Partial<AccountConfig> = DEFAULT_ACCOUNT_CONFI
             automation[key] = normalizeFertilizerLandTypes(srcAutomation[key], DEFAULT_FERTILIZER_LAND_TYPES);
             continue;
         }
+        if (key === 'ranch_coop_cub_priority' || key === 'ranch_shed_cub_priority') {
+            automation[key] = [...(srcAutomation[key] ?? automation[key])];
+            continue;
+        }
         if (srcAutomation[key] !== undefined) (automation as any)[key] = (srcAutomation as any)[key];
     }
 

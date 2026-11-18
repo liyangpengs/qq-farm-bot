@@ -15,6 +15,26 @@ const { remainingSeconds } = useRanchClock()
 
 const pens = computed<any[]>(() => (state.value?.facilities || []).filter((f: any) => f.ranch))
 const animals = computed(() => pens.value.flatMap(f => (f.ranch.animals || []).map((animal: any) => ({ animal, pen: f.name }))))
+
+/**
+ * 按设施分组：窝（6）在前、棚（7）在后。服务器返回的设施顺序不固定，
+ * 组内再按栏位、实例编号排序，刷新后位置不变。
+ */
+const PEN_ORDER: Record<number, number> = { 6: 0, 7: 1 }
+const penGroups = computed(() => {
+  const groups = new Map<number, { type: number, name: string, count: number, capacity: number, animals: any[] }>()
+  for (const f of pens.value) {
+    const type = Number(f.moduleType)
+    const group = groups.get(type) || { type, name: f.name, count: 0, capacity: 0, animals: [] as any[] }
+    group.count += Number(f.ranch.count) || 0
+    group.capacity += Number(f.ranch.capacity) || 0
+    group.animals.push(...(f.ranch.animals || []))
+    groups.set(type, group)
+  }
+  return [...groups.values()]
+    .sort((a, b) => (PEN_ORDER[a.type] ?? 9) - (PEN_ORDER[b.type] ?? 9) || a.type - b.type)
+    .map(group => ({ ...group, animals: [...group.animals].sort((a, b) => (Number(a.slot) || 0) - (Number(b.slot) || 0) || Number(a.id) - Number(b.id)) }))
+})
 const capacity = computed(() => pens.value.reduce((sum, f) => sum + (Number(f.ranch.capacity) || 0), 0))
 const shelves = computed(() => pens.value.flatMap(f => f.ranch.shelves.filter((s: any) => s.canCollect).map((s: any) => ({ ...s, pen: f.name, key: `${f.id}:${s.slot}` }))))
 const hazards = computed(() => pens.value.reduce((sum, f) => sum + (f.ranch.hazards?.length || 0), 0))
@@ -92,21 +112,30 @@ function target(animal: any) {
               去牧场商店
             </BaseButton>
           </div>
-          <div v-else class="ranch-grid">
-            <RanchAnimalCard
-              v-for="{ animal, pen } in animals"
-              :key="`${animal.ranchId}:${animal.id}`"
-              :animal="animal"
-              :pen="pen"
-              :remaining="animalRemaining(animal)"
-              actionable
-              :disabled="disabled"
-              @produce="request('produce', target(animal))"
-              @harvest="request('harvest', target(animal))"
-              @feed="type => request('feed', { ...target(animal), bucketType: type })"
-              @release="request('release', target(animal))"
-            />
-          </div>
+          <template v-else>
+            <section v-for="group in penGroups" :key="group.type" class="ranch-pen" :aria-label="`${group.name}的动物`">
+              <header class="ranch-pen__head">
+                <i aria-hidden="true" /><h4>{{ group.name }}</h4><span>{{ group.count }} / {{ group.capacity }}</span>
+              </header>
+              <div v-if="group.animals.length" class="ranch-grid">
+                <RanchAnimalCard
+                  v-for="animal in group.animals"
+                  :key="`${animal.ranchId}:${animal.id}`"
+                  :animal="animal"
+                  :remaining="animalRemaining(animal)"
+                  actionable
+                  :disabled="disabled"
+                  @produce="request('produce', target(animal))"
+                  @harvest="request('harvest', target(animal))"
+                  @feed="type => request('feed', { ...target(animal), bucketType: type })"
+                  @release="request('release', target(animal))"
+                />
+              </div>
+              <p v-else class="ranch-pen__empty">
+                {{ group.name }}里还没有动物，可在背包放养或到牧场商店购买幼崽。
+              </p>
+            </section>
+          </template>
 
           <section v-if="shelves.length" class="ranch-shelves" aria-label="待收产物">
             <h4><span class="i-carbon-box" aria-hidden="true" />待收产物</h4>
@@ -216,6 +245,48 @@ function target(animal: any) {
   margin-left: 2px;
   color: var(--ui-ink);
   font-weight: var(--fw-650);
+}
+
+.ranch-pen + .ranch-pen {
+  margin-top: 18px;
+}
+
+/* 分组标题：与图鉴分组同一种色标 + 名称 + 计数。 */
+.ranch-pen__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.ranch-pen__head > i {
+  width: 3px;
+  height: 14px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--ui-primary);
+}
+
+.ranch-pen__head h4 {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: 14px;
+  font-weight: var(--fw-650);
+}
+
+.ranch-pen__head span {
+  color: var(--ui-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ranch-pen__empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--ui-border-strong);
+  border-radius: 12px;
+  color: var(--ui-subtle);
+  font-size: 12px;
 }
 
 .ranch-grid {

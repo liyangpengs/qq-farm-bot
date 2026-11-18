@@ -2,7 +2,7 @@
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-import { formatCount, formatDuration, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
+import { formatCount, formatDuration, RANCH_IMAGE, sortFacilities, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchAmountDialog from '@/components/ranch/RanchAmountDialog.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import { useRanchStore } from '@/stores/ranch'
@@ -12,7 +12,7 @@ const { refresh } = useRanchLoader('facilities')
 const { disabled, request } = useRanchActions()
 const { serverNow, remainingSeconds } = useRanchClock()
 
-const facilities = computed<any[]>(() => state.value?.facilities || [])
+const facilities = computed<any[]>(() => sortFacilities(state.value?.facilities || []))
 const grass = computed(() => Number(state.value?.grass) || 0)
 const grassTarget = ref<any>(null)
 

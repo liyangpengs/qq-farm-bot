@@ -9,15 +9,20 @@ import BaseSelect from '@/components/ui/BaseSelect.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useRanchStore } from '@/stores/ranch'
 
-type Category = 'all' | 'product' | 'cub' | 'can' | 'other'
+/** 幼崽按适用设施分成窝、棚两类，窝在前，不混在一起。 */
+type Category = 'all' | 'product' | 'coop' | 'shed' | 'can' | 'other'
 const CATEGORIES: Array<{ value: Category, label: string, icon: string }> = [
   { value: 'all', label: '全部', icon: 'i-carbon-list-boxes' },
   { value: 'product', label: '产物', icon: 'i-carbon-wheat' },
-  { value: 'cub', label: '幼崽', icon: 'i-carbon-pet-image-o' },
+  { value: 'coop', label: '窝幼崽', icon: 'i-carbon-home' },
+  { value: 'shed', label: '棚幼崽', icon: 'i-carbon-building' },
   { value: 'can', label: '罐头', icon: 'i-carbon-flash' },
   { value: 'other', label: '其他', icon: 'i-carbon-box' },
 ]
-const SHORT: Record<Exclude<Category, 'all'>, string> = { product: '产物', cub: '幼崽', can: '罐头', other: '道具' }
+const SHORT: Record<Exclude<Category, 'all'>, string> = { product: '产物', coop: '窝', shed: '棚', can: '罐头', other: '道具' }
+const RANK: Record<Exclude<Category, 'all'>, number> = { product: 0, coop: 1, shed: 2, can: 3, other: 4 }
+/** 设施类型：窝 6、棚 7，放养时只列出适用的设施。 */
+const PEN_TYPE: Record<string, number> = { 窝: 6, 棚: 7 }
 
 const { state, loading } = storeToRefs(useRanchStore())
 const { refresh } = useRanchLoader('bag')
@@ -32,18 +37,23 @@ function categoryOf(item: any): Exclude<Category, 'all'> {
   if (item.can)
     return 'can'
   if (item.animalId)
-    return 'cub'
+    return item.husbandryType === '棚' ? 'shed' : 'coop'
   if (item.product || item.canSell || [106, 107].includes(Number(item.type)))
     return 'product'
   return 'other'
 }
 const counts = computed(() => {
-  const result: Record<Category, number> = { all: items.value.length, product: 0, cub: 0, can: 0, other: 0 }
+  const result: Record<Category, number> = { all: items.value.length, product: 0, coop: 0, shed: 0, can: 0, other: 0 }
   for (const item of items.value)
     result[categoryOf(item)]++
   return result
 })
-const filtered = computed(() => category.value === 'all' ? items.value : items.value.filter(item => categoryOf(item) === category.value))
+/** 服务器返回的顺序不固定：按分类排列，幼崽高等级在前，其余按编号，刷新后位置不变。 */
+const sorted = computed(() => [...items.value].sort((a, b) => RANK[categoryOf(a)] - RANK[categoryOf(b)]
+  || (Number(b.animalId) || 0) - (Number(a.animalId) || 0)
+  || Number(a.id) - Number(b.id)
+  || String(a.uid).localeCompare(String(b.uid))))
+const filtered = computed(() => category.value === 'all' ? sorted.value : sorted.value.filter(item => categoryOf(item) === category.value))
 const sellable = computed(() => items.value.some(item => item.canSell))
 
 function action(item: any) {
@@ -71,7 +81,7 @@ const activeMax = computed(() => {
   const pen = pens.value.find(f => f.id === destination.value)
   return pen ? Math.max(1, Math.min(owned, pen.ranch.capacity - pen.ranch.count)) : owned
 })
-const penOptions = computed(() => pens.value.map(f => ({
+const penOptions = computed(() => pens.value.filter(f => !active.value?.husbandryType || Number(f.moduleType) === PEN_TYPE[active.value.husbandryType]).map(f => ({
   label: `${f.name}（${f.ranch.count} / ${f.ranch.capacity}）`,
   value: f.id,
   disabled: f.ranch.count >= f.ranch.capacity,
@@ -179,7 +189,7 @@ watch(category, () => failed.value = {})
     >
       <BaseSelect v-if="activeAction?.key === 'place'" v-model="destination" label="放养到" :options="penOptions" placeholder="选择窝或棚" />
       <p v-if="activeAction?.key === 'place' && !penOptions.some(option => !option.disabled)" class="bag-hint">
-        所有窝和棚都已住满，先收获或升级设施。
+        {{ active?.husbandryType || '窝和棚' }}已住满，先收获或升级设施。
       </p>
     </RanchAmountDialog>
   </div>
@@ -328,9 +338,14 @@ watch(category, () => failed.value = {})
   background: var(--ui-danger-soft);
 }
 
-.bag-type--cub {
+.bag-type--coop {
   color: var(--ui-primary);
   background: var(--ui-primary-soft);
+}
+
+.bag-type--shed {
+  color: var(--ui-warning);
+  background: var(--ui-warning-soft);
 }
 
 .bag-type--can {
