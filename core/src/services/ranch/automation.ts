@@ -170,7 +170,9 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                 }
             }
 
-            await phase('harvest', () => act('ranch_harvest', 'harvest', { all: true }));
+            await phase('harvest', async () => {
+                if (await act('ranch_harvest', 'harvest', { all: true })) completedPhases.delete('buy');
+            });
             await phase('produce', () => act('ranch_produce', 'produce', { all: true }));
             await phase('clean', () => act('ranch_clean', 'clean'));
             await phase('sell', () => act('ranch_sell', 'sell', { all: true }));
@@ -217,30 +219,50 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                 }
             });
 
-            await phase('buy', async () => {
-                if (enabled('ranch_buy') && raw.cells.facilities.some((f: any) => f.state === 1 && f.ranch && f.ranch.animal_count < f.ranch.capacity)) {
-                    const shop = await catalog(raw, 5);
-                    for (const original of raw.cells.facilities.filter((f: any) => f.state === 1 && f.ranch)) {
-                        const id = quantity(original.instance_id);
-                        const selected = selectAnimal(shop.goods, auto, original.ranch.husbandry_type);
-                        const stock = inventory(raw).filter((item: any) => !item.locked && item.animalId && BigInt(item.count) > 0n
-                            && cubMap.get(item.id).husbandry_type === (original.ranch.husbandry_type === 1 ? '窝' : '棚')
-                            && (auto.ranch_strategy === 'bag_priority' || item.animalId === selected?.animal.id)).sort((a: any, b: any) => b.animalId - a.animalId);
-                        const room = () => {
-                            const current = raw.cells.facilities.find((f: any) => quantity(f.instance_id) === id);
-                            return current.ranch.capacity - current.ranch.animal_count;
-                        };
-                        for (const item of stock) {
-                            const count = Number(BigInt(Math.max(0, room())) < available(item.id) ? BigInt(Math.max(0, room())) : available(item.id));
-                            if (count > 0) await act('ranch_buy', 'place', { ranchId: id, itemId: item.id, count });
-                        }
-                        if (room() > 0 && selected) {
-                            const count = affordable(selected, Math.min(room(), selected.maxCount, selected.remaining ?? Infinity));
-                            if (count > 0) await act('ranch_buy', 'buy', { shopId: 5, goodsId: selected.id, count, autoPlace: true }, 1007);
-                        }
+            if (enabled('ranch_buy')) {
+                const bagFirst = auto.ranch_strategy === 'bag_priority';
+                const pens: any[] = raw.cells.facilities.filter((f: any) => f.state === 1 && f.ranch?.animal_count < f.ranch?.capacity);
+                const vacancies = (id: string) => {
+                    const ranch = raw.cells.facilities.find((f: any) => quantity(f.instance_id) === id)?.ranch;
+                    return ranch ? Math.max(0, ranch.capacity - ranch.animal_count) : 0;
+                };
+                async function placeCubs(pen: any, animalId?: number): Promise<boolean> {
+                    const ranchId = quantity(pen.instance_id);
+                    const isCoop = pen.ranch.husbandry_type === 1;
+                    const ordered = isCoop ? auto.ranch_coop_cub_priority : auto.ranch_shed_cub_priority;
+                    const ranks = new Map(ordered.map((id, index) => [id, index]));
+                    const stock = inventory(raw).filter((item: any) => !item.locked && item.animalId && BigInt(item.count) > 0n
+                        && cubMap.get(item.id).husbandry_type === (isCoop ? '窝' : '棚') && (bagFirst || item.animalId === animalId));
+                    stock.sort((a: any, b: any) => (bagFirst ? (ranks.get(a.id) ?? ordered.length) - (ranks.get(b.id) ?? ordered.length) : 0)
+                        || b.animalId - a.animalId || a.id - b.id);
+                    for (const item of stock) {
+                        const room = BigInt(vacancies(ranchId));
+                        if (room === 0n) break;
+                        const usable = available(item.id);
+                        const count = Number(room < usable ? room : usable);
+                        // 库存和空位重新确认后才能续放；已有未决操作时不转去购买同一栏位。
+                        if (count > 0 && !await act('ranch_buy', 'place', { ranchId, itemId: item.id, count }, undefined, `${usable}:${room}`)) return false;
                     }
+                    return true;
                 }
-            });
+
+                // 续跑也按最新空位放养。先处理两种设施的背包库存，之后才读取购买备选。
+                const purchasePens = [];
+                for (const pen of pens) {
+                    if ((!bagFirst || await placeCubs(pen)) && vacancies(quantity(pen.instance_id)) > 0) purchasePens.push(pen);
+                }
+                if (purchasePens.length) await phase('buy', async () => {
+                    checkpoint();
+                    const shop = await catalog(raw, 5);
+                    for (const pen of purchasePens) {
+                        const selected = selectAnimal(shop.goods, auto, pen.ranch.husbandry_type);
+                        if (!selected || !bagFirst && !await placeCubs(pen, selected.animal.id)) continue;
+                        const id = quantity(pen.instance_id);
+                        const count = affordable(selected, Math.min(vacancies(id), selected.maxCount, selected.remaining ?? Infinity));
+                        if (count > 0) await act('ranch_buy', 'buy', { shopId: 5, goodsId: selected.id, count, autoPlace: true }, 1007, `${id}:${available(1007)}`);
+                    }
+                });
+            }
 
             await phase('grass', async () => {
                 if (enabled('ranch_grass')) {

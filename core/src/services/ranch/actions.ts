@@ -2,7 +2,7 @@ export {};
 
 const { rpc, inScene } = require('./transport');
 const { loadRaw, snapshot, balance, taskList, catalog, market, canCatalog, resourceBalance } = require('./state');
-const { animalMap, cubMap, canMap, facilityMap, itemMap, error, positiveId, positiveCount, quantity, itemDto, sumItems, signature } = require('./model');
+const { animalMap, cubMap, canMap, facilityMap, itemMap, taskMap, error, positiveId, positiveCount, quantity, itemDto, sumItems, signature } = require('./model');
 const reservations = require('./operation-state');
 const { getServerTimeSec } = require('../../utils/utils');
 
@@ -29,6 +29,12 @@ function selectedAnimals(raw: any, input: any, eligible: (animal: any) => boolea
 
 function animalRefs(animals: any[]): any[] {
     return animals.map(animal => ({ ranch_inst_id: quantity(animal.ranch_inst_id), animal_inst_id: animal.animal_inst_id }));
+}
+
+function isClientReportedTask(task: any): boolean {
+    if (!task?.unlocked || task.claimed) return false;
+    if (BigInt(task.total) <= 0n || BigInt(task.progress) >= BigInt(task.total)) return false;
+    return taskMap.get(Number(task.id))?.condition === '客户端上报进度';
 }
 
 async function planAction(action: string, input: any, raw: any): Promise<any> {
@@ -74,6 +80,7 @@ async function planAction(action: string, input: any, raw: any): Promise<any> {
         if (count > ranch.capacity - ranch.animal_count) throw error('RANCH_FULL', '窝或棚的空位不足');
         plan.payload = { items: Array.from({ length: count }, () => ({ ranch_inst_id: ranchId, animal_id: animal.id, giant_cub_item_id: animal.giantCubItemId })) };
         plan.costItems = [itemDto({ id: itemId, count })];
+        plan.label = `放养${plan.costItems[0].name} ×${count}`;
         plan.marker = { ranchId, animalId: animal.id, capacity: ranch.capacity, occupied: ranch.animal_count };
         plan.count = count;
     } else if (action === 'addGrass') {
@@ -188,11 +195,12 @@ async function planAction(action: string, input: any, raw: any): Promise<any> {
     } else if (action === 'reportEntry') {
         if (input.entry !== 'friends') throw error('INVALID_ARGUMENT', '该任务入口尚未验证');
         const tasks = taskList(await rpc('tasks', { global_scene_id: 2 }));
-        const task = tasks.find((entry: any) => entry.id === '300008');
-        plan.count = task?.unlocked && !task.claimed && BigInt(task.progress) < BigInt(task.total) ? 1 : 0;
-        plan.payload = { task_id: '300008', progress: task?.total || '1' };
+        plan.reportTasks = tasks.filter((task: any) => isClientReportedTask(task))
+            .map((task: any) => ({ id: task.id, progress: task.total }));
+        plan.payload = plan.reportTasks.map((task: any) => ({ task_id: task.id, progress: task.progress }));
         plan.route = 'reportTask';
-        plan.marker = 'friends';
+        plan.marker = plan.reportTasks.map((task: any) => task.id);
+        plan.count = plan.reportTasks.length;
     } else if (action === 'claimIllustrated') {
         plan.bookClaim = await require('./book').prepareBookClaim(input.kind);
         plan.marker = { kind: plan.bookClaim.kind, ids: plan.bookClaim.ids, rewards: plan.bookClaim.rewards };
@@ -262,6 +270,11 @@ async function operate(action: string, input: any = {}): Promise<any> {
             } else if (action === 'claimIllustrated') {
                 rewards = await require('./book').claimBook(plan.bookClaim);
                 reply = {};
+            } else if (action === 'reportEntry') {
+                for (const entry of plan.reportTasks) {
+                    reply = await rpc('reportTask', { task_id: entry.id, progress: entry.progress }, true);
+                    if (!taskList(reply).find((task: any) => task.id === entry.id)?.canClaim) unknown(action, '引导任务未完成');
+                }
             } else if (action === 'claimTasks') {
                 const allOrdinary = plan.marker.every((task: any) => task.multiple === 1);
                 if (plan.tasks.length > 1 && allOrdinary) {
@@ -307,8 +320,6 @@ async function operate(action: string, input: any = {}): Promise<any> {
                     if (quantity(reply.upgrade?.inst_id) !== plan.payload.inst_id || reply.upgrade.target_level !== plan.next.level || reply.upgrade.target_facility_id !== plan.next.facility_id) unknown(action, '建筑升级目标不匹配');
                 } else if (action === 'completeUpgrade') {
                     if (quantity(reply.facility?.instance_id) !== plan.payload.inst_id || reply.facility.level !== plan.next.level || reply.facility.facility_id !== plan.next.facility_id) unknown(action, '建筑等级不匹配');
-                } else if (action === 'reportEntry') {
-                    if (!taskList(reply).find((task: any) => task.id === '300008')?.canClaim) unknown(action, '引导任务未完成');
                 } else if (action === 'release') {
                     const target = plan.payload.targets[0];
                     const result = reply.op_results[0];

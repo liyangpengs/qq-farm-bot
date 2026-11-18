@@ -241,7 +241,7 @@ async function checkAndClaimIllustratedRewards(): Promise<boolean> {
 
 // ============ 客户端上报类成长任务 ============
 
-const CLIENT_REPORT_COND_TYPES: Set<number> = new Set([15]);
+const CLIENT_REPORT_COND_TYPES: Set<number> = new Set([15, 25]);
 
 function pickClientReportedTasks(tasks: any[]): any[] {
     const picked: any[] = [];

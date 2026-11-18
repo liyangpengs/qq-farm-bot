@@ -40,6 +40,29 @@ export const useIllustratedStore = defineStore('illustrated', () => {
     }
   }
 
+  async function clearNew(accountId: string, fruitIds: number[]) {
+    const ids = (Array.isArray(fruitIds) ? fruitIds : []).filter(id => Number.isFinite(id) && id > 0)
+    if (!accountId || !ids.length)
+      return []
+    const response = await api.post('/api/illustrated/clear-new', { fruitIds: ids }, {
+      headers: { 'x-account-id': accountId },
+      skipErrorToast: true,
+    } as any)
+    if (!response.data?.ok)
+      throw new Error(getApiErrorMessage(response.data, '图鉴已读清除失败'))
+    const cleared: number[] = Array.isArray(response.data?.data?.cleared) ? response.data.data.cleared : []
+    if (cleared.length && data.value) {
+      const done = new Set(cleared)
+      for (const book of [data.value.crop, data.value.mutant]) {
+        for (const item of (Array.isArray(book?.items) ? book.items : [])) {
+          if (done.has(item.fruitId))
+            item.isNew = false
+        }
+      }
+    }
+    return cleared
+  }
+
   function reset() {
     requestId++
     data.value = null
@@ -47,5 +70,5 @@ export const useIllustratedStore = defineStore('illustrated', () => {
     error.value = ''
   }
 
-  return { data, loading, error, fetch, reset }
+  return { data, loading, error, fetch, clearNew, reset }
 })

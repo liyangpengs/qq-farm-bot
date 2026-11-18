@@ -55,6 +55,7 @@ function mountCommerceRoutes(app: Application, ctx: AdminContext): void {
     app.get('/api/solar-calendar', withAccount((accountId: string) => ctx.provider.getSolarCalendar(accountId)));
     app.post('/api/solar-calendar/:action', withAccount((accountId: string, req: Request) => ctx.provider.operateSolarCalendar(accountId, req.params.action, req.body)));
     app.post('/api/illustrated/claim', withAccount((accountId: string, req: Request) => ctx.provider.claimIllustratedRewards(accountId, req.body?.type)));
+    app.post('/api/illustrated/clear-new', withAccount((accountId: string, req: Request) => ctx.provider.clearIllustratedNew(accountId, req.body?.fruitIds)));
 
     app.get('/api/activities/milk-tea', withAccount((accountId: string, req: Request) => ctx.provider.getMilkTeaActivity(accountId, req.query.page || 'shop', req.query)));
     app.get('/api/activities/muge', withAccount((accountId: string) => ctx.provider.getMugeActivity(accountId)));

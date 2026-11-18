@@ -1,4 +1,4 @@
-import animals from '../../gameConfig/ranch/MCAnimalConfig.json';
+import { animalMap, cubMap } from '../../config/ranch-animals';
 import cans from '../../gameConfig/ranch/MCCanConfig.json';
 import facilities from '../../gameConfig/ranch/MCFacilityConfig.json';
 import items from '../../gameConfig/ranch/MCItemInfo.json';
@@ -10,14 +10,11 @@ export {};
 
 const { getItemById, getItemImageById, getShopGoodsById } = require('../../config/gameConfig');
 
-const animalMap = new Map<number, any>(animals.map(row => [row.id, row]));
 const canMap = new Map<number, any>(cans.map(row => [row.id, row]));
 const facilityMap = new Map<number, any>(facilities.map(row => [row.facility_id, row]));
 const itemMap = new Map<number, any>(items.map(row => [row.id, row]));
 const taskMap = new Map<number, any>(tasks.map(row => [row.id, row]));
 const mutationMap = new Map<number, any>(mutations.map(row => [row.animal_id, row]));
-const cubMap = new Map<number, any>([...animals.map(row => [row.cub_item_id, { ...row, giantCubItemId: 0 }] as [number, any]),
-    ...mutations.map(row => [row.giant_cub_item_id, { ...animalMap.get(row.animal_id), giantCubItemId: row.giant_cub_item_id }] as [number, any])]);
 
 function error(code: string, message: string): Error {
     return Object.assign(new Error(message), { code });
