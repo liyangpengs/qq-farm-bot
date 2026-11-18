@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
+import { NDropdown } from 'naive-ui/es/dropdown'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { BUCKETS, formatCount, formatDuration, formatHours, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
@@ -41,6 +42,19 @@ const hazards = computed(() => pens.value.reduce((sum, f) => sum + (f.ranch.haza
 
 const canProduce = computed(() => animals.value.some(({ animal }) => animal.canProduce))
 const canHarvest = computed(() => animals.value.some(({ animal }) => animal.canHarvest) || shelves.value.length > 0)
+const buckets = computed(() => BUCKETS.map(bucket => ({
+  ...bucket,
+  seconds: state.value?.buckets?.find((b: any) => Number(b.id) === bucket.id)?.seconds ?? 0,
+})))
+const feedOptions = computed(() => buckets.value.map(({ id, name, seconds }) => {
+  const organic = id === 7004
+  return {
+    key: organic ? 1 : 2,
+    label: `${name}喂养`,
+    disabled: Number(seconds) <= 0 || !animals.value.some(({ animal }) => animal.canFeed && (organic || !animal.limitedCanUsed)),
+  }
+}))
+const canFeed = computed(() => feedOptions.value.some(option => !option.disabled))
 
 const summary = computed(() => [
   { key: 'harvest', label: '可收获', icon: 'i-carbon-wheat text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.canHarvest).length },
@@ -50,7 +64,7 @@ const summary = computed(() => [
 ])
 const stock = computed(() => [
   { key: 'grass', label: '牧草', image: RANCH_IMAGE(7001), value: formatCount(state.value?.grass ?? 0) },
-  ...BUCKETS.map(bucket => ({ key: bucket.id, label: bucket.name, image: bucket.image, value: formatHours(state.value?.buckets?.find((b: any) => Number(b.id) === bucket.id)?.seconds ?? 0) })),
+  ...buckets.value.map(bucket => ({ key: bucket.id, label: bucket.name, image: bucket.image, value: formatHours(bucket.seconds) })),
 ])
 
 /** 倒计时已到但服务器尚未推进阶段时，显示阶段名而不是“0秒”。 */
@@ -76,6 +90,11 @@ function target(animal: any) {
             <NButton :disabled="disabled || !hazards" @click="request('clean')">
               <span class="i-carbon-clean" />一键清理
             </NButton>
+            <NDropdown trigger="click" placement="bottom" :options="feedOptions" @select="(type: 1 | 2) => request('feed', { all: true, bucketType: type })">
+              <NButton :disabled="disabled || !canFeed">
+                <span class="i-carbon-time" aria-hidden="true" />一键喂养
+              </NButton>
+            </NDropdown>
             <NButton :disabled="disabled || !canProduce" @click="request('produce', { all: true })">
               <span class="i-carbon-circle-dash" />一键生产
             </NButton>
@@ -374,7 +393,13 @@ function target(animal: any) {
   .ranch-actions {
     display: grid;
     width: 100%;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  }
+
+  .ranch-actions :deep(.n-button--circle) {
+    grid-row: 1 / span 2;
+    grid-column: 3;
+    align-self: center;
   }
 
   .ranch-actions :deep(.n-button:not(.n-button--circle)) {

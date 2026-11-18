@@ -21,7 +21,10 @@ function costName(item: { id: number, name: string }) {
 <template>
   <ConfirmModal :show="!!pending" :title="quote?.label || '确认牧场操作'" message="" :loading="busy" :type="quote?.action === 'release' ? 'danger' : 'primary'" :confirm-text="quote?.action === 'release' ? '确认放生' : '确认'" @cancel="cancel" @confirm="confirm">
     <div v-if="quote" class="quote">
-      <p v-if="quote.count > 1" class="quote__count">
+      <p v-if="quote.action === 'feed' && pending?.input.all === true" class="quote__count">
+        可喂养 <b>{{ quote.count }}</b> 只动物
+      </p>
+      <p v-else-if="quote.count > 1" class="quote__count">
         本次共 <b>{{ quote.count }}</b> 项
       </p>
       <section v-if="quote.costItems.length" class="quote__group">

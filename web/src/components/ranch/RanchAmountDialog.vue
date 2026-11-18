@@ -34,7 +34,16 @@ watch(limit, (maximum) => {
 </script>
 
 <template>
-  <NModal class="amount-card" preset="card" :show="show" :title="title" :aria-label="title" closable @update:show="value => !value && emit('close')" @close="emit('close')">
+  <NModal
+    preset="card"
+    style="width: 400px; max-width: calc(100% - 32px)"
+    :show="show"
+    :title="title"
+    :aria-label="title"
+    closable
+    @update:show="value => !value && emit('close')"
+    @close="emit('close')"
+  >
     <div class="amount">
       <div class="amount__item">
         <span class="amount__well"><img v-if="image" :src="image" alt=""></span>
@@ -69,10 +78,6 @@ watch(limit, (maximum) => {
 </template>
 
 <style scoped>
-.amount-card {
-  width: min(400px, calc(100vw - 32px));
-}
-
 .amount {
   display: flex;
   flex-direction: column;
