@@ -16,7 +16,7 @@ const { getAvailableSeeds } = require('./farm');
 const protobuf = require('protobufjs');
 const { sendMsgAsync } = require('../utils/network');
 const { types } = require('../utils/proto');
-const { toNum } = require('../utils/utils');
+const { toLong, toNum } = require('../utils/utils');
 
 const SERVICE = 'gamepb.illustratedpb.IllustratedService';
 
@@ -55,6 +55,7 @@ function itemDto(input: any): any {
     const name = String(item && item.name || plant && plant.name || getPlantNameBySeedId(seedId));
     return {
         seedId,
+        fruitId: toNum(input && input.fruit_id),
         name,
         image: getItemImageById(seedId),
         rewardCategory: toNum(input && input.rarity),
@@ -175,7 +176,18 @@ function claimIllustratedRewards(type: number) {
     return request;
 }
 
+async function clearIllustratedNew(fruitIds: number[]): Promise<{ cleared: number[] }> {
+    const ids: number[] = (Array.isArray(fruitIds) ? fruitIds : []).map((id: any) => toNum(id)).filter((id: number) => id > 0);
+    if (!ids.length) return { cleared: [] };
+    const body = types.ClearNewUnlockedFruitsV2Request.encode(types.ClearNewUnlockedFruitsV2Request.create({
+        fruit_ids: ids.map((id: number) => toLong(id)),
+    })).finish();
+    const { body: replyBody } = await sendMsgAsync(SERVICE, 'ClearNewUnlockedFruitsV2', body);
+    return { cleared: (types.ClearNewUnlockedFruitsV2Reply.decode(replyBody).cleared_fruit_ids || []).map((id: any) => toNum(id)) };
+}
+
 module.exports = {
     getIllustratedSnapshot,
     claimIllustratedRewards,
+    clearIllustratedNew,
 };

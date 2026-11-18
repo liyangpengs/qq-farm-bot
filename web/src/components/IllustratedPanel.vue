@@ -30,6 +30,7 @@ const isMutant = computed(() => currentType.value === 'mutant')
 const bookName = computed(() => isMutant.value ? '超变图鉴' : '作物图鉴')
 const detailsOpen = ref(false)
 const claiming = ref(false)
+const clearing = ref(false)
 const rewardList = ref<HTMLElement | null>(null)
 let claimRevision = 0
 const toast = useToastStore()
@@ -43,6 +44,7 @@ const query = ref('')
 const book = computed(() => data.value?.[currentType.value] || null)
 const items = computed<any[]>(() => Array.isArray(book.value?.items) ? book.value.items : [])
 const collectedCount = computed(() => items.value.filter(item => item.unlocked).length)
+const freshItems = computed<any[]>(() => items.value.filter((item: any) => item.isNew))
 const purchasableCount = computed(() => items.value.filter(canPurchaseSeed).length)
 const illustratedBuffs = computed(() => Array.isArray(book.value?.buffs) ? book.value.buffs : [])
 const currentIllustratedBuffs = computed(() => Array.isArray(book.value?.currentBuffs) ? book.value.currentBuffs : [])
@@ -237,6 +239,27 @@ async function claimRewards() {
       claiming.value = false
   }
 }
+async function clearAllNew() {
+  const accountId = currentAccountId.value
+  const fruitIds = freshItems.value.map((item: any) => Number(item.fruitId) || 0)
+  if (clearing.value || loading.value || !accountId || !isConnected.value)
+    return
+  clearing.value = true
+  try {
+    const cleared = await illustratedStore.clearNew(accountId, fruitIds)
+    if (cleared.length)
+      toast.success(`已读 ${cleared.length} 条新增图鉴`)
+    else
+      toast.warning('没有未读图鉴')
+  }
+  catch (cause) {
+    toast.error(getApiErrorMessage(cause, '图鉴已读清除失败'))
+  }
+  finally {
+    clearing.value = false
+  }
+}
+
 async function scrollToNextReward() {
   await nextTick()
   const target = rewardList.value?.querySelector<HTMLElement>('[data-next="true"]')
@@ -291,6 +314,9 @@ watch([currentAccountId, isConnected], refresh, { immediate: true })
           </NButton>
           <NButton v-if="book.claimable" type="primary" :loading="claiming" :disabled="loading" @click="claimRewards">
             领取奖励
+          </NButton>
+          <NButton secondary :loading="clearing" :disabled="loading" @click="clearAllNew">
+            全部已读
           </NButton>
           <NButton secondary :loading="loading" aria-label="刷新图鉴" title="刷新图鉴" @click="refresh">
             <template #icon>
