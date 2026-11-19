@@ -4,6 +4,7 @@ import { NCard } from 'naive-ui/es/card'
 import { NModal } from 'naive-ui/es/modal'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
+import api, { getApiErrorMessage } from '@/api'
 import BookOverview from '@/components/illustrated/BookOverview.vue'
 import BookSection from '@/components/illustrated/BookSection.vue'
 import BookTile from '@/components/illustrated/BookTile.vue'
@@ -11,12 +12,16 @@ import BookToolbar from '@/components/illustrated/BookToolbar.vue'
 import { formatCount, useRanchActions, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { useAccountStore } from '@/stores/account'
 import { useRanchStore } from '@/stores/ranch'
+import { useToastStore } from '@/stores/toast'
 
 const props = defineProps<{ kind: 'normal' | 'giant' }>()
+const { currentAccountId } = storeToRefs(useAccountStore())
 const { state, loading } = storeToRefs(useRanchStore())
 const { refresh } = useRanchLoader('illustrated')
 const { disabled, request } = useRanchActions()
+const toast = useToastStore()
 
 const isGiant = computed(() => props.kind === 'giant')
 const book = computed(() => state.value?.book || null)
@@ -24,12 +29,14 @@ const animals = computed<any[]>(() => {
   const entries = book.value?.animals || []
   return isGiant.value ? entries.flatMap((entry: any) => entry.giantItem ? [{ ...entry, ...entry.giantItem }] : []) : entries
 })
+const freshGiantIds = computed(() => (book.value?.animals || []).filter((entry: any) => entry.giantItem && entry.giant?.isNew).map((entry: any) => Number(entry.id) || 0).filter((id: number) => id > 0))
 const owned = (entry: any) => isGiant.value ? !!entry.giant?.unlocked : !!entry.unlocked
 const ownedCount = computed(() => animals.value.filter(owned).length)
 
 const filter = ref('all')
 const query = ref('')
 const detailsOpen = ref(false)
+const clearing = ref(false)
 const rewardList = ref<HTMLElement | null>(null)
 watch(() => props.kind, () => {
   filter.value = 'all'
@@ -89,6 +96,43 @@ function tileMeta(entry: any) {
     return entry.giant?.harvestCount && entry.giant.harvestCount !== '0' ? `已收获 ${entry.giant.harvestCount} 次` : '未收集'
   return `${entry.giant.tierName ? `${entry.giant.tierName} · ` : ''}${entry.giant.weightKg} kg`
 }
+async function clearGiantNew() {
+  const accountId = String(currentAccountId.value || '')
+  const fruitIds = freshGiantIds.value
+  if (clearing.value || disabled.value || !accountId)
+    return
+  if (!fruitIds.length) {
+    toast.warning('没有未读图鉴')
+    return
+  }
+  clearing.value = true
+  try {
+    const response = await api.post('/api/illustrated/clear-new', { fruitIds }, {
+      headers: { 'x-account-id': accountId },
+      skipErrorToast: true,
+    } as any)
+    if (!response.data?.ok)
+      throw new Error(getApiErrorMessage(response.data, '图鉴已读清除失败'))
+    const cleared: number[] = Array.isArray(response.data?.data?.cleared) ? response.data.data.cleared : []
+    if (cleared.length && book.value?.animals) {
+      const done = new Set(cleared)
+      for (const entry of book.value.animals) {
+        if (done.has(Number(entry.id)) && entry.giant)
+          entry.giant.isNew = false
+      }
+    }
+    if (cleared.length)
+      toast.success(`已读 ${cleared.length} 条新增图鉴`)
+    else
+      toast.warning('没有未读图鉴')
+  }
+  catch (cause) {
+    toast.error(getApiErrorMessage(cause, '图鉴已读清除失败'))
+  }
+  finally {
+    clearing.value = false
+  }
+}
 async function scrollToNext() {
   await nextTick()
   const target = rewardList.value?.querySelector<HTMLElement>('[data-next="true"]')
@@ -117,6 +161,9 @@ async function scrollToNext() {
             </NButton>
             <NButton v-if="claimable" type="primary" :disabled="disabled" @click="request('claimIllustrated', { kind })">
               领取奖励
+            </NButton>
+            <NButton v-if="isGiant" secondary :loading="clearing" :disabled="disabled" @click="clearGiantNew">
+              全部已读
             </NButton>
             <NButton secondary :loading="loading" aria-label="刷新图鉴" title="刷新图鉴" @click="refresh">
               <template #icon>
