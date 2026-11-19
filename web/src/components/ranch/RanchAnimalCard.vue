@@ -39,7 +39,7 @@ const rounds = computed(() => {
   return max > 0 ? { done: Math.min(max, Number(props.animal.produceCount) || 0), max } : null
 })
 const feedOptions = computed(() => [
-  { key: 2, label: props.animal.limitedCanUsed ? '普通罐头（本轮已用）' : '普通罐头喂养', disabled: !!props.animal.limitedCanUsed },
+  { key: 2, label: props.animal.limitedCanUsed ? '普通罐头（本轮已用）' : '普通罐头喂养' },
   { key: 1, label: '有机罐头喂养' },
 ])
 </script>
