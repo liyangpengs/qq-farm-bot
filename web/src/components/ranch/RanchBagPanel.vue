@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { RanchItem } from '@/stores/ranch'
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
@@ -38,7 +39,7 @@ function categoryOf(item: any): Exclude<Category, 'all'> {
     return 'can'
   if (item.animalId)
     return item.husbandryType === '棚' ? 'shed' : 'coop'
-  if (item.product || item.canSell || [106, 107].includes(Number(item.type)))
+  if (item.product || [106, 107].includes(Number(item.type)))
     return 'product'
   return 'other'
 }
@@ -54,25 +55,34 @@ const sorted = computed(() => [...items.value].sort((a, b) => RANK[categoryOf(a)
   || Number(a.id) - Number(b.id)
   || String(a.uid).localeCompare(String(b.uid))))
 const filtered = computed(() => category.value === 'all' ? sorted.value : sorted.value.filter(item => categoryOf(item) === category.value))
-const sellable = computed(() => items.value.some(item => item.canSell))
+const canSellProducts = computed(() => items.value.some(item => item.canSell && [106, 107].includes(Number(item.type))))
 
-function action(item: any) {
-  if (item.locked)
-    return null
-  if (item.can)
-    return { key: 'useCan', label: '添加', title: '添加到罐头桶', submit: '添加到罐头桶' }
-  if (item.animalId)
-    return { key: 'place', label: '放养', title: `放养${item.name}`, submit: '放养' }
-  if (item.canSell)
-    return { key: 'sell', label: '出售', title: `出售${item.name}`, submit: '出售' }
-  return null
+interface BagAction {
+  key: 'useCan' | 'place' | 'sell'
+  label: string
+  title: string
+  submit: string
 }
 
-const active = ref<any>(null)
+function actionsFor(item: any): BagAction[] {
+  if (item.locked)
+    return []
+  const actions: BagAction[] = []
+  if (item.can)
+    actions.push({ key: 'useCan', label: '添加', title: '添加到罐头桶', submit: '添加到罐头桶' })
+  else if (item.animalId)
+    actions.push({ key: 'place', label: '放养', title: `放养${item.name}`, submit: '放养' })
+  if (item.canSell)
+    actions.push({ key: 'sell', label: '出售', title: `出售${item.name}`, submit: '下一步' })
+  return actions
+}
+
+const active = ref<{ item: any, action: BagAction } | null>(null)
 const destination = ref<string>('')
-const activeAction = computed(() => active.value ? action(active.value) : null)
+const activeAction = computed(() => active.value?.action)
+const activeItem = computed(() => active.value?.item)
 const activeMax = computed(() => {
-  const item = active.value
+  const item = activeItem.value
   if (!item)
     return 1
   const owned = Math.min(2147483647, Number(item.count) || 1)
@@ -81,30 +91,31 @@ const activeMax = computed(() => {
   const pen = pens.value.find(f => f.id === destination.value)
   return pen ? Math.max(1, Math.min(owned, pen.ranch.capacity - pen.ranch.count)) : owned
 })
-const penOptions = computed(() => pens.value.filter(f => !active.value?.husbandryType || Number(f.moduleType) === PEN_TYPE[active.value.husbandryType]).map(f => ({
+const penOptions = computed(() => pens.value.filter(f => !activeItem.value?.husbandryType || Number(f.moduleType) === PEN_TYPE[activeItem.value.husbandryType]).map(f => ({
   label: `${f.name}（${f.ranch.count} / ${f.ranch.capacity}）`,
   value: f.id,
   disabled: f.ranch.count >= f.ranch.capacity,
 })))
 
-function open(item: any) {
-  active.value = item
+function open(item: any, action: BagAction) {
+  active.value = { item, action }
   destination.value = penOptions.value.find(option => !option.disabled)?.value || ''
 }
 function submit(count: number) {
-  const item = active.value
-  const chosen = activeAction.value
+  const selection = active.value
   active.value = null
-  if (item && chosen)
-    void request(chosen.key, { uid: item.uid, itemId: item.id, ranchId: chosen.key === 'place' ? destination.value : undefined, count })
+  if (selection) {
+    const { item, action } = selection
+    void request(action.key, { uid: item.uid, itemId: item.id, ranchId: action.key === 'place' ? destination.value : undefined, count })
+  }
 }
 function caption(item: any) {
   if (!item)
     return ''
   if (item.can?.speed_up_secs)
     return `每个可加速 ${formatDuration(item.can.speed_up_secs)} · 库存 ${formatCount(item.count)}`
-  const price = item.sellPrices?.[0]
-  return price ? `单价 ${formatCount(price.count)} ${price.name} · 库存 ${formatCount(item.count)}` : `库存 ${formatCount(item.count)}`
+  const prices = item.sellPrices?.map((price: RanchItem) => `${formatCount(price.count)} ${price.name}`).join(' + ')
+  return prices ? `单价 ${prices} · 库存 ${formatCount(item.count)}` : `库存 ${formatCount(item.count)}`
 }
 watch(category, () => failed.value = {})
 </script>
@@ -143,7 +154,7 @@ watch(category, () => failed.value = {})
               <span :class="cat.icon" class="mr-1.5" />{{ cat.label }}<span class="ml-1 text-xs opacity-70">({{ counts[cat.value] }})</span>
             </NButton>
           </div>
-          <NButton size="small" type="warning" secondary :disabled="disabled || !sellable" @click="request('sell', { all: true })">
+          <NButton size="small" type="warning" secondary :disabled="disabled || !canSellProducts" @click="request('sell', { all: true })">
             <span class="i-carbon-shopping-cart-arrow-down mr-1" />出售全部产物
           </NButton>
         </div>
@@ -166,9 +177,22 @@ watch(category, () => failed.value = {})
             </div>
             <footer class="bag-item__foot">
               <span class="bag-item__qty"><small>×</small>{{ formatCount(item.count) }}</span>
-              <NButton v-if="action(item)" size="tiny" :type="action(item)!.key === 'sell' ? 'default' : 'primary'" secondary :disabled="disabled" :title="action(item)!.title" @click="open(item)">
-                {{ action(item)!.label }}
-              </NButton>
+              <div class="bag-item__actions">
+                <NButton
+                  v-for="action in actionsFor(item)"
+                  :key="action.key"
+                  attr-type="button"
+                  size="tiny"
+                  :type="action.key === 'sell' ? 'default' : 'primary'"
+                  secondary
+                  :disabled="disabled"
+                  :aria-label="action.title"
+                  :title="action.title"
+                  @click="open(item, action)"
+                >
+                  {{ action.label }}
+                </NButton>
+              </div>
             </footer>
           </article>
         </div>
@@ -178,9 +202,9 @@ watch(category, () => failed.value = {})
     <RanchAmountDialog
       :show="!!active"
       :title="activeAction?.title || ''"
-      :name="active?.name || ''"
-      :image="active?.image"
-      :caption="caption(active)"
+      :name="activeItem?.name || ''"
+      :image="activeItem?.image"
+      :caption="caption(activeItem)"
       :max="activeMax"
       :ready="activeAction?.key !== 'place' || !!destination"
       :submit-text="activeAction?.submit"
@@ -189,7 +213,7 @@ watch(category, () => failed.value = {})
     >
       <BaseSelect v-if="activeAction?.key === 'place'" v-model="destination" label="放养到" :options="penOptions" placeholder="选择窝或棚" />
       <p v-if="activeAction?.key === 'place' && !penOptions.some(option => !option.disabled)" class="bag-hint">
-        {{ active?.husbandryType || '窝和棚' }}已住满，先收获或升级设施。
+        {{ activeItem?.husbandryType || '窝和棚' }}已住满，先收获或升级设施。
       </p>
     </RanchAmountDialog>
   </div>
@@ -362,12 +386,21 @@ watch(category, () => failed.value = {})
   display: flex;
   width: 100%;
   min-height: 34px;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-top: auto;
   padding-top: 10px;
   border-top: 1px dashed var(--ui-border);
+}
+
+.bag-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-inline-start: auto;
 }
 
 .bag-item__qty {

@@ -3,13 +3,14 @@ export {};
 
 const sharedState = require('./shared-state');
 const { assertEmailClaimHour } = require('../../utils/hour-of-day');
-const { normalizeRanchSetting } = require('../../config/ranch-automation');
+const { normalizeRanchSetting, migrateRanchMarketAutomation } = require('../../config/ranch-automation');
 const { readKnownFriendGidsCache, writeKnownFriendGidsCache } = require('./gid-cache');
 
 const {
     globalConfig,
     normalizeAccountConfig,
     cloneAccountConfig,
+    normalizeFertilizerMode,
     normalizeFertilizerLandTypes,
     normalizeKnownFriendGids,
     normalizeKnownFriendGidSyncCooldownSec,
@@ -140,11 +141,10 @@ function applyConfigSnapshot(snapshot: Record<string, any> | undefined, options:
     const next = normalizeAccountConfig(current, sharedState.accountFallbackConfig);
 
     if (cfg.automation && typeof cfg.automation === 'object') {
-        for (const [k, v] of Object.entries(cfg.automation)) {
+        for (const [k, v] of Object.entries(migrateRanchMarketAutomation(cfg.automation))) {
             if ((next.automation as any)[k] === undefined) continue;
             if (k === 'fertilizer') {
-                const allowed = ['both', 'normal', 'organic', 'smart', 'none'];
-                (next.automation as any)[k] = allowed.includes(v as string) ? v : (next.automation as any)[k];
+                next.automation.fertilizer = normalizeFertilizerMode(v, next.automation.fertilizer);
             } else if (k === 'fertilizer_land_types') {
                 (next.automation as any)[k] = normalizeFertilizerLandTypes(v, next.automation.fertilizer_land_types);
             } else if (k.startsWith('ranch_')) {

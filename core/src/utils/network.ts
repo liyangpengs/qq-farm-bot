@@ -678,6 +678,12 @@ function handleNotify(msg: any): void {
             return;
         }
 
+        if (type === 'gamepb.shoppb.RotationShopNotify') {
+            const rotation = types.RanchRotationShopNotify.decode(eventBody).shops.find((shop: any) => toNum(shop.shop_id) === 7);
+            if (rotation) networkEvents.emit('ranchMarketVisitChanged', rotation);
+            return;
+        }
+
         // 物品变化通知
         if (type.includes('ItemNotify')) {
             try {
@@ -707,8 +713,8 @@ function handleNotify(msg: any): void {
                         } else if (delta !== 0) {
                             userState.coupon = Math.max(0, Number(userState.coupon || 0) + delta);
                         }
-                    } else if (id === 7002 && delta > 0) {
-                        // 便便增加即唤醒牧场例程，读取最新余额后判断是否达到门槛；无需等待六小时兜底。
+                    } else if ((id === 7002 || id === 1008) && delta > 0) {
+                        // 集市货币到账后唤醒牧场例程，按最新余额和报价兑换。
                         networkEvents.emit('ranchMarketStockReady', { id, count, delta });
                     } else if (id === 1005) {
                         if (count > 0) {

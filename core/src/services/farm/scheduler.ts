@@ -23,6 +23,7 @@ const {
     ALL_FERTILIZER_LAND_TYPES,
 } = require('./land-analysis');
 const { autoPlantEmptyLands, getRemainingPlantDelayMs, runFertilizerByConfig } = require('./planting');
+const { isRipeningOnlyMode, runRipeningFertilizer } = require('./ripening');
 const { checkAndBuyFertilizerBoth } = require('../mall');
 // 延迟加载以打破循环依赖: visit-strategy → farm/index → scheduler → visit-strategy
 function inFarmQuietHours() {
@@ -83,6 +84,8 @@ async function checkFarm(): Promise<boolean> {
 
 async function runMultiSeasonFertilizer(growingLandIds: any[], propagateErrors: boolean = false): Promise<void> {
     if (!isAutomationOn('fertilizer_multi_season')) return;
+    const mode = getAutomation().fertilizer;
+    if (mode === 'none' || isRipeningOnlyMode(mode)) return;
     const multiSeasonTargets: number[] = [...new Set(
         (Array.isArray(growingLandIds) ? growingLandIds : []).map((v: any) => toNum(v)).filter(Boolean),
     )];
@@ -116,7 +119,7 @@ function autoHarvestLandIds(status: any): number[] {
 }
 
 /**
- * smart 有机肥可能让作物在本轮成熟。施肥后只重查并收获一次，避免形成请求循环。
+ * 催熟施肥后只重查并收获一次，避免形成请求循环。
  * 跟随收获也会走多季补肥：这批作物进入下一季后，主循环里的补肥已经跑完了。
  */
 async function harvestMatureOwnLandsOnce(actions: string[], propagateErrors: boolean = false): Promise<number> {
@@ -186,6 +189,7 @@ async function runFarmOperation(
     }
 
     const lands = landsReply.lands;
+    let fertilizerSnapshot: any[] | undefined = lands;
 
     const state = getUserState();
     const status = analyzeLands(lands, isFirstFarmCheck, state.gid);
@@ -245,6 +249,7 @@ async function runFarmOperation(
         }
 
         if (!skipOwnWeedBug && farmingLandIds.length > 0) {
+            fertilizerSnapshot = undefined;
             try {
                 await farming(farmingLandIds, socialEventItemIds);
                 const parts: string[] = [];
@@ -271,6 +276,7 @@ async function runFarmOperation(
     if (opType === 'all' || opType === 'harvest') {
         const harvestable = opType === 'all' ? autoHarvestLandIds(status) : status.harvestable;
         if (harvestable.length > 0) {
+            fertilizerSnapshot = undefined;
             try {
                 harvestReply = await harvest(harvestable);
                 log('收获', `收获完成 ${harvestable.length} 块土地`, {
@@ -314,6 +320,7 @@ async function runFarmOperation(
         if (allDeadLands.length > 0 || allEmptyLands.length > 0) {
             try {
                 if (automatic && !canContinueFarm(automatic.generation)) return { hadWork: actions.length > 0, actions };
+                fertilizerSnapshot = undefined;
                 const plantResult = await autoPlantEmptyLands(allDeadLands, allEmptyLands, {
                     propagateErrors, knownLands: lands,
                     pacing: automatic ? automatic.pacing : { lastPlantAt: null, delaySeconds: 0 },
@@ -338,6 +345,7 @@ async function runFarmOperation(
     // 执行土地解锁/升级（手动 upgrade 总是执行；自动 all 受开关控制）
     const shouldAutoUpgrade = opType === 'all' && isAutomationOn('land_upgrade');
     if (shouldAutoUpgrade || opType === 'upgrade') {
+        if (status.unlockable.length > 0 || status.upgradable.length > 0) fertilizerSnapshot = undefined;
         if (status.unlockable.length > 0) {
             let unlocked: number = 0;
             for (const landId of status.unlockable) {
@@ -386,14 +394,17 @@ async function runFarmOperation(
     }
 
     if (opType === 'all') {
-        const fertilizerConfig = getAutomation().fertilizer || 'none';
+        if (automatic && !canContinueFarm(automatic.generation)) return { hadWork: actions.length > 0, actions };
+        const automation = getAutomation();
+        const fertilizerConfig = automation.fertilizer || 'none';
         const canApplyNormal = fertilizerConfig === 'normal'
             || fertilizerConfig === 'both'
             || fertilizerConfig === 'smart';
         if (isAutomationOn('fertilizer_multi_season') && canApplyNormal) {
             try {
-                const latest = await getAllLands();
-                const latestLands = Array.isArray(latest && latest.lands) ? latest.lands : [];
+                const latest = fertilizerSnapshot ?? (await getAllLands())?.lands;
+                const latestLands = Array.isArray(latest) ? latest : [];
+                fertilizerSnapshot = latestLands;
                 let targets = getNormalFertilizerTargetsFromLands(latestLands);
                 // 先按施肥土地范围过滤，避免范围外地块每轮都触发"检测到但目标为空"的无效调用。
                 // 过滤规则与 runFertilizerByConfig 内部一致：勾满全部类型视为不限制；确认不了土地类型时跳过本轮。
@@ -418,6 +429,7 @@ async function runFarmOperation(
                         count: targets.length,
                         landIds: targets,
                     });
+                    fertilizerSnapshot = undefined;
                     const result = await runFertilizerByConfig(targets, { reason: 'multi_season', propagateErrors });
                     if (result.normal > 0) actions.push(`补肥${result.normal}`);
                 }
@@ -430,11 +442,11 @@ async function runFarmOperation(
                 if (propagateErrors) throw e;
             }
         }
-        if (fertilizerConfig === 'smart') {
+        if (fertilizerConfig === 'smart' || isRipeningOnlyMode(fertilizerConfig)) {
             try {
-                const result = await runFertilizerByConfig([], { skipNormal: true, propagateErrors });
-                if (result.organic > 0) {
-                    actions.push(`有机肥${result.organic}`);
+                const count = await runRipeningFertilizer(getAutomation(), fertilizerSnapshot, propagateErrors);
+                if (count > 0) {
+                    actions.push(`催熟${count}`);
                     await harvestMatureOwnLandsOnce(actions, propagateErrors);
                 }
             } catch (e: any) {
