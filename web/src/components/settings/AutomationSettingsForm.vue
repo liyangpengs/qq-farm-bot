@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { SettingsState } from '@/stores/setting'
 import { NCheckbox, NCheckboxGroup } from 'naive-ui/es/checkbox'
+import { computed } from 'vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
@@ -41,6 +42,9 @@ const emit = defineEmits<{
 }>()
 
 const settings = defineModel<AutomationSettingsFormModel>({ required: true })
+const ripeningOnly = computed(() => ['normal_ripen', 'organic_ripen'].includes(settings.value.automation.fertilizer ?? 'none'))
+const ripeningEnabled = computed(() => ripeningOnly.value || settings.value.automation.fertilizer === 'smart')
+const ripeningFertilizerLabel = computed(() => settings.value.automation.fertilizer === 'normal_ripen' ? '普通化肥' : '有机化肥')
 const ranchSwitches = [
   ['ranch_harvest', '自动收获'],
   ['ranch_produce', '自动生产'],
@@ -206,7 +210,7 @@ const ranchStrategies = [
               <BaseSwitch v-model="settings.automation.fertilizer_buy_normal" class="automation-setting-item" label="自动购买无机化肥" />
             </div>
             <div class="automation-setting-item">
-              <BaseSwitch v-model="settings.automation.fertilizer_multi_season" class="automation-setting-item" label="多季补肥" />
+              <BaseSwitch v-model="settings.automation.fertilizer_multi_season" class="automation-setting-item" label="多季补肥" :disabled="ripeningOnly" />
             </div>
             <div class="automation-setting-item">
               <BaseSwitch v-model="settings.automation.show_manual_fertilizer" class="automation-setting-item" label="显示手动施肥按钮" />
@@ -264,7 +268,7 @@ const ranchStrategies = [
           <div class="mt-3 space-y-3">
             <BaseSelect v-model="settings.automation.fertilizer" label="施肥策略" :options="fertilizerOptions" />
             <div
-              v-if="settings.automation.fertilizer === 'smart'"
+              v-if="ripeningEnabled"
               class="flex flex-wrap gap-4 rounded-lg bg-amber-50 p-3 text-sm dark:bg-amber-900/20"
             >
               <BaseInput
@@ -276,8 +280,11 @@ const ranchStrategies = [
                 class="w-40"
               />
               <span class="flex items-end pb-2 text-xs text-gray-500 dark:text-gray-400">
-                距离成熟时间 ≤ 此秒数时施有机肥（默认 300 秒）
+                距离成熟时间 ≤ 此秒数时施{{ ripeningFertilizerLabel }}（默认 300 秒）
               </span>
+              <p v-if="ripeningOnly" class="w-full text-xs text-gray-500 dark:text-gray-400">
+                只在巡田时催熟，不在播种后提前施肥；每季独立判断，不受「多季补肥」开关影响。
+              </p>
             </div>
           </div>
         </section>
