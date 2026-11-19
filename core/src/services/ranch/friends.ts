@@ -7,7 +7,29 @@ const { error, positiveId, positiveCount, quantity, itemDto, sumItems } = requir
 const { animalDto } = require('./state');
 const reservations = require('./operation-state');
 const { getAmbientSendContext, runWithSendContext } = require('./context');
-const { logWarn } = require('../../utils/utils');
+const { getServerTimeSec, logWarn } = require('../../utils/utils');
+
+// 每个账号 Worker 仅记住服务端确认已经用完的次数，按游戏日（北京时间）失效。
+const exhaustedUntil = new Map<string, number>();
+const DAY_SECONDS = 86_400;
+const SHANGHAI_OFFSET_SECONDS = 8 * 3600;
+
+function nextQuotaReset(serverSeconds = getServerTimeSec()): number {
+    return serverSeconds + DAY_SECONDS - (serverSeconds + SHANGHAI_OFFSET_SECONDS) % DAY_SECONDS;
+}
+
+function getInteractionQuotaResetAt(action: string): number {
+    const reset = exhaustedUntil.get(action);
+    if (reset === undefined) return 0;
+    const serverSeconds = getServerTimeSec();
+    return reset === nextQuotaReset(serverSeconds) ? Date.now() + (reset - serverSeconds) * 1000 : 0;
+}
+
+function rememberQuota(action: string, count: number, reset: number): void {
+    if (reset !== nextQuotaReset()) return;
+    if (count === 0) exhaustedUntil.set(action, reset);
+    else exhaustedUntil.delete(action);
+}
 
 function targets(ranches: any[]): any[] {
     const gid = quantity(network.getUserState().gid);
@@ -67,15 +89,18 @@ async function getFriend(hostGid: unknown): Promise<any> {
 }
 
 async function getInteractionTimes(): Promise<any> {
+    const reset = nextQuotaReset();
     const reply = await rpc('opTimes', { op_ids: [] });
-    const remaining = (id: number) => {
+    const remaining = (id: number, action?: string) => {
         const op = reply.ops.find((row: any) => quantity(row.op_id) === String(id));
         if (!op) throw error('RANCH_RESPONSE_MISMATCH', '牧场互动剩余次数未返回');
         const count = Number(quantity(op.remaining_times));
         if (!Number.isSafeInteger(count) || count < 0) throw error('RANCH_RESPONSE_MISMATCH', '牧场互动剩余次数无效');
+        const limit = Number(quantity(op.times_limit));
+        if (action && (count > 0 || limit > 0 && Number(quantity(op.used_times)) >= limit)) rememberQuota(action, count, reset);
         return count;
     };
-    return { stroke: remaining(11009), putMosquito: remaining(11003), release: remaining(11008) };
+    return { stroke: remaining(11009, 'stroke'), putMosquito: remaining(11003, 'putMosquito'), release: remaining(11008) };
 }
 
 function hasStroked(animal: any): boolean {
@@ -144,6 +169,7 @@ async function prepareInteraction(action: string, input: any): Promise<any> {
 async function commitInteraction(plan: any): Promise<any> {
     if (!plan.count) return { action: plan.action, status: 'skipped', costs: [], rewards: [], completed: 0, snapshot: null };
     return reservations.forCurrentAccount().spend({ target: plan.target, label: plan.label, costs: [], balances: [] }, async () => {
+        const reset = nextQuotaReset();
         const reply = await rpc(plan.action === 'cleanFriend' ? 'clean' : plan.action, plan.payload, true);
         const remaining = Number(quantity(reply.remaining_times));
         const invalid = () => { throw error('RANCH_RESULT_UNKNOWN', `${plan.label}结果未能确认，请刷新核对，勿重复提交`); };
@@ -178,6 +204,7 @@ async function commitInteraction(plan: any): Promise<any> {
             rewards = reply.rewards;
         }
         if (rewards.some((item: any) => BigInt(quantity(item.count)) <= 0n)) invalid();
+        if (plan.action !== 'cleanFriend') rememberQuota(plan.action, remaining, reset);
         const items = sumItems(rewards);
         return { action: plan.action, status: completed ? 'confirmed' : 'skipped', snapshot: null, costs: [], rewards: items, completed,
             remainingTimes: plan.action === 'cleanFriend' ? undefined : remaining, triggered: reply.triggered === true, refreshRequired: true,
@@ -237,54 +264,117 @@ async function commitSteal(host: string, ranches: any[], plan: any): Promise<any
     });
 }
 
-// 各动作复用手动入口的检查；农场到期时，完成当前操作并离场，下次刷新后续跑。
-async function automateFriend(hostGid: unknown, enabled: (action: string) => boolean, shouldYield: () => boolean = () => false): Promise<any> {
+type FriendInteraction = { action: 'stroke'; ranchId: string; animalId: number }
+    | { action: 'putMosquito'; ranchId: string; remaining: number };
+
+export interface FriendPatrolProgress {
+    stealChecked?: boolean;
+    cleanChecked?: boolean;
+    pending?: FriendInteraction[];
+}
+
+// 按本轮剩余动作续跑，每次进入都重新核对目标资格和剩余次数。
+async function automateFriend(
+    hostGid: unknown,
+    enabled: (action: string) => boolean,
+    shouldYield: (acted: boolean) => boolean = () => false,
+    onOutcome?: (outcome: any) => void,
+    progress: FriendPatrolProgress = {},
+): Promise<any> {
     return visit(hostGid, async (_entry, ranches, host) => {
         const results: any[] = [];
-        const times = enabled('stroke') || enabled('putMosquito') ? await getInteractionTimes() : {};
-        const pause = () => results.length > 0 && shouldYield();
-        async function act(action: string, run: () => Promise<any>): Promise<any> {
+        const times: Record<string, number> = {};
+        let acted = false;
+        const pause = () => shouldYield(acted);
+        if (pause()) return { results, times, yielded: true };
+        async function act(plan: any, run: () => Promise<any>): Promise<any> {
+            const { action, label } = plan;
             if (!enabled(action)) return null;
             const parent = getAmbientSendContext();
-            const outcome = await runWithSendContext({ ...parent,
-                check: (service: string, method: string) => parent?.check(service, method) || (enabled(action) ? null
-                    : error('RANCH_AUTOMATION_DISABLED', '好友互动开关已关闭')),
-                onSent: (service: string, method: string) => parent?.onSent(service, method),
-            }, run);
+            let outcome: any;
+            try {
+                outcome = await runWithSendContext({ ...parent,
+                    check: (service: string, method: string) => parent?.check(service, method) || (enabled(action) ? null
+                        : error('RANCH_AUTOMATION_DISABLED', '好友互动开关已关闭')),
+                    onSent: (service: string, method: string) => parent?.onSent(service, method),
+                }, run);
+                acted = true;
+            } catch (error: any) {
+                // 已有待核对记录或服务端明确拒绝时，只跳过本项；未能确认的新请求仍由账本保护。
+                const rejected = error.name === 'GatewayError';
+                if (error.code !== 'PENDING_CONFIRMATION' && !rejected) throw error;
+                if (rejected) acted = true;
+                onOutcome?.({ action, status: 'skipped', notice: `${label}暂未执行：${error.message}` });
+                return null;
+            }
             if (outcome.status === 'confirmed') results.push(outcome);
+            if (outcome.status === 'confirmed' || action === 'steal') onOutcome?.(outcome);
             return outcome;
         }
-        if (enabled('cleanFriend')) {
-            const cleaned = await act('cleanFriend', () => commitInteraction(interactionPlan('cleanFriend', {}, ranches, host, null)));
-            if (pause()) return { results, times, yielded: true };
-            if (cleaned?.status === 'confirmed') ranches = (await rpc('animals', { host_gid: host })).ranches;
+        // 可偷产物可能被好友收走，先处理当前货架再做清理和需要查询次数的互动。
+        if (!progress.stealChecked) {
+            if (enabled('steal')) {
+                const plan = quote(host, ranches);
+                if (!plan.skipped) await act(plan, () => commitSteal(host, ranches, plan));
+            }
+            progress.stealChecked = true;
         }
-        const stealPlan = quote(host, ranches);
-        if (!stealPlan.skipped) await act('steal', () => commitSteal(host, ranches, stealPlan));
-        for (const ranch of ranches) {
-            for (const animal of ranch.animals) {
-                if (!enabled('stroke') || times.stroke <= 0) break;
-                if (!canStroke(animal)) continue;
-                if (pause()) return { results, times, yielded: true };
-                const input = { ranchId: quantity(ranch.ranch_inst_id), animalId: animal.animal_inst_id };
-                const outcome = await act('stroke', () => commitInteraction(interactionPlan('stroke', input, ranches, host, times)));
-                if (outcome) times.stroke = outcome.remainingTimes;
+        let cleaned = false;
+        if (!progress.cleanChecked) {
+            if (enabled('cleanFriend')) {
+                const plan = interactionPlan('cleanFriend', {}, ranches, host, null);
+                if (plan.count) {
+                    if (pause()) return { results, times, yielded: true };
+                    cleaned = (await act(plan, () => commitInteraction(plan)))?.status === 'confirmed';
+                }
             }
-            const toPlace = Math.min(times.putMosquito || 0, mosquitoState(ranch).mosquitoRoom);
-            for (let count = 0; count < toPlace && enabled('putMosquito') && times.putMosquito > 0 && mosquitoState(ranch).mosquitoRoom > 0; count++) {
+            progress.cleanChecked = true;
+        }
+        if (!enabled('stroke') && !enabled('putMosquito')) return { results, times };
+        if (!progress.pending) {
+            if (cleaned) {
                 if (pause()) return { results, times, yielded: true };
-                const input = { ranchId: quantity(ranch.ranch_inst_id) };
-                const outcome = await act('putMosquito', () => commitInteraction(interactionPlan('putMosquito', input, ranches, host, times)));
-                if (!outcome) break;
-                times.putMosquito = outcome.remainingTimes;
-                if (pause()) return { results, times, yielded: true };
-                const latest = (await rpc('animals', { host_gid: host })).ranches.find((row: any) => quantity(row.ranch_inst_id) === input.ranchId);
-                if (!latest) break;
-                ranch.hazards = latest.hazards;
+                ranches = (await rpc('animals', { host_gid: host })).ranches;
             }
+            const pending: FriendInteraction[] = [];
+            for (const ranch of ranches) {
+                const ranchId = quantity(ranch.ranch_inst_id);
+                if (enabled('stroke')) {
+                    for (const animal of ranch.animals.filter(canStroke)) {
+                        pending.push({ action: 'stroke', ranchId, animalId: animal.animal_inst_id });
+                    }
+                }
+                const remaining = mosquitoState(ranch).mosquitoRoom;
+                if (enabled('putMosquito') && remaining > 0) pending.push({ action: 'putMosquito', ranchId, remaining });
+            }
+            progress.pending = pending;
+        }
+        const pending = progress.pending;
+        if (pending.some(step => enabled(step.action))) {
+            if (pause()) return { results, times, yielded: true };
+            Object.assign(times, await getInteractionTimes());
+        }
+        while (pending.length) {
+            const step = pending[0];
+            const ranch = ranches.find(row => quantity(row.ranch_inst_id) === step.ranchId);
+            const eligible = ranch && (step.action === 'stroke'
+                ? ranch.animals.some((animal: any) => animal.animal_inst_id === step.animalId && canStroke(animal))
+                : mosquitoState(ranch).mosquitoRoom > 0);
+            if (enabled(step.action) && times[step.action] > 0 && eligible) {
+                if (pause()) return { results, times, yielded: true };
+                const plan = interactionPlan(step.action, step, ranches, host, times);
+                const outcome = await act(plan, () => commitInteraction(plan));
+                if (outcome) times[step.action] = outcome.remainingTimes;
+                if (outcome && step.action === 'putMosquito' && --step.remaining > 0 && times.putMosquito > 0) {
+                    if (pause()) return { results, times, yielded: true };
+                    ranches = (await rpc('animals', { host_gid: host })).ranches;
+                    continue;
+                }
+            }
+            pending.shift();
         }
         return { results, times };
     });
 }
 
-module.exports = { getFriend, prepareSteal, steal, getInteractionTimes, prepareInteraction, interact, automateFriend };
+module.exports = { getFriend, prepareSteal, steal, getInteractionTimes, getInteractionQuotaResetAt, prepareInteraction, interact, automateFriend };

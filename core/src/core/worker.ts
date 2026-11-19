@@ -137,7 +137,7 @@ function ranchNextRunAt(): number {
     if (!unifiedSchedulerRunning || ranchRoutineQueued || farmTaskRunning || friendTaskRunning
         || !initialFarmCheckDone || !initialFriendCheckDone) return Infinity;
     const state = ranchAutomation.getRoutineState();
-    return state.doneToday ? Infinity : Math.max(state.nextCheckAt, ranchDeferredUntil);
+    return Math.max(state.nextCheckAt, ranchDeferredUntil);
 }
 
 function wakeRanchMarketExchange(): void {
