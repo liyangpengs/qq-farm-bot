@@ -7,7 +7,7 @@ export {};
 const { RANCH_SWITCH_KEYS } = require('../../config/ranch-automation');
 const { getAutomation, getFriendBlacklist } = require('../../models/store');
 const { inScene, isUnlocked } = require('./transport');
-const { loadRaw, snapshot, inventory, catalog, market, readMarketRotation, balance } = require('./state');
+const { loadRaw, shedAwaitingActivation, snapshot, inventory, catalog, market, readMarketRotation, balance } = require('./state');
 const { cubMap, quantity } = require('./model');
 const { prepareAction, operate } = require('./actions');
 const { getServerTimeSec, log } = require('../../utils/utils');
@@ -280,6 +280,9 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     marketCheckPending = false;
                 }
             });
+
+            const shed = enabled('ranch_upgrade') && shedAwaitingActivation(raw);
+            if (shed) await act('ranch_upgrade', 'activateShed', { facilityId: quantity(shed.instance_id) });
 
             await phase('upgrade', async () => {
                 if (enabled('ranch_upgrade')) {
