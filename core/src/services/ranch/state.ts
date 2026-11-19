@@ -89,6 +89,12 @@ async function loadRaw(cells?: any): Promise<any> {
     return { cells: currentCells, bag };
 }
 
+function shedAwaitingActivation(raw: any): any {
+    // 达到开放条件后，服务器下发待激活的一级棚和正式实例 ID。
+    return raw.cells.facilities.find((facility: any) =>
+        facility.module_type === 7 && facility.facility_id === 6002001 && facility.state === 3);
+}
+
 function snapshot(raw: any): any {
     const info = levelInfo(Number(balance(raw.bag, 1102).total));
     return {
@@ -248,4 +254,4 @@ async function resourceBalances(keys: string[]): Promise<any[]> {
     });
 }
 
-module.exports = { getState, loadRaw, snapshot, balance, bagItems, inventory, salePrices, taskList, catalog, market, readMarketRotation, canCatalog, resourceBalance, isRanchResource, resourceBalances, animalDto };
+module.exports = { getState, loadRaw, shedAwaitingActivation, snapshot, balance, bagItems, inventory, salePrices, taskList, catalog, market, readMarketRotation, canCatalog, resourceBalance, isRanchResource, resourceBalances, animalDto };
