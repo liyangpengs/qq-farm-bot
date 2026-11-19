@@ -31,6 +31,7 @@ const ROUTES: Record<string, [string, string, string, string?]> = {
     bagTabs: ['itempb.ItemService', 'GetBagTab', 'RanchGetBagTab'],
     sell: ['itempb.ItemService', 'Sell', 'RanchSell'],
     useCan: ['itempb.ItemService', 'Use', 'RanchUse'],
+    shopProfiles: ['shoppb.ShopService', 'ShopProfiles', 'ShopProfiles'],
     shop: ['shoppb.ShopService', 'ShopInfo', 'ShopInfo'],
     buy: ['shoppb.ShopService', 'BuyGoods', 'BuyGoods'],
     market: ['shoppb.ShopService', 'RotationShopInfo', 'RanchRotationShopInfo'],
