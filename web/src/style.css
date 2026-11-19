@@ -1340,3 +1340,12 @@ select:focus-visible {
 .dark .dark\:bg-gray-600 {
   background-color: color-mix(in srgb, var(--ui-surface-soft) 70%, #ffffff 8%) !important;
 }
+
+/* 底部导航是悬浮的：牧场空间的卡片比农场页更高，滚动容器自身的 padding-bottom
+   在内容溢出时留不出导航的高度，最后一行卡片的按钮会被压在导航下面点不到。
+   这里按导航实际高度（66px）加下边距和安全区再补 12px 空隙。 */
+@media (max-width: 1023px) {
+  .app-main:has(+ .mobile-bottom-nav) .page-scroll {
+    padding-bottom: calc(66px + max(12px, env(safe-area-inset-bottom)) + 12px);
+  }
+}
