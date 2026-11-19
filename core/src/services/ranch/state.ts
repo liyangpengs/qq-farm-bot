@@ -11,6 +11,12 @@ function bagItems(bag: any): any[] {
     return [...bag.physical_items, ...bag.virtual_items];
 }
 
+function salePrices(item: any): any[] {
+    if (item.is_locked || !item.show || item.show.sell_cond.length || BigInt(quantity(item.count)) <= 0n) return [];
+    const prices = item.show.sells;
+    return prices.every((price: any) => BigInt(quantity(price.id)) > 0n && BigInt(quantity(price.count)) > 0n) ? prices : [];
+}
+
 function balance(bag: any, id: number): any {
     const entries = bagItems(bag).filter(item => Number(item.id) === id);
     const total = entries.reduce((sum, item) => sum + BigInt(quantity(item.count)), 0n);
@@ -101,7 +107,7 @@ function inventory(raw: any): any[] {
         return {
             ...itemDto(item), uid: quantity(item.uid), locked: item.is_locked, tabId: Number(item.tab_id) || Number(metadata?.show_tab_ids) || 0,
             type: metadata?.type || 0, sellPrices: item.show?.sells?.map(itemDto) || [],
-            canSell: !item.is_locked && !!item.show?.sells?.length && !item.show.sell_cond.length && [106, 107].includes(metadata?.type),
+            canSell: salePrices(item).length > 0,
             can: canMap.get(Number(item.id)) || null, animalId: animal?.id || null, giantCub: !!animal?.giantCubItemId,
             husbandryType: animal?.husbandry_type ?? null,
             product: item.item_detail?.ranch_product ? {
@@ -242,4 +248,4 @@ async function resourceBalances(keys: string[]): Promise<any[]> {
     });
 }
 
-module.exports = { getState, loadRaw, snapshot, balance, bagItems, inventory, taskList, catalog, market, readMarketRotation, canCatalog, resourceBalance, isRanchResource, resourceBalances, animalDto };
+module.exports = { getState, loadRaw, snapshot, balance, bagItems, inventory, salePrices, taskList, catalog, market, readMarketRotation, canCatalog, resourceBalance, isRanchResource, resourceBalances, animalDto };

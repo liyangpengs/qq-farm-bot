@@ -27,6 +27,7 @@ let cycleChanged = false;
 let ownRecheckUsed = false;
 const completedPhases = new Set<string>();
 const completedSteps = new Set<string>();
+const pendingBookKinds = new Set<'normal' | 'giant'>();
 const PATROL_SLICE_MS = 5000;
 const SCENE_REENTRY_MS = 20_000;
 const MARKET_EXCHANGES = [
@@ -42,6 +43,7 @@ const lastMarketBalances = new Map<number, bigint>();
 function resetCycle(keepFriendProgress = false): void {
     completedPhases.clear();
     completedSteps.clear();
+    pendingBookKinds.clear();
     if (!keepFriendProgress) {
         friendVisits = 0;
         pendingFriend = null;
@@ -96,7 +98,7 @@ function getRoutineState(): any {
     const mosquitoReset = auto.ranch_friend_mosquito ? interactions.getInteractionQuotaResetAt('putMosquito') : 0;
     const work = auto.ranch_stroke && !strokeReset || auto.ranch_friend_mosquito && !mosquitoReset
         || RANCH_SWITCH_KEYS.some((key: string) => ![
-            'ranch_task', 'ranch_share', 'ranch_daily_benefit', 'ranch_grass_buy', 'ranch_market_organic', 'ranch_stroke', 'ranch_friend_mosquito',
+            'ranch_task', 'ranch_illustrated', 'ranch_share', 'ranch_daily_benefit', 'ranch_grass_buy', 'ranch_market_organic', 'ranch_stroke', 'ranch_friend_mosquito',
         ].includes(key) && auto[key]);
     const routineDue = work || auto.ranch_task && due(daily.getTaskRoutineState()) || auto.ranch_share && due(daily.getShareRoutineState()) || auto.ranch_daily_benefit && due(daily.getBenefitRoutineState());
     const pending = routineDue || auto.ranch_market_organic && marketCheckPending;
@@ -206,6 +208,12 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     completedSteps.add(step);
                     markStep(action);
                     if (result.status === 'skipped') return false;
+                    if (action === 'harvest' && result.harvestedAnimals > 0 && enabled('ranch_illustrated')) {
+                        for (const kind of ['normal', 'giant'] as const) {
+                            pendingBookKinds.add(kind);
+                            completedSteps.delete(`claimIllustrated:${JSON.stringify({ kind })}`);
+                        }
+                    }
                     cycleChanged = true;
                     log('牧场', `${quote.label}${result.notice ? `：${result.notice}` : '完成'}`, { module: 'ranch', event: `ranch_${action}`, result: 'ok' });
                     raw = await loadRaw();
@@ -285,6 +293,12 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     }
                 }
             });
+
+            // 成熟动物腾栏后，在补栏前核对一次。让路时保留尚未核对的图鉴。
+            for (const kind of pendingBookKinds) {
+                await act('ranch_illustrated', 'claimIllustrated', { kind });
+                pendingBookKinds.delete(kind);
+            }
 
             if (enabled('ranch_buy')) {
                 const bagFirst = auto.ranch_strategy === 'bag_priority';

@@ -21,6 +21,7 @@ export interface AutomationConfig {
   ranch_friend_clean?: boolean
   ranch_friend_mosquito?: boolean
   ranch_task?: boolean
+  ranch_illustrated?: boolean
   ranch_share?: boolean
   ranch_daily_benefit?: boolean
   ranch_check_minutes?: number

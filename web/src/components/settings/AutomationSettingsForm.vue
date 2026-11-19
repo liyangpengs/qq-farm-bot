@@ -59,6 +59,7 @@ const ranchSwitches = [
   ['ranch_feed_normal', '普通罐头喂养'],
   ['ranch_feed_organic', '有机罐头喂养'],
   ['ranch_task', '自动领取任务奖励'],
+  ['ranch_illustrated', '自动领取图鉴奖励'],
   ['ranch_share', '每日分享礼包'],
   ['ranch_daily_benefit', '每日商城福利'],
 ] as const
