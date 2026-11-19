@@ -24,6 +24,15 @@ message Tags {
     bool is_follow = 2;
 }
 
+message BigFarmStatus {
+    bool can_steal = 1;
+    bool can_midwife = 2;
+    bool can_help = 3;
+    int32 steal_lot_count = 4;
+    int32 midwife_count = 5;
+    int32 help_count = 6;
+}
+
 // ============ 好友信息 ============
 message GameFriend {
     int64 gid = 1;
@@ -44,6 +53,7 @@ message GameFriend {
     FriendActivity activity = 18;
     int64 last_active_time = 19;
     gamepb.weatherpb.WeatherStatus weather = 20;
+    BigFarmStatus big_farm_status = 23;
     // field 11 reserved
     // Illustrated illustrated = 12;  // 略
     // repeated AvatarFrame equip_avatar_frames = 13;  // 略
@@ -76,7 +86,9 @@ message RecommendedFriend {
 // ============ 请求/回复 ============
 
 // --- 获取所有好友 ---
-message GetAllRequest {}
+message GetAllRequest {
+    int32 global_scene_id = 1;
+}
 
 message GetAllReply {
     repeated GameFriend game_friends = 1;
@@ -87,6 +99,7 @@ message GetAllReply {
 // --- 获取指定游戏好友 (通过GID列表) ---
 message GetGameFriendsRequest {
     repeated int64 gids = 1;
+    int32 global_scene_id = 2;
 }
 
 message GetGameFriendsReply {
@@ -98,6 +111,7 @@ message GetGameFriendsReply {
 message SyncAllRequest {
     // field 1 reserved
     repeated string open_ids = 2;
+    int32 global_scene_id = 3;
 }
 
 message SyncAllReply {

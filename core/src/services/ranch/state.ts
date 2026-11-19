@@ -1,3 +1,5 @@
+import { getRanchFriendList } from './friend-roster';
+
 export {};
 
 const { rpc, inScene, isUnlocked } = require('./transport');
@@ -7,6 +9,12 @@ const { types } = require('../../utils/proto');
 
 function bagItems(bag: any): any[] {
     return [...bag.physical_items, ...bag.virtual_items];
+}
+
+function salePrices(item: any): any[] {
+    if (item.is_locked || !item.show || item.show.sell_cond.length || BigInt(quantity(item.count)) <= 0n) return [];
+    const prices = item.show.sells;
+    return prices.every((price: any) => BigInt(quantity(price.id)) > 0n && BigInt(quantity(price.count)) > 0n) ? prices : [];
 }
 
 function balance(bag: any, id: number): any {
@@ -99,7 +107,7 @@ function inventory(raw: any): any[] {
         return {
             ...itemDto(item), uid: quantity(item.uid), locked: item.is_locked, tabId: Number(item.tab_id) || Number(metadata?.show_tab_ids) || 0,
             type: metadata?.type || 0, sellPrices: item.show?.sells?.map(itemDto) || [],
-            canSell: !item.is_locked && !!item.show?.sells?.length && !item.show.sell_cond.length && [106, 107].includes(metadata?.type),
+            canSell: salePrices(item).length > 0,
             can: canMap.get(Number(item.id)) || null, animalId: animal?.id || null, giantCub: !!animal?.giantCubItemId,
             husbandryType: animal?.husbandry_type ?? null,
             product: item.item_detail?.ranch_product ? {
@@ -222,7 +230,7 @@ async function getState(view = 'animals', shopId?: number, hostGid?: string): Pr
         }
         if (view === 'friends') {
             if (hostGid !== undefined) state.friendRanch = await require('./friends').getFriend(hostGid);
-            else state.friends = (await require('../friend').getFriendsList()).map((friend: any) => ({ gid: String(friend.gid), name: friend.name, avatarUrl: friend.avatarUrl }));
+            else state.friends = (await getRanchFriendList()).map(friend => ({ ...friend, gid: String(friend.gid) }));
         }
         return state;
     });
@@ -240,4 +248,4 @@ async function resourceBalances(keys: string[]): Promise<any[]> {
     });
 }
 
-module.exports = { getState, loadRaw, snapshot, balance, bagItems, inventory, taskList, catalog, market, readMarketRotation, canCatalog, resourceBalance, isRanchResource, resourceBalances, animalDto };
+module.exports = { getState, loadRaw, snapshot, balance, bagItems, inventory, salePrices, taskList, catalog, market, readMarketRotation, canCatalog, resourceBalance, isRanchResource, resourceBalances, animalDto };

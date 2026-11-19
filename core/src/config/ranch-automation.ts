@@ -19,6 +19,7 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_friend_clean: true,
     ranch_friend_mosquito: true,
     ranch_task: true,
+    ranch_illustrated: true,
     ranch_share: true,
     ranch_daily_benefit: true,
     ranch_check_minutes: 5,

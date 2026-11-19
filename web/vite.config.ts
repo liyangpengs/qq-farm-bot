@@ -6,7 +6,7 @@ import UnoCSS from 'unocss/vite'
 import { defineConfig } from 'vite'
 import viteCompression from 'vite-plugin-compression'
 
-const corePackageJson = JSON.parse(readFileSync('../core/package.json', 'utf-8'))
+const webPackageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -78,7 +78,7 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
     },
     define: {
-      __APP_VERSION__: JSON.stringify(corePackageJson.version),
+      __APP_VERSION__: JSON.stringify(webPackageJson.version),
     },
     resolve: {
       alias: {

@@ -1,9 +1,11 @@
 import type { RanchAutomationConfig } from '../../config/ranch-automation';
+import type { RanchFriend } from './friend-roster';
 import type { FriendPatrolProgress } from './friends';
+import { getRanchFriendList } from './friend-roster';
 export {};
 
 const { RANCH_SWITCH_KEYS } = require('../../config/ranch-automation');
-const { getAutomation } = require('../../models/store');
+const { getAutomation, getFriendBlacklist } = require('../../models/store');
 const { inScene, isUnlocked } = require('./transport');
 const { loadRaw, snapshot, inventory, catalog, market, readMarketRotation, balance } = require('./state');
 const { cubMap, quantity } = require('./model');
@@ -19,11 +21,13 @@ let nextCheckAt = 0;
 let nextFriendIndex = 0;
 let friendVisits = 0;
 let pendingFriend: { gid: string; progress: FriendPatrolProgress } | null = null;
+let patrolFriends: RanchFriend[] | null = null;
 let cycleStartedAt = 0;
 let cycleChanged = false;
 let ownRecheckUsed = false;
 const completedPhases = new Set<string>();
 const completedSteps = new Set<string>();
+const pendingBookKinds = new Set<'normal' | 'giant'>();
 const PATROL_SLICE_MS = 5000;
 const SCENE_REENTRY_MS = 20_000;
 const MARKET_EXCHANGES = [
@@ -39,9 +43,11 @@ const lastMarketBalances = new Map<number, bigint>();
 function resetCycle(keepFriendProgress = false): void {
     completedPhases.clear();
     completedSteps.clear();
+    pendingBookKinds.clear();
     if (!keepFriendProgress) {
         friendVisits = 0;
         pendingFriend = null;
+        patrolFriends = null;
     }
     cycleStartedAt = 0;
     cycleChanged = false;
@@ -92,7 +98,7 @@ function getRoutineState(): any {
     const mosquitoReset = auto.ranch_friend_mosquito ? interactions.getInteractionQuotaResetAt('putMosquito') : 0;
     const work = auto.ranch_stroke && !strokeReset || auto.ranch_friend_mosquito && !mosquitoReset
         || RANCH_SWITCH_KEYS.some((key: string) => ![
-            'ranch_task', 'ranch_share', 'ranch_daily_benefit', 'ranch_grass_buy', 'ranch_market_organic', 'ranch_stroke', 'ranch_friend_mosquito',
+            'ranch_task', 'ranch_illustrated', 'ranch_share', 'ranch_daily_benefit', 'ranch_grass_buy', 'ranch_market_organic', 'ranch_stroke', 'ranch_friend_mosquito',
         ].includes(key) && auto[key]);
     const routineDue = work || auto.ranch_task && due(daily.getTaskRoutineState()) || auto.ranch_share && due(daily.getShareRoutineState()) || auto.ranch_daily_benefit && due(daily.getBenefitRoutineState());
     const pending = routineDue || auto.ranch_market_organic && marketCheckPending;
@@ -118,14 +124,6 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
     if (!cycleStartedAt) cycleStartedAt = Date.now();
     nextCheckAt = cycleStartedAt + auto.ranch_check_minutes * 60_000;
     try {
-        // 名单只用作拜访索引，实际资格由进好友牧场后的回包确认；复用农场已同步的名单。
-        let friends: any[] = [];
-        if (!completedPhases.has('friends') && Object.keys(FRIEND_CONTROLS).some(canInteract)) {
-            const friendService = require('../friend');
-            friends = friendService.getFriendsListCacheOnly();
-            if (!friends.length) friends = await friendService.getFriendsList(false, 'normal', true);
-        }
-        // 首次名单读取可能较久，仍留在农场，等下一次空档再切换。
         if (options.canContinue?.() === false || Date.now() >= (options.farmDeadline?.() ?? Infinity)) {
             nextCheckAt = Date.now() + SCENE_REENTRY_MS;
             return;
@@ -210,6 +208,12 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     completedSteps.add(step);
                     markStep(action);
                     if (result.status === 'skipped') return false;
+                    if (action === 'harvest' && result.harvestedAnimals > 0 && enabled('ranch_illustrated')) {
+                        for (const kind of ['normal', 'giant'] as const) {
+                            pendingBookKinds.add(kind);
+                            completedSteps.delete(`claimIllustrated:${JSON.stringify({ kind })}`);
+                        }
+                    }
                     cycleChanged = true;
                     log('牧场', `${quote.label}${result.notice ? `：${result.notice}` : '完成'}`, { module: 'ranch', event: `ranch_${action}`, result: 'ok' });
                     raw = await loadRaw();
@@ -289,6 +293,12 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     }
                 }
             });
+
+            // 成熟动物腾栏后，在补栏前核对一次。让路时保留尚未核对的图鉴。
+            for (const kind of pendingBookKinds) {
+                await act('ranch_illustrated', 'claimIllustrated', { kind });
+                pendingBookKinds.delete(kind);
+            }
 
             if (enabled('ranch_buy')) {
                 const bagFirst = auto.ranch_strategy === 'bag_priority';
@@ -384,8 +394,15 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
             // 大名单会跨多个切片，到期的每日奖励在继续巡查前先执行。
             if (pendingFriend || friendVisits > 0) await claimDailyRewards();
             await phase('friends', async () => {
-                if (friends.length && Object.keys(FRIEND_CONTROLS).some(canInteract)) {
+                if (Object.keys(FRIEND_CONTROLS).some(canInteract)) {
                     checkpoint();
+                    patrolFriends ??= await getRanchFriendList(completedBatch => {
+                        if (completedBatch) markStep();
+                        checkpoint();
+                    });
+                    const blacklist = new Set(getFriendBlacklist(process.env.FARM_ACCOUNT_ID));
+                    const friends = patrolFriends.filter(friend => !blacklist.has(friend.gid));
+                    if (!friends.length) return;
                     const hasBulkWork = enabled('ranch_friend_steal') || enabled('ranch_friend_clean');
                     const times = hasBulkWork ? {} : await interactions.getInteractionTimes();
                     const wanted = (action: string) => canInteract(action) && times[action] !== 0;
@@ -397,11 +414,11 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                             const gid = String(friend.gid);
                             if (pendingFriend?.gid !== gid) pendingFriend = { gid, progress: {} };
                             try {
-                                const result = await interactions.automateFriend(friend.gid, wanted, shouldYield, (outcome: any) => {
+                                const result = await interactions.automateFriend(friend.gid, wanted, shouldYield, (outcome: any, nickname: string) => {
                                     const confirmed = outcome.status === 'confirmed';
                                     if (confirmed) daily.markTasksChanged();
                                     ownRecheckUsed = false;
-                                    log('牧场', `${friend.name}：${outcome.notice}`, {
+                                    log('牧场', `${nickname || friend.name}：${outcome.notice}`, {
                                         module: 'ranch', event: `ranch_${outcome.action}`, result: confirmed ? 'ok' : 'skipped',
                                     });
                                 }, pendingFriend.progress);
