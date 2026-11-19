@@ -278,11 +278,12 @@ async function automateFriend(
     hostGid: unknown,
     enabled: (action: string) => boolean,
     shouldYield: (acted: boolean) => boolean = () => false,
-    onOutcome?: (outcome: any) => void,
+    onOutcome?: (outcome: any, nickname: string) => void,
     progress: FriendPatrolProgress = {},
 ): Promise<any> {
-    return visit(hostGid, async (_entry, ranches, host) => {
+    return visit(hostGid, async (entry, ranches, host) => {
         const results: any[] = [];
+        const nickname = entry.basic.name.trim();
         const times: Record<string, number> = {};
         let acted = false;
         const pause = () => shouldYield(acted);
@@ -304,11 +305,11 @@ async function automateFriend(
                 const rejected = error.name === 'GatewayError';
                 if (error.code !== 'PENDING_CONFIRMATION' && !rejected) throw error;
                 if (rejected) acted = true;
-                onOutcome?.({ action, status: 'skipped', notice: `${label}暂未执行：${error.message}` });
+                onOutcome?.({ action, status: 'skipped', notice: `${label}暂未执行：${error.message}` }, nickname);
                 return null;
             }
             if (outcome.status === 'confirmed') results.push(outcome);
-            if (outcome.status === 'confirmed' || action === 'steal') onOutcome?.(outcome);
+            if (outcome.status === 'confirmed' || action === 'steal') onOutcome?.(outcome, nickname);
             return outcome;
         }
         // 可偷产物可能被好友收走，先处理当前货架再做清理和需要查询次数的互动。

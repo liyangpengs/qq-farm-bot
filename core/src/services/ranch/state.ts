@@ -1,3 +1,5 @@
+import { getRanchFriendList } from './friend-roster';
+
 export {};
 
 const { rpc, inScene, isUnlocked } = require('./transport');
@@ -222,7 +224,7 @@ async function getState(view = 'animals', shopId?: number, hostGid?: string): Pr
         }
         if (view === 'friends') {
             if (hostGid !== undefined) state.friendRanch = await require('./friends').getFriend(hostGid);
-            else state.friends = (await require('../friend').getFriendsList()).map((friend: any) => ({ gid: String(friend.gid), name: friend.name, avatarUrl: friend.avatarUrl }));
+            else state.friends = (await getRanchFriendList()).map(friend => ({ ...friend, gid: String(friend.gid) }));
         }
         return state;
     });
