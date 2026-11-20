@@ -79,6 +79,10 @@ const ranchStrategies = [
   { label: '指定动物', value: 'preferred' },
   { label: '优先背包幼崽', value: 'bag_priority' },
 ]
+const ranchFeedNormalStages = [
+  { label: '任意可喂养阶段', value: 'any' },
+  { label: '仅最长生长阶段', value: 'longest' },
+]
 </script>
 
 <template>
@@ -100,8 +104,22 @@ const ranchStrategies = [
             </div>
           </div>
           <div v-if="panel === 'automation'" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div v-for="[key, label] in ranchSwitches" :key="key" class="automation-setting-item">
+            <div
+              v-for="[key, label] in ranchSwitches"
+              :key="key"
+              class="automation-setting-item"
+              :class="{ 'ranch-feed-setting': key === 'ranch_feed_normal' }"
+            >
               <BaseSwitch v-model="settings.automation[key]" :label="label" :disabled="key === 'ranch_grass_buy' && !settings.automation.ranch_grass" />
+              <div v-if="key === 'ranch_feed_normal'" class="ranch-feed-stage">
+                <BaseSelect
+                  v-model="settings.automation.ranch_feed_normal_stage"
+                  aria-label="普通罐头使用阶段"
+                  size="small"
+                  :options="ranchFeedNormalStages"
+                  :disabled="!settings.automation.ranch_feed_normal"
+                />
+              </div>
             </div>
             <div class="col-span-full text-xs text-gray-500 dark:text-gray-400">
               两种兑换可独立开启；松果按 8 小时、4 小时、1 小时兑换，粑粑按 4 小时、1 小时兑换。到访或货币到账后排队，登录、重连和日常巡查时核对集市状态。
@@ -492,6 +510,18 @@ const ranchStrategies = [
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   background: color-mix(in srgb, var(--ui-surface-strong) 58%, transparent);
+}
+
+.ranch-feed-setting {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding-block: 5px;
+}
+
+.ranch-feed-stage {
+  width: 9.5rem;
+  max-width: 100%;
 }
 
 @media (max-width: 1279px) {

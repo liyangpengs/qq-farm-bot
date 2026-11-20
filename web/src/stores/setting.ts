@@ -17,6 +17,7 @@ export interface AutomationConfig {
   ranch_grass_threshold_percent?: number
   ranch_fill_cans?: boolean
   ranch_feed_normal?: boolean
+  ranch_feed_normal_stage?: 'any' | 'longest'
   ranch_feed_organic?: boolean
   ranch_clean?: boolean
   ranch_stroke?: boolean
