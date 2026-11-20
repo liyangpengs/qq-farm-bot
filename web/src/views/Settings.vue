@@ -32,15 +32,6 @@ const fertilizerLandTypeOptions = [
 const router = useRouter()
 const route = useRoute()
 const inRanch = computed(() => route.meta.gameSpace === 'ranch')
-const ranchAnimalOptions = ref<Array<{ value: number, label: string, kind: string }>>([])
-onMounted(async () => {
-  try {
-    const response = await api.get('/api/ranch/automation-options')
-    if (response.data.ok)
-      ranchAnimalOptions.value = response.data.data
-  }
-  catch (error) { showAlert(getApiErrorMessage(error, '牧场动物选项读取失败'), 'danger') }
-})
 const accountStore = useAccountStore()
 const userStore = useUserStore()
 const settingStore = useSettingStore()
@@ -1959,7 +1950,6 @@ async function handleResetSystemConfig() {
             v-model="localAutomationSettings"
             :saving="automationSaving"
             :in-ranch="inRanch"
-            :ranch-animal-options="ranchAnimalOptions"
             :fertilizer-land-type-options="fertilizerLandTypeOptions"
             :fertilizer-options="fertilizerOptions"
             @save="saveAutomationSettings"

@@ -17,7 +17,7 @@ const { performDailyMonthCardGift, getMonthCardDailyState } = require('../servic
 const { performDailyVipGift, getVipDailyState } = require('../services/qqvip');
 const { runExclusiveAutomationTask } = require('../services/automation-lock');
 const ranchAutomation = require('../services/ranch/automation');
-const { isRanchMarketEnabled } = require('../config/ranch-automation');
+const { isRanchMarketEnabled, RANCH_MARKET_SWITCH_BY_CURRENCY } = require('../config/ranch-automation');
 const { createScheduler, getSchedulerRegistrySnapshot } = require('../services/scheduler');
 const { checkDailyShareStatus, getShareDailyState } = require('../services/share');
 const { refreshActivityWindows } = require('../services/activity-windows');
@@ -141,8 +141,10 @@ function ranchNextRunAt(): number {
     return Math.max(state.nextCheckAt, ranchDeferredUntil);
 }
 
-function wakeRanchMarketExchange(): void {
-    if (!loginReady || !isRanchMarketEnabled(getAutomation())) return;
+function wakeRanchMarketExchange({ id }: { id: 7002 | 1008 }): void {
+    if (!loginReady) return;
+    const auto = getAutomation();
+    if ((auto[RANCH_MARKET_SWITCH_BY_CURRENCY[id]] ?? auto.ranch_market_organic) !== true) return;
     ranchAutomation.requestMarketCheck();
     scheduleUnifiedNextTick();
 }
@@ -150,6 +152,15 @@ function wakeRanchMarketExchange(): void {
 function onRanchMarketVisitChanged(rotation: any): void {
     if (!loginReady || !isRanchMarketEnabled(getAutomation())) return;
     if (ranchAutomation.noteMarketVisit(rotation)) scheduleUnifiedNextTick();
+}
+
+function onRanchBookReward(kind: 'normal' | 'giant', available: boolean): void {
+    if (ranchAutomation.noteBookReward(kind, available) && loginReady && getAutomation().ranch_illustrated) scheduleUnifiedNextTick();
+}
+
+function onRanchFacilitiesChanged(facilities: any[]): void {
+    if (!loginReady || !getAutomation().ranch_activate_shed) return;
+    if (ranchAutomation.noteRanchFacilities(facilities)) scheduleUnifiedNextTick();
 }
 
 function runRanchRoutine(detached = false): Promise<void> {
@@ -687,6 +698,10 @@ async function startBot(config: any): Promise<void> {
     };
     networkEvents.on('disconnected', onDisconnected);
     networkEvents.on('kickout', onKickout);
+    networkEvents.off('ranchBookReward', onRanchBookReward);
+    networkEvents.on('ranchBookReward', onRanchBookReward);
+    networkEvents.off('ranchFacilitiesChanged', onRanchFacilitiesChanged);
+    networkEvents.on('ranchFacilitiesChanged', onRanchFacilitiesChanged);
 
     const generation = runtimeGeneration;
     const canContinueLogin = (): boolean => isRunning && !shutdownStarted && generation === runtimeGeneration;
@@ -809,6 +824,8 @@ function detachRuntimeListeners(): void {
     }
     networkEvents.off('ranchMarketStockReady', wakeRanchMarketExchange);
     networkEvents.off('ranchMarketVisitChanged', onRanchMarketVisitChanged);
+    networkEvents.off('ranchBookReward', onRanchBookReward);
+    networkEvents.off('ranchFacilitiesChanged', onRanchFacilitiesChanged);
     if (onDogSkillGiftPending) {
         networkEvents.off('dogSkillGiftPending', onDogSkillGiftPending);
         onDogSkillGiftPending = null;
@@ -894,6 +911,9 @@ async function handleApiCall(msg: any): Promise<void> {
                 switch (method) {
                 case 'getRanchState':
                     result = await require('../services/ranch').getRanchState(args[0], args[1], args[2]);
+                    break;
+                case 'clearRanchIllustratedNew':
+                    result = await require('../services/ranch/book').clearGiantBookNew();
                     break;
                 case 'prepareRanchAction':
                     result = await require('../services/ranch').prepareRanchAction(args[0], args[1]);

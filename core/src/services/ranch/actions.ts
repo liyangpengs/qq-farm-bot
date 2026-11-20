@@ -5,7 +5,7 @@ const { loadRaw, snapshot, balance, taskList, catalog, market, canCatalog, resou
 const { animalMap, cubMap, canMap, facilityMap, itemMap, taskMap, error, positiveId, positiveCount, quantity, itemDto, sumItems, signature } = require('./model');
 const reservations = require('./operation-state');
 const { getServerTimeSec } = require('../../utils/utils');
-const { getAmbientSendContext, runWithSendContext } = require('./context');
+const { setTimeout: wait } = require('node:timers/promises');
 
 const { ACTIONS } = require('./contract');
 const DIRECT_ACTIONS = new Set(['feed', 'produce', 'harvest', 'clean']);
@@ -288,6 +288,11 @@ function cellsFromReceipt(cells: any, reply: any): any {
     return matched === ranches.size ? { ...cells, facilities } : undefined;
 }
 
+function animalsInResults(ranches: any[], rows: any[]): any[] {
+    const ids = new Set(rows.filter(row => row.kind === 1).map(row => `${quantity(row.facility_inst_id)}:${quantity(row.target_id)}`));
+    return ranches.flatMap(ranch => ranch.animals.filter((animal: any) => ids.has(`${quantity(ranch.ranch_inst_id)}:${animal.animal_inst_id}`)));
+}
+
 async function operate(action: string, input: any = {}): Promise<any> {
     if (['stroke', 'putMosquito', 'cleanFriend'].includes(action)) return require('./friends').interact(action, input);
     if (action === 'acknowledge') return inScene(async () => {
@@ -303,14 +308,18 @@ async function operate(action: string, input: any = {}): Promise<any> {
         if (plan.count === 0) return { status: 'skipped', snapshot: snapshot(before), costs: [], rewards: [], notice: plan.message };
         if (!direct && input.expected?.signature !== plan.signature) throw error('RANCH_OFFER_CHANGED', '牧场状态、商品或费用已变化，请重新确认');
         let after: any = null;
+        let fedResults: any[] = [];
         const result = await reservations.forCurrentAccount().spend({ target: `ranch:${action}:${input.goodsId || input.facilityId || input.uid || input.taskId || input.ranchId || 'all'}`, label: plan.label, costs: plan.costs, balances: plan.balances }, async () => {
             let reply: any; let rewards: any[] = []; let actualCosts = plan.costItems;
+            let completed = plan.count;
             if (action === 'claimDailyShare') {
                 const claimed = await require('./daily-share').claim();
                 rewards = claimed.rewards;
                 reply = { alreadyClaimed: claimed.skipped };
             } else if (action === 'claimIllustrated') {
-                rewards = await require('./book').claimBook(plan.bookClaim);
+                const claimed = await require('./book').claimBook(plan.bookClaim);
+                rewards = claimed.rewards;
+                completed = claimed.completed;
                 reply = {};
             } else if (action === 'reportEntry') {
                 for (const entry of plan.reportTasks) {
@@ -358,6 +367,7 @@ async function operate(action: string, input: any = {}): Promise<any> {
                     const cap = BigInt(plan.costItems[0].count);
                     if (used <= 0n || used > cap || BigInt(quantity(reply.bucket_remain_secs)) !== BigInt(balance(before.bag, plan.bucketId).total) - used) unknown(action, '罐头消耗或余量不匹配');
                     actualCosts = [itemDto({ id: plan.bucketId, count: used })];
+                    fedResults = reply.op_results;
                 } else if (action === 'activateShed') {
                     const shed = reply.facility;
                     if (quantity(shed?.instance_id) !== plan.payload.instance_id || shed.facility_id !== plan.marker
@@ -398,8 +408,16 @@ async function operate(action: string, input: any = {}): Promise<any> {
                     }
                 }
             }
-            // 动物操作回包已包含变动栏舍的完整详情。延续同一场景内的快照，只重新读取背包。
-            const receiptCells = direct ? cellsFromReceipt(before.cells, reply) : undefined;
+            let receiptCells = direct ? cellsFromReceipt(before.cells, reply) : undefined;
+            if (direct && action === 'produce') {
+                const produced = animalsInResults(reply.ranches, reply.op_results);
+                const deadline = Math.max(0, ...produced.map(animal => Number(animal.delivering_until_ms)));
+                if (deadline > 0) {
+                    // 货架上架晚于生产回包，在原场景等待交付后读一次格子。
+                    await wait(Math.min(2500, Math.max(0, deadline - getServerTimeSec() * 1000)));
+                    receiptCells = undefined;
+                }
+            }
             try { after = await loadRaw(receiptCells); } catch { /* Confirmed receipts remain useful if the view refresh fails. */ }
             if (plan.autoPlaceAnimalId) {
                 if (!after) unknown(action, '自动放养后的栏位状态未能读取');
@@ -415,38 +433,36 @@ async function operate(action: string, input: any = {}): Promise<any> {
                 }
                 if (action === 'useCan' && BigInt(balance(after.bag, plan.bucketId).total) - BigInt(balance(before.bag, plan.bucketId).total) !== plan.expectedSeconds) unknown(action, '罐头桶增加时长不匹配');
             }
-            const completed = reply.op_results?.length ?? plan.count;
+            completed = reply.op_results?.length ?? completed;
             const skipped = reply.alreadyClaimed || direct && plan.resultKeys && !completed;
             const notice = action === 'release' || action === 'sell' && input.all !== true ? `${plan.label}完成${rewards.length ? `，获得 ${sumItems(rewards).map((item: any) => `${item.name} ×${item.count}`).join('、')}` : ''}`
                 : plan.resultKeys && completed < plan.count ? `已完成 ${completed} / ${plan.count} 项，其余状态已变化，请刷新核对` : undefined;
             return { status: skipped ? 'skipped' : 'confirmed', snapshot: after ? snapshot(after) : null, refreshRequired: !after, costs: actualCosts, notice,
                 rewards: sumItems(rewards), completed,
                 bucketRemainingSeconds: action === 'feed' ? quantity(reply.bucket_remain_secs) : undefined,
-                harvestedAnimals: action === 'harvest' ? reply.op_results.filter((entry: any) => entry.kind === 1).length : 0 };
+                harvestedAnimals: action === 'harvest' ? reply.op_results.filter((entry: any) => entry.kind === 1).length : 0,
+                harvestedGiant: action === 'harvest' && animalsInResults(before.cells.facilities.flatMap((f: any) => f.ranch ? [f.ranch] : []), reply.op_results)
+                    .some(animal => animal.mutation?.mutation_type > 0) };
         });
 
-        if (!direct || action !== 'feed' || !after || result.status !== 'confirmed') return result;
-        const canAutoProduce = () => require('../../models/store').getAutomation().ranch_produce === true;
-        if (!canAutoProduce()) return result;
+        if (result.harvestedGiant) require('../../utils/network').networkEvents.emit('ranchBookReward', 'giant', true);
+        if (!direct || action !== 'feed' || input.produceAfterFeed !== true || result.status !== 'confirmed') return result;
+        if (!after) throw error('RANCH_STATE_CHANGED', '喂养已完成，未能读取栏舍状态，未发起生产');
         const fedTargets = new Set(plan.payload.targets.map((target: any) => `${target.ranch_inst_id}:${target.animal_inst_id}`));
-        const ready = after.cells.facilities.flatMap((facility: any) => facility.ranch?.animals || [])
+        const ready = animalsInResults(after.cells.facilities.flatMap((facility: any) => facility.ranch ? [facility.ranch] : []), fedResults)
             .filter((animal: any) => animal.can_deliver && fedTargets.has(`${quantity(animal.ranch_inst_id)}:${animal.animal_inst_id}`));
         if (!ready.length) return result;
 
         // 喂养已独立确认。沿用当前场景，只为本次喂养后进入可生产状态的动物发起生产。
-        const parent = getAmbientSendContext();
         try {
-            const production = await runWithSendContext({
-                ...parent,
-                check: (service: string, method: string) => parent?.check(service, method)
-                    || (method === 'TriggerProduce' && !canAutoProduce() ? error('BUILTIN_PAUSED', '自动生产已关闭') : null),
-                onSent: (service: string, method: string) => parent?.onSent(service, method),
-            }, () => run('produce', { direct: true }, after, ready));
+            const production = await run('produce', { direct: true }, after, ready);
             return { ...result, snapshot: production.snapshot || result.snapshot, refreshRequired: production.refreshRequired,
                 autoProduced: production.completed, autoProductionNotice: production.notice };
         } catch (cause: any) {
-            if (cause.code === 'BUILTIN_PAUSED') return result;
-            return { ...result, autoProductionNotice: `自动生产未能完成：${cause.message}`, refreshRequired: true };
+            const status = cause.outcomeUnknown || cause.code === 'RANCH_RESULT_UNKNOWN' ? '生产结果未知' : '生产未完成';
+            const reason = cause.name === 'GatewayError' ? cause.errorMessage || '游戏服务拒绝生产' : cause.message;
+            const message = `喂养已完成，${status}：${reason}。请刷新核对，勿重复喂养`;
+            throw Object.assign(error(cause.code || 'RANCH_PRODUCTION_FAILED', message), { errorMessage: message, cause });
         }
     }
 

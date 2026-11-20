@@ -93,8 +93,15 @@ message IllustratedRewardRedDotNotifyV2 {
     bool ranch_reward_available = 3;
 }
 
+enum ClearNewScope {
+    CLEAR_NEW_SCOPE_UNKNOWN = 0;
+    CLEAR_NEW_SCOPE_ENTRY = 1;
+    CLEAR_NEW_SCOPE_GIANT = 2;
+}
+
 message ClearNewUnlockedFruitsV2Request {
     repeated int32 fruit_ids = 1;
+    ClearNewScope scope = 2;
 }
 
 message ClearNewUnlockedFruitsV2Reply {

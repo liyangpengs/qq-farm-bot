@@ -2,11 +2,11 @@
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import api, { getApiErrorMessage } from '@/api'
 import { formatCount, useRanchActions } from '@/components/ranch/ranch-shared'
 import RanchAnimalCard from '@/components/ranch/RanchAnimalCard.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import api from '@/api'
 import { useAccountStore } from '@/stores/account'
 import { useRanchStore } from '@/stores/ranch'
 import { useToastStore } from '@/stores/toast'
@@ -24,39 +24,76 @@ const query = ref('')
 const failedAvatars = ref<Record<string, boolean>>({})
 const showBlacklist = ref(false)
 const blacklistGids = ref<number[]>([])
+const blacklistLoading = ref(false)
+const blacklistSaving = ref(false)
+const blacklistError = ref('')
+const blacklistBusy = computed(() => blacklistLoading.value || blacklistSaving.value)
 const blacklistedSet = computed(() => new Set(blacklistGids.value))
+let blacklistRequest = 0
 let alive = true
 onBeforeUnmount(() => alive = false)
 
+function isCurrentBlacklist(id: string, request: number) {
+  return alive && id === String(currentAccountId.value || '') && request === blacklistRequest
+}
+
 async function loadBlacklist() {
   const id = String(currentAccountId.value || '')
-  if (!id)
+  if (!id || blacklistBusy.value)
     return
+  const request = ++blacklistRequest
+  blacklistLoading.value = true
+  blacklistError.value = ''
   try {
     const { data } = await api.get('/api/ranch-friend-blacklist', { headers: { 'x-account-id': id }, skipErrorToast: true } as any)
-    if (data?.ok)
-      blacklistGids.value = Array.isArray(data.data?.gids) ? data.data.gids : []
+    if (!isCurrentBlacklist(id, request))
+      return
+    if (!data?.ok)
+      throw new Error(getApiErrorMessage(data, '牧场黑名单读取失败'))
+    blacklistGids.value = data.data.gids
   }
-  catch {}
+  catch (cause) {
+    if (isCurrentBlacklist(id, request))
+      blacklistError.value = getApiErrorMessage(cause, '牧场黑名单读取失败')
+  }
+  finally {
+    if (isCurrentBlacklist(id, request))
+      blacklistLoading.value = false
+  }
 }
 
 async function toggleBlacklist(gid: string | number) {
   const id = String(currentAccountId.value || '')
-  if (!id)
+  if (!id || blacklistBusy.value || blacklistError.value)
     return
+  const request = ++blacklistRequest
+  blacklistSaving.value = true
   try {
-    const { data } = await api.post('/api/ranch-friend-blacklist/toggle', { gid: Number(gid) }, { headers: { 'x-account-id': id }, skipErrorToast: true } as any)
-    if (data?.ok) {
-      blacklistGids.value = Array.isArray(data.data?.gids) ? data.data.gids : []
-      toast.success(blacklistGids.value.includes(Number(gid)) ? '已加入牧场黑名单，巡查不再拜访' : '已移出牧场黑名单')
-    }
-    else {
-      toast.error(data?.error || '操作失败')
-    }
+    const blacklisted = !blacklistedSet.value.has(Number(gid))
+    const { data } = await api.post('/api/ranch-friend-blacklist/toggle', { gid: Number(gid), blacklisted }, { headers: { 'x-account-id': id }, skipErrorToast: true } as any)
+    if (!isCurrentBlacklist(id, request))
+      return
+    if (!data?.ok)
+      throw new Error(getApiErrorMessage(data, '牧场黑名单保存失败'))
+    blacklistGids.value = data.data.gids
+    if (data.data.blacklisted && Number(selected.value) === Number(gid))
+      selected.value = ''
+    toast.success(data.data.blacklisted ? '已加入牧场黑名单' : '已移出牧场黑名单')
   }
-  catch (cause: any) {
-    toast.error(cause?.response?.data?.error || cause?.message || '操作失败')
+  catch (cause) {
+    if (isCurrentBlacklist(id, request))
+      toast.error(getApiErrorMessage(cause, '牧场黑名单保存失败'))
   }
+  finally {
+    if (isCurrentBlacklist(id, request))
+      blacklistSaving.value = false
+  }
+}
+
+function toggleBlacklistView() {
+  showBlacklist.value = !showBlacklist.value
+  if (showBlacklist.value)
+    void loadBlacklist()
 }
 
 /** 黑名单视图条目：好友列表里能对上的补名称/头像，纯 GID 的兜底展示。 */
@@ -103,7 +140,12 @@ watch(currentAccountId, (id) => {
   friends.value = []
   listLoaded.value = false
   showBlacklist.value = false
-  loadBlacklist()
+  blacklistRequest++
+  blacklistGids.value = []
+  blacklistError.value = ''
+  blacklistLoading.value = false
+  blacklistSaving.value = false
+  void loadBlacklist()
   if (id)
     void enter(String(id))
   else ranch.reset()
@@ -124,6 +166,7 @@ async function reloadList() {
   const id = String(currentAccountId.value || '')
   if (id && !disabled.value) {
     selected.value = ''
+    void loadBlacklist()
     await loadList(id)
   }
 }
@@ -134,17 +177,17 @@ async function reloadList() {
     <div class="page-toolbar !mb-0">
       <span class="friends__count">{{ showBlacklist ? `黑名单 ${blacklistGids.length} 位` : `共 ${friends.length} 位好友` }}</span>
       <div class="page-toolbar__actions">
-        <label class="friends__search">
+        <label v-if="!showBlacklist" class="friends__search">
           <span class="i-carbon-search" aria-hidden="true" />
           <input v-model="query" type="search" placeholder="搜索好友" aria-label="搜索好友">
         </label>
-        <NButton secondary size="small" :title="showBlacklist ? '返回好友列表' : '牧场黑名单'" :aria-label="showBlacklist ? '返回好友列表' : '牧场黑名单'" @click="showBlacklist = !showBlacklist">
+        <NButton secondary size="small" :disabled="!currentAccountId" :title="showBlacklist ? '返回好友列表' : '牧场黑名单'" :aria-label="showBlacklist ? '返回好友列表' : '牧场黑名单'" @click="toggleBlacklistView">
           <template #icon>
-            <span class="i-carbon-list-blocked" />
+            <span class="i-carbon-subtract-alt" />
           </template>
           {{ showBlacklist ? '返回好友' : '牧场黑名单' }}
         </NButton>
-        <NButton secondary circle title="刷新好友" aria-label="刷新好友" :loading="loading && !selected" :disabled="disabled && !loading" @click="reloadList">
+        <NButton secondary circle :title="showBlacklist ? '刷新黑名单' : '刷新好友'" :aria-label="showBlacklist ? '刷新黑名单' : '刷新好友'" :loading="showBlacklist ? blacklistLoading : loading && !selected" :disabled="showBlacklist ? blacklistBusy : disabled && !loading" @click="showBlacklist ? loadBlacklist() : reloadList()">
           <template #icon>
             <span class="i-carbon-renew" />
           </template>
@@ -152,31 +195,37 @@ async function reloadList() {
       </div>
     </div>
 
-    <RanchGate @retry="reloadList">
-      <template v-if="showBlacklist">
-        <div class="blacklist">
-          <p class="blacklist__hint">
-            加入黑名单的好友不会被自动巡查、偷取或清理；「不是好友」被服务端拒绝的对象也会自动进来。
-          </p>
-          <EmptyState v-if="!blacklistItems.length" title="黑名单为空" description="在好友列表里点击「拉黑」即可加入" icon="i-carbon-list-blocked" />
-          <div v-else class="blacklist__list">
-            <div v-for="item in blacklistItems" :key="item.gid" class="blacklist__item">
-              <div class="friend-avatar">
-                <img v-if="item.avatarUrl" :src="item.avatarUrl" alt="" loading="lazy">
-                <span v-else class="i-carbon-user" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <strong class="block truncate text-sm">{{ item.name }}</strong>
-                <span class="text-xs text-gray-400">GID {{ item.gid }}</span>
-              </div>
-              <NButton size="small" secondary @click="toggleBlacklist(item.gid)">
-                移出黑名单
-              </NButton>
-            </div>
+    <div v-if="showBlacklist" class="blacklist">
+      <p class="blacklist__hint">
+        自动巡查会跳过黑名单中的对象。服务端明确提示非好友时，也会自动加入。
+      </p>
+      <p v-if="blacklistLoading" class="text-sm text-gray-500" role="status">
+        读取黑名单中…
+      </p>
+      <EmptyState v-else-if="blacklistError" title="牧场黑名单读取失败" :description="blacklistError" tone="error" icon="i-carbon-warning-alt">
+        <NButton secondary @click="loadBlacklist">
+          重新读取
+        </NButton>
+      </EmptyState>
+      <EmptyState v-else-if="!blacklistItems.length" title="黑名单为空" icon="i-carbon-subtract-alt" />
+      <div v-else class="blacklist__list">
+        <div v-for="item in blacklistItems" :key="item.gid" class="blacklist__item">
+          <div class="friend-avatar">
+            <img v-if="item.avatarUrl" :src="item.avatarUrl" alt="" loading="lazy">
+            <span v-else class="i-carbon-user" />
           </div>
+          <div class="min-w-0 flex-1">
+            <strong class="block truncate text-sm">{{ item.name }}</strong>
+            <span class="text-xs text-gray-400">GID {{ item.gid }}</span>
+          </div>
+          <NButton size="small" secondary :disabled="blacklistBusy" @click="toggleBlacklist(item.gid)">
+            移出黑名单
+          </NButton>
         </div>
-      </template>
-      <template v-else>
+      </div>
+    </div>
+
+    <RanchGate v-else @retry="reloadList">
       <div v-if="loading && !listLoaded" class="friends__loading" role="status" aria-label="正在读取好友">
         <span class="i-svg-spinners-90-ring-with-bg" />
       </div>
@@ -185,45 +234,41 @@ async function reloadList() {
 
       <div v-else class="friends__list">
         <div v-for="friend in visible" :key="friend.gid" class="friend-card" :class="{ 'is-expanded': selected === friend.gid, 'is-blacklisted': blacklistedSet.has(Number(friend.gid)) }">
-          <div
-            class="friend-row"
-            role="button"
-            tabindex="0"
-            :aria-expanded="selected === friend.gid"
-            :aria-label="`${friend.name}，查看牧场`"
-            @click="toggle(friend)"
-            @keydown.enter.self.prevent="toggle(friend)"
-            @keydown.space.self.prevent="toggle(friend)"
-          >
-            <div class="friend-avatar">
-              <img v-if="friend.avatarUrl && !failedAvatars[friend.gid]" :src="friend.avatarUrl" alt="" loading="lazy" @error="failedAvatars[friend.gid] = true">
-              <span v-else class="i-carbon-user" />
-            </div>
-            <div class="friend-main">
-              <div class="friend-name-row">
-                <strong class="friend-name" :title="friend.name">{{ friend.name }}</strong>
-                <span class="friend-gid">{{ friend.gid }}</span>
-              </div>
-              <div class="friend-tags">
-                <span v-if="blacklistedSet.has(Number(friend.gid))" class="f-tag f-tag--blocked">已拉黑</span>
-                <template v-if="selected === friend.gid && detail">
-                  <span class="f-tag f-tag--level">牧场 Lv.{{ detail.level }}</span>
-                  <span class="f-tag" :class="{ 'f-tag--steal': detail.canSteal }">
-                    <span class="i-carbon-shopping-bag" />{{ detail.canSteal ? `可偷 ${detail.stealableShelves} 个货架` : '暂无可偷产物' }}
-                  </span>
-                </template>
-                <span v-else-if="!blacklistedSet.has(Number(friend.gid))" class="f-tag">点击查看牧场</span>
-                <button
-                  class="friend-blacklist-btn"
-                  :class="{ 'is-out': blacklistedSet.has(Number(friend.gid)) }"
-                  :aria-label="blacklistedSet.has(Number(friend.gid)) ? `移出${friend.name}黑名单` : `将${friend.name}加入黑名单`"
-                  @click.stop="toggleBlacklist(friend.gid)"
-                >
-                  {{ blacklistedSet.has(Number(friend.gid)) ? '移出黑名单' : '加入黑名单' }}
-                </button>
-              </div>
-            </div>
-            <span class="friend-chevron i-carbon-chevron-down" aria-hidden="true" />
+          <div class="friend-row">
+            <button type="button" class="friend-open" :aria-expanded="selected === friend.gid" :aria-label="`${friend.name}，查看牧场`" :disabled="disabled || blacklistedSet.has(Number(friend.gid))" @click="toggle(friend)">
+              <span class="friend-avatar">
+                <img v-if="friend.avatarUrl && !failedAvatars[friend.gid]" :src="friend.avatarUrl" alt="" loading="lazy" @error="failedAvatars[friend.gid] = true">
+                <span v-else class="i-carbon-user" />
+              </span>
+              <span class="friend-main">
+                <span class="friend-name-row">
+                  <strong class="friend-name" :title="friend.name">{{ friend.name }}</strong>
+                  <span class="friend-gid">{{ friend.gid }}</span>
+                </span>
+                <span class="friend-tags">
+                  <span v-if="blacklistedSet.has(Number(friend.gid))" class="f-tag f-tag--blocked">已拉黑</span>
+                  <template v-else-if="selected === friend.gid && detail">
+                    <span class="f-tag f-tag--level">牧场 Lv.{{ detail.level }}</span>
+                    <span class="f-tag" :class="{ 'f-tag--steal': detail.canSteal }">
+                      <span class="i-carbon-shopping-bag" />{{ detail.canSteal ? `可偷 ${detail.stealableShelves} 个货架` : '暂无可偷产物' }}
+                    </span>
+                  </template>
+                  <span v-else class="f-tag">点击查看牧场</span>
+                </span>
+              </span>
+              <span class="friend-chevron i-carbon-chevron-down" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="friend-blacklist-btn"
+              :class="{ 'is-out': blacklistedSet.has(Number(friend.gid)) }"
+              :aria-label="blacklistedSet.has(Number(friend.gid)) ? `移出${friend.name}黑名单` : `将${friend.name}加入黑名单`"
+              :disabled="blacklistBusy || !!blacklistError"
+              :title="blacklistError || undefined"
+              @click="toggleBlacklist(friend.gid)"
+            >
+              {{ blacklistedSet.has(Number(friend.gid)) ? '移出黑名单' : '加入黑名单' }}
+            </button>
           </div>
 
           <div v-if="selected === friend.gid" class="friend-shelves">
@@ -286,7 +331,6 @@ async function reloadList() {
           </div>
         </div>
       </div>
-      </template>
     </RanchGate>
   </div>
 </template>
@@ -396,21 +440,36 @@ async function reloadList() {
 
 .friend-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.friend-open {
+  display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 20px;
   align-items: center;
   gap: 14px;
-  padding: 14px 16px;
+  min-width: 0;
+  text-align: left;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
-.friend-row:hover {
+.friend-open:not(:disabled):hover {
   background: color-mix(in srgb, var(--ui-surface-soft) 60%, transparent);
 }
 
-.friend-row:focus-visible {
+.friend-open:focus-visible,
+.friend-blacklist-btn:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--ui-primary) 55%, transparent);
-  outline-offset: -2px;
+  outline-offset: 2px;
+}
+
+.friend-open:disabled,
+.friend-blacklist-btn:disabled {
+  cursor: default;
 }
 
 .friend-avatar {
@@ -498,7 +557,6 @@ async function reloadList() {
   font-weight: var(--fw-600);
 }
 
-/* 拉黑/移出按钮：样式参考农场端「加入黑名单」彩色小按钮，放标签行内不挤右侧。 */
 .friend-blacklist-btn {
   height: 22px;
   padding: 0 10px;
@@ -680,9 +738,12 @@ async function reloadList() {
 
 @media (max-width: 767px) {
   .friend-row {
-    grid-template-columns: 40px minmax(0, 1fr) 20px;
-    gap: 12px;
     padding: 12px;
+  }
+
+  .friend-open {
+    grid-template-columns: 40px minmax(0, 1fr) 16px;
+    gap: 8px;
   }
 
   .friend-avatar {

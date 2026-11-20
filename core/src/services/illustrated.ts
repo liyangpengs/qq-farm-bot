@@ -181,6 +181,7 @@ async function clearIllustratedNew(fruitIds: number[]): Promise<{ cleared: numbe
     if (!ids.length) return { cleared: [] };
     const body = types.ClearNewUnlockedFruitsV2Request.encode(types.ClearNewUnlockedFruitsV2Request.create({
         fruit_ids: ids.map((id: number) => toLong(id)),
+        scope: 1,
     })).finish();
     const { body: replyBody } = await sendMsgAsync(SERVICE, 'ClearNewUnlockedFruitsV2', body);
     return { cleared: (types.ClearNewUnlockedFruitsV2Reply.decode(replyBody).cleared_fruit_ids || []).map((id: any) => toNum(id)) };

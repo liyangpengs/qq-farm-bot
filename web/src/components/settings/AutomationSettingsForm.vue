@@ -30,6 +30,8 @@ withDefaults(defineProps<{
   /** 页面级统一保存时隐藏表单自带的底部按钮。 */
   hideSave?: boolean
   ranchAnimalOptions?: Array<{ value: number, label: string, kind: string }>
+  ranchAnimalOptionsLoading?: boolean
+  ranchAnimalOptionsError?: string
   accountId?: string
   connected?: boolean
   saving: boolean
@@ -39,6 +41,7 @@ withDefaults(defineProps<{
 
 const emit = defineEmits<{
   save: []
+  reloadAnimals: []
 }>()
 
 const settings = defineModel<AutomationSettingsFormModel>({ required: true })
@@ -49,6 +52,7 @@ const ranchSwitches = [
   ['ranch_harvest', '自动收获'],
   ['ranch_produce', '自动生产'],
   ['ranch_buy', '自动补栏（金券）'],
+  ['ranch_activate_shed', '自动解锁一级棚（免费）'],
   ['ranch_upgrade', '自动升级建筑（金券）'],
   ['ranch_sell', '自动出售产物'],
   ['ranch_market_organic_poop', '集市粑粑兑换有机化肥'],
@@ -123,8 +127,21 @@ const ranchStrategies = [
             <BaseSelect v-model="settings.automation.ranch_strategy" label="养殖策略" :options="ranchStrategies" />
             <BaseSelect v-if="settings.automation.ranch_strategy === 'bag_priority'" v-model="settings.automation.ranch_bag_fallback" label="同类幼崽用完后" :options="ranchStrategies.slice(0, 2)" />
             <template v-if="settings.automation.ranch_strategy === 'preferred' || settings.automation.ranch_strategy === 'bag_priority' && settings.automation.ranch_bag_fallback === 'preferred'">
-              <BaseSelect v-model="settings.automation.ranch_coop_animal" label="窝 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '窝')]" />
-              <BaseSelect v-model="settings.automation.ranch_shed_animal" label="棚 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '棚')]" />
+              <p v-if="ranchAnimalOptionsLoading" class="col-span-full text-sm text-gray-500 dark:text-gray-400" role="status">
+                正在读取牧场动物选项…
+              </p>
+              <div v-else-if="ranchAnimalOptionsError" class="col-span-full flex flex-wrap items-center gap-2">
+                <p class="text-sm text-red-600 dark:text-red-400" role="alert">
+                  {{ ranchAnimalOptionsError }}
+                </p>
+                <BaseButton variant="secondary" size="sm" @click="emit('reloadAnimals')">
+                  重试
+                </BaseButton>
+              </div>
+              <template v-else>
+                <BaseSelect v-model="settings.automation.ranch_coop_animal" label="窝 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '窝')]" />
+                <BaseSelect v-model="settings.automation.ranch_shed_animal" label="棚 · 指定动物" :options="[{ value: 0, label: '不购买' }, ...ranchAnimalOptions.filter(animal => animal.kind === '棚')]" />
+              </template>
             </template>
           </div>
           <RanchCubPriority

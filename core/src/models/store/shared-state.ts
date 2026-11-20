@@ -359,6 +359,10 @@ function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accoun
     const cfg = cloneAccountConfig(fallback || DEFAULT_ACCOUNT_CONFIG);
 
     if (src.automation && typeof src.automation === 'object') {
+        // 旧账号同时关闭补栏与金券升级时保留手动解锁。
+        if (src.automation.ranch_activate_shed === undefined && src.automation.ranch_upgrade === false && src.automation.ranch_buy === false) {
+            cfg.automation.ranch_activate_shed = false;
+        }
         for (const [k, v] of Object.entries(migrateRanchMarketAutomation(src.automation))) {
             if (!ALLOWED_AUTOMATION_KEYS.has(k)) continue;
             if (k === 'fertilizer') {

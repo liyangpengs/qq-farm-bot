@@ -29,7 +29,7 @@ const animals = computed<any[]>(() => {
   const entries = book.value?.animals || []
   return isGiant.value ? entries.flatMap((entry: any) => entry.giantItem ? [{ ...entry, ...entry.giantItem }] : []) : entries
 })
-const freshGiantIds = computed(() => (book.value?.animals || []).filter((entry: any) => entry.giantItem && entry.giant?.isNew).map((entry: any) => Number(entry.id) || 0).filter((id: number) => id > 0))
+const hasUnreadGiant = computed(() => book.value?.animals.some((entry: any) => entry.giantItem && entry.giant?.isNew))
 const owned = (entry: any) => isGiant.value ? !!entry.giant?.unlocked : !!entry.unlocked
 const ownedCount = computed(() => animals.value.filter(owned).length)
 
@@ -98,36 +98,34 @@ function tileMeta(entry: any) {
 }
 async function clearGiantNew() {
   const accountId = String(currentAccountId.value || '')
-  const fruitIds = freshGiantIds.value
-  if (clearing.value || disabled.value || !accountId)
+  const currentBook = book.value
+  if (clearing.value || disabled.value || !accountId || !hasUnreadGiant.value)
     return
-  if (!fruitIds.length) {
-    toast.warning('没有未读图鉴')
-    return
-  }
+  const isCurrent = () => accountId === String(currentAccountId.value || '') && book.value === currentBook
   clearing.value = true
   try {
-    const response = await api.post('/api/illustrated/clear-new', { fruitIds }, {
+    const response = await api.post('/api/ranch/illustrated/clear-new', {}, {
       headers: { 'x-account-id': accountId },
       skipErrorToast: true,
+      timeout: 45000,
     } as any)
+    if (!isCurrent())
+      return
     if (!response.data?.ok)
-      throw new Error(getApiErrorMessage(response.data, '图鉴已读清除失败'))
-    const cleared: number[] = Array.isArray(response.data?.data?.cleared) ? response.data.data.cleared : []
-    if (cleared.length && book.value?.animals) {
-      const done = new Set(cleared)
-      for (const entry of book.value.animals) {
-        if (done.has(Number(entry.id)) && entry.giant)
-          entry.giant.isNew = false
-      }
+      throw new Error(getApiErrorMessage(response.data, '巨大图鉴已读操作失败'))
+    const { cleared, notice, refreshRequired } = response.data.data
+    const confirmed = new Set<number>(cleared)
+    for (const entry of currentBook.animals) {
+      if (confirmed.has(Number(entry.id)) && entry.giant)
+        entry.giant.isNew = false
     }
-    if (cleared.length)
-      toast.success(`已读 ${cleared.length} 条新增图鉴`)
-    else
-      toast.warning('没有未读图鉴')
+    toast.info(notice)
+    if (!confirmed.size || refreshRequired)
+      await refresh()
   }
   catch (cause) {
-    toast.error(getApiErrorMessage(cause, '图鉴已读清除失败'))
+    if (isCurrent())
+      toast.error(getApiErrorMessage(cause, '巨大图鉴已读操作失败'))
   }
   finally {
     clearing.value = false
@@ -159,13 +157,13 @@ async function scrollToNext() {
             <NButton v-if="isGiant" secondary @click="detailsOpen = true">
               奖励详情
             </NButton>
-            <NButton v-if="claimable" type="primary" :disabled="disabled" @click="request('claimIllustrated', { kind })">
+            <NButton v-if="claimable" type="primary" :disabled="disabled || clearing" @click="request('claimIllustrated', { kind })">
               领取奖励
             </NButton>
-            <NButton v-if="isGiant" secondary :loading="clearing" :disabled="disabled" @click="clearGiantNew">
+            <NButton v-if="isGiant && hasUnreadGiant" secondary :loading="clearing" :disabled="disabled" @click="clearGiantNew">
               全部已读
             </NButton>
-            <NButton secondary :loading="loading" aria-label="刷新图鉴" title="刷新图鉴" @click="refresh">
+            <NButton secondary :loading="loading" :disabled="clearing" aria-label="刷新图鉴" title="刷新图鉴" @click="refresh">
               <template #icon>
                 <span class="i-carbon-renew" />
               </template>
