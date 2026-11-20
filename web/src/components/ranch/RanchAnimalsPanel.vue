@@ -64,12 +64,22 @@ watch([deliveryAt, disabled], ([deadline, blocked], _, onCleanup) => {
   onCleanup(() => clearTimeout(timer))
 }, { immediate: true })
 
+/**
+ * 禁用按钮只给一个灰壳，用户无法判断是缺罐头还是没动物可喂，所以把原因算出来放到 title 上。
+ * 可用时返回 undefined，避免悬停出现无意义的提示。
+ */
+const cleanHint = computed(() => (hazards.value ? undefined : '当前没有需要清理的动物'))
+const produceHint = computed(() => (canProduce.value ? undefined : '当前没有可生产的动物'))
+const harvestHint = computed(() => (canHarvest.value ? undefined : '当前没有可收获的动物或货架产物'))
+const feedHint = computed(() => (animals.value.length ? undefined : '当前没有可喂养的动物'))
+
 const summary = computed(() => [
   { key: 'harvest', label: '可收获', icon: 'i-carbon-wheat text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.canHarvest).length },
   { key: 'produce', label: '可生产', icon: 'i-carbon-circle-dash text-green-600 dark:text-green-400', value: animals.value.filter(({ animal }) => animal.canProduce).length },
-  { key: 'blocked', label: '缺草', icon: 'i-carbon-warning-alt text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.grassBlocked).length },
+  // 数的是「因缺草卡住成长」的动物只数，不是牧草库存，和下方 stock 里的「牧草」不是同一个量。
+  { key: 'blocked', label: '因缺草受阻', unit: '只', icon: 'i-carbon-warning-alt text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.grassBlocked).length },
   { key: 'clean', label: '待清理', icon: 'i-carbon-clean text-violet-500 dark:text-violet-300', value: hazards.value },
-])
+].map(item => ({ unit: '', ...item })))
 const stock = computed(() => [
   { key: 'grass', label: '牧草', image: RANCH_IMAGE(7001), value: formatCount(state.value?.grass ?? 0) },
   ...buckets.value.map(bucket => ({ key: bucket.id, label: bucket.name, image: bucket.image, value: formatHours(bucket.seconds) })),
@@ -96,18 +106,18 @@ function target(animal: any) {
             <small class="ranch-head__count">{{ animals.length }} / {{ capacity }}</small>
           </h3>
           <div class="ranch-actions">
-            <NButton :disabled="disabled || !hazards" @click="requestDirect('clean')">
+            <NButton :disabled="disabled || !hazards" :title="cleanHint" @click="requestDirect('clean')">
               <span class="i-carbon-clean" />一键清理
             </NButton>
             <NDropdown trigger="click" placement="bottom" :options="feedOptions" @select="(type: 1 | 2) => requestDirect('feed', { all: true, bucketType: type })">
-              <NButton :disabled="disabled || !animals.length">
+              <NButton :disabled="disabled || !animals.length" :title="feedHint">
                 <span class="i-carbon-time" aria-hidden="true" />一键喂养
               </NButton>
             </NDropdown>
-            <NButton :disabled="disabled || !canProduce" @click="requestDirect('produce', { all: true })">
+            <NButton :disabled="disabled || !canProduce" :title="produceHint" @click="requestDirect('produce', { all: true })">
               <span class="i-carbon-circle-dash" />一键生产
             </NButton>
-            <NButton type="primary" :disabled="disabled || !canHarvest" @click="requestDirect('harvest', { all: true })">
+            <NButton type="primary" :disabled="disabled || !canHarvest" :title="harvestHint" @click="requestDirect('harvest', { all: true })">
               <span class="i-carbon-flash" />一键收获
             </NButton>
             <NButton circle quaternary title="刷新牧场" aria-label="刷新牧场" :loading="loading" :disabled="disabled" @click="refresh">
@@ -121,7 +131,7 @@ function target(animal: any) {
         <div class="ranch-summary">
           <div class="ranch-summary__states">
             <span v-for="item in summary" :key="item.key" class="ranch-state" :class="{ 'is-zero': !item.value }">
-              <span :class="item.icon" aria-hidden="true" />{{ item.label }}<b>{{ item.value }}</b>
+              <span :class="item.icon" aria-hidden="true" />{{ item.label }}<b>{{ item.value }}{{ item.unit }}</b>
             </span>
           </div>
           <div class="ranch-summary__stock">
