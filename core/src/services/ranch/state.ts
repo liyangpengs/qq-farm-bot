@@ -38,13 +38,14 @@ async function resourceBalance(raw: any, id: number): Promise<any> {
 function animalDto(animal: any): any {
     const cfg = animalMap.get(Number(animal.animal_id));
     const stageNames = ['未知', '幼崽期', '成长期', '生产期', '成熟期', '可收获'];
+    const deliveringUntilMs = Number(animal.delivering_until_ms) || null;
     const nextTimes = [animal.infant_ready_at_ms, animal.grow_ready_at_ms, animal.produce_ready_at_ms, animal.mature_ready_at_ms].map(Number).filter(time => time > getServerTimeSec() * 1000);
     const mutation = animal.mutation;
     return {
         id: animal.animal_inst_id, ranchId: quantity(animal.ranch_inst_id), animalId: Number(animal.animal_id), slot: animal.slot_index,
         name: `${mutation?.mutation_type ? '巨大' : ''}${cfg?.name || `动物${animal.animal_id}`}`, image: itemDto({ id: (mutation?.mutation_type && mutationMap.get(Number(animal.animal_id))?.giant_product_item) || cfg?.product_item?.id || Number(animal.animal_id), count: 1 }).image,
         stage: animal.stage, stageName: animal.can_harvest ? '可收获' : animal.can_deliver ? '可生产' : animal.grass_blocked ? '缺少牧草' : stageNames[animal.stage],
-        nextAtMs: nextTimes.length ? Math.min(...nextTimes) : null, grassBlocked: animal.grass_blocked,
+        nextAtMs: nextTimes.length ? Math.min(...nextTimes) : null, deliveringUntilMs, grassBlocked: animal.grass_blocked,
         produceCount: animal.produce_count, maxProduceCount: cfg?.max_produce_count ?? null,
         canProduce: animal.can_deliver, canHarvest: animal.can_harvest, canFeed: animal.can_feed, canRelease: animal.can_donate,
         limitedCanUsed: animal.limited_can_used,
@@ -236,7 +237,10 @@ async function getState(view = 'animals', shopId?: number, hostGid?: string): Pr
         }
         if (view === 'friends') {
             if (hostGid !== undefined) state.friendRanch = await require('./friends').getFriend(hostGid);
-            else state.friends = (await getRanchFriendList()).map(friend => ({ ...friend, gid: String(friend.gid) }));
+            else {
+                const blacklist = new Set(require('../../models/store').getRanchFriendBlacklist());
+                state.friends = (await getRanchFriendList()).map(friend => ({ ...friend, gid: String(friend.gid), blacklisted: blacklist.has(friend.gid) }));
+            }
         }
         return state;
     });
