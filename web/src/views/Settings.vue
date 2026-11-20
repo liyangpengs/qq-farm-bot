@@ -2,6 +2,8 @@
 import { NButton } from 'naive-ui/es/button'
 import { NTab } from 'naive-ui/es/tabs'
 import { NTimePicker } from 'naive-ui/es/time-picker'
+import type { CodeHealthItem } from '@/stores/account'
+import { useNow } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -9,6 +11,7 @@ import api, { getApiErrorMessage } from '@/api'
 import AccountModal from '@/components/AccountModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import PageTabs from '@/components/PageTabs.vue'
+import AccountKeepAliveCard from '@/components/settings/AccountKeepAliveCard.vue'
 import AutomationSettingsForm from '@/components/settings/AutomationSettingsForm.vue'
 import BagSeedPriorityItem from '@/components/settings/BagSeedPriorityItem.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -19,6 +22,8 @@ import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/ac
 import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
 import { useUserStore } from '@/stores/user'
+import { getAccountRuntimeStatus, isAccountActive } from '@/utils/account-runtime'
+import { getCredentialStatus, getWxPreflightBadge, getWxPreflightSummary } from '@/utils/credential-status'
 
 const fertilizerLandTypeOptions = [
   { label: '蓝晶土地', value: 'blue-crystal' },
@@ -108,7 +113,9 @@ function showAlert(message: string, type: 'primary' | 'danger' = 'primary') {
 }
 
 // ==================== 账号管理 ====================
-const { accounts, loading: accountsLoading, currentAccountId } = storeToRefs(accountStore)
+const { accounts, loading: accountsLoading, currentAccountId, codeHealth } = storeToRefs(accountStore)
+/** 每秒走一次的表针：凭证剩余时间、掉线重登倒计时都靠它刷新。 */
+const now = useNow({ interval: 1000 })
 const { status: runtimeStatus } = storeToRefs(statusStore)
 const analyticsSortByMap: Record<string, string> = {
   max_exp: 'exp',
@@ -147,8 +154,29 @@ function handleAccountAvatarError(account: any) {
     accountAvatarErrors.value.add(accountId)
 }
 
-const stoppedAccounts = computed(() => accounts.value.filter((acc: any) => !acc.running))
+const stoppedAccounts = computed(() => accounts.value.filter((acc: any) => !isAccountActive(acc)))
 const stoppedAccountsCount = computed(() => stoppedAccounts.value.length)
+const wxAccountCount = computed(() => accounts.value.filter((acc: any) => acc.platform === 'wx').length)
+
+/** 账号运行态（含掉线重登倒计时）；旧接口没有 runtimeState 时回落到 running。 */
+function runtimeState(acc: any) {
+  return getAccountRuntimeStatus(acc, now.value.getTime())
+}
+
+/** 访问凭证剩余时间；判定逻辑抽到纯函数里，便于回归测试。 */
+function credentialStatus(acc: any) {
+  return getCredentialStatus(acc, now.value.getTime())
+}
+
+/** 免扫码续期能力标记；QQ 账号返回 null 不渲染。 */
+function wxPreflightBadge(acc: any) {
+  return getWxPreflightBadge(acc)
+}
+
+/** 上次自动续期 · 今日成功 · 今日失败；旧版服务字段缺失时返回 null 不渲染。 */
+function wxPreflightSummary(acc: any) {
+  return getWxPreflightSummary(acc, now.value.getTime())
+}
 
 onMounted(async () => {
   await accountStore.fetchAccounts()
@@ -195,11 +223,14 @@ async function confirmDelete() {
 }
 
 async function toggleAccount(account: any) {
-  if (account.running) {
-    await accountStore.stopAccount(account.id)
+  try {
+    if (isAccountActive(account))
+      await accountStore.stopAccount(account.id)
+    else
+      await accountStore.startAccount(account.id)
   }
-  else {
-    await accountStore.startAccount(account.id)
+  catch (e: any) {
+    showAlert(`操作失败: ${e?.message || '未知错误'}`, 'danger')
   }
 }
 
@@ -243,6 +274,134 @@ async function confirmClearStopped() {
     clearStoppedLoading.value = false
   }
 }
+
+const refreshWxCredentialsLoading = ref(false)
+
+/** 续期全部微信账号授权：后端逐账号换 Code 并写回，结果按成功/失败/跳过汇总。 */
+async function refreshWxCredentials() {
+  if (refreshWxCredentialsLoading.value)
+    return
+  refreshWxCredentialsLoading.value = true
+  try {
+    const res = await accountStore.refreshWxCodes()
+    const data = res?.data || {}
+    const success = Number(data.success) || 0
+    const failed = Number(data.failed) || 0
+    const skipped = Number(data.skipped) || 0
+    const failureDetail = (Array.isArray(data.results) ? data.results : [])
+      .filter((item: any) => !item.ok)
+      .map((item: any) => `${item.name}：${item.error || '续期失败'}`)
+      .join('；')
+    if (!res?.ok && success === 0) {
+      showAlert([res?.error, failureDetail].filter(Boolean).join('\n') || '微信授权续期失败', 'danger')
+      return
+    }
+    const summary = `续期完成：成功 ${success} 个${failed > 0 ? `，失败 ${failed} 个` : ''}${skipped > 0 ? `，跳过 ${skipped} 个（缺少长效凭证）` : ''}`
+    showAlert(failureDetail ? `${summary}\n${failureDetail}` : summary, failed > 0 ? 'danger' : 'primary')
+  }
+  catch (e: any) {
+    showAlert(`续期失败: ${e?.message || '未知错误'}`, 'danger')
+  }
+  finally {
+    refreshWxCredentialsLoading.value = false
+  }
+}
+
+/* ---------- Code 过期自动监听 ---------- */
+
+/** 同一账号同一状态 10 分钟内只自动补一次，避免 10 秒轮询反复打续期接口。 */
+const AUTO_FIX_COOLDOWN_MS = 10 * 60_000
+const autoFixAttempts = new Map<string, number>()
+const codeFixing = ref<Set<string>>(new Set())
+const codeFixResults = ref<Record<string, { ok: boolean, message: string }>>({})
+const manualAlerted = ref<Set<string>>(new Set())
+const autoFixDisabled = ref<Set<string>>(new Set())
+
+const codeAlerts = computed(() => (codeHealth.value || []).filter(
+  (item: CodeHealthItem) => item.level !== 'ok' && item.level !== 'unknown',
+))
+
+function codeLevelLabel(level: CodeHealthItem['level']) {
+  const labels: Record<string, string> = {
+    expiring: '即将过期',
+    expired: '已过期',
+    refresh_failed: '续期失败',
+    offline: '掉线待补码',
+  }
+  return labels[level] || String(level)
+}
+
+/** 自动补 Code：优先走后端免扫码换码 / 重签；失败后转为「需手动补 Code」。 */
+async function tryAutoFix(item: CodeHealthItem, force = false) {
+  if (codeFixing.value.has(item.accountId))
+    return
+  if (!force && autoFixDisabled.value.has(item.accountId))
+    return
+  const key = `${item.accountId}:${item.level}`
+  const last = autoFixAttempts.get(key) || 0
+  if (!force && Date.now() - last < AUTO_FIX_COOLDOWN_MS)
+    return
+  autoFixAttempts.set(key, Date.now())
+  codeFixing.value = new Set([...codeFixing.value, item.accountId])
+  try {
+    const res = await accountStore.autoFixCode(item.accountId)
+    const ok = !!res?.ok
+    const message = ok
+      ? '已自动补 Code，账号已重新上线'
+      : (res?.error || '自动补 Code 失败，请手动补 Code')
+    codeFixResults.value = { ...codeFixResults.value, [item.accountId]: { ok, message } }
+    const disabled = new Set(autoFixDisabled.value)
+    if (ok) {
+      disabled.delete(item.accountId)
+      manualAlerted.value = new Set([...manualAlerted.value].filter(id => id !== item.accountId))
+    }
+    else {
+      // 失败不再自动重试，等用户点「重试」或手动补 Code，避免每轮轮询都失败一次。
+      disabled.add(item.accountId)
+    }
+    autoFixDisabled.value = disabled
+  }
+  catch (e: any) {
+    codeFixResults.value = {
+      ...codeFixResults.value,
+      [item.accountId]: { ok: false, message: `自动补 Code 异常：${e?.message || '未知错误'}` },
+    }
+    autoFixDisabled.value = new Set([...autoFixDisabled.value, item.accountId])
+  }
+  finally {
+    const next = new Set(codeFixing.value)
+    next.delete(item.accountId)
+    codeFixing.value = next
+  }
+}
+
+/** 打开补 Code 弹窗：清空旧 Code，避免用户误把已失效的 Code 再保存一次。 */
+function openRefillCodeModal(item: CodeHealthItem) {
+  const acc: any = accounts.value.find((account: any) => String(account.id) === item.accountId)
+  editingAccount.value = {
+    ...(acc || { id: item.accountId, name: item.name, platform: item.platform }),
+    code: '',
+  }
+  showModal.value = true
+}
+
+watch(codeAlerts, (list) => {
+  for (const item of list) {
+    if (item.autoFixable && !autoFixDisabled.value.has(item.accountId)) {
+      void tryAutoFix(item)
+      continue
+    }
+    if (item.needsManual && !manualAlerted.value.has(item.accountId)) {
+      manualAlerted.value = new Set([...manualAlerted.value, item.accountId])
+      showAlert(`账号 ${item.name} 需要补 Code：${item.reason}。请点击「立即补 Code」重新扫码或填写新 Code。`, 'danger')
+    }
+  }
+  const alive = new Set(list.map(item => item.accountId))
+  for (const id of [...manualAlerted.value]) {
+    if (!alive.has(id))
+      manualAlerted.value = new Set([...manualAlerted.value].filter(key => key !== id))
+  }
+}, { immediate: true })
 
 // ==================== 策略设置 ====================
 const { settings, loading: settingsLoading, loadedAccountId } = storeToRefs(settingStore)
@@ -1507,10 +1666,26 @@ async function handleResetSystemConfig() {
         <!-- 账号管理 -->
         <div v-if="activeTab === 'account'" class="space-y-4">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 class="text-lg text-gray-900 font-bold dark:text-gray-100">
-              账号管理
-            </h3>
+            <div>
+              <h3 class="text-lg text-gray-900 font-bold dark:text-gray-100">
+                账号管理
+              </h3>
+              <p class="mt-1 text-xs text-gray-500">
+                共 {{ accounts.length }} 个账号，其中微信 {{ wxAccountCount }} 个
+              </p>
+            </div>
             <div class="flex flex-wrap gap-2">
+              <BaseButton
+                variant="primary"
+                size="sm"
+                :loading="refreshWxCredentialsLoading"
+                :disabled="accountsLoading || accounts.length === 0"
+                @click="refreshWxCredentials"
+              >
+                <span class="i-carbon-renew mr-2" />
+                <span class="hidden sm:inline">续期全部微信授权</span>
+                <span class="sm:hidden">授权续期</span>
+              </BaseButton>
               <BaseButton
                 variant="secondary"
                 size="sm"
@@ -1530,6 +1705,67 @@ async function handleResetSystemConfig() {
                 <span class="i-carbon-add mr-2" />
                 添加账号
               </BaseButton>
+            </div>
+          </div>
+
+          <!-- Code 过期自动监听：能自动换码的自动补，不能自动补的一键打开补 Code 弹窗 -->
+          <div
+            class="farm-card border rounded-2xl bg-white p-3 shadow-md dark:bg-gray-800 sm:p-4"
+            :class="codeAlerts.length ? '!border-amber-300 dark:!border-amber-700' : 'border-transparent'"
+            role="region"
+            aria-label="Code 自动监听"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="i-carbon-radar text-base text-amber-500" aria-hidden="true" />
+                <strong class="text-sm text-gray-900 dark:text-gray-100">Code 自动监听</strong>
+                <span class="rounded bg-green-50 px-1.5 py-0.5 text-[10px] text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                  已开启 · 每 10 秒检查
+                </span>
+              </div>
+              <span class="text-xs text-gray-500">
+                {{ codeAlerts.length ? `${codeAlerts.length} 个账号需要补 Code` : '所有账号 Code 正常' }}
+              </span>
+            </div>
+            <p class="mt-1.5 text-xs text-gray-500">
+              微信凭证到期前自动换 Code；QQ 掉线时尽力自动重签。补 Code 后账号会自动重新上线，失败时会提示手动补码。
+            </p>
+            <div v-if="codeAlerts.length" class="mt-3 flex flex-col gap-2">
+              <div
+                v-for="item in codeAlerts"
+                :key="item.accountId"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20"
+              >
+                <div class="min-w-0">
+                  <p class="flex flex-wrap items-center gap-1.5 text-xs text-gray-800 font-medium dark:text-gray-100">
+                    {{ item.name || item.accountId }}
+                    <span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                      {{ codeLevelLabel(item.level) }}
+                    </span>
+                    <span class="text-[10px] text-gray-400">{{ getPlatformLabel(item.platform) }}</span>
+                  </p>
+                  <p class="mt-0.5 break-words text-xs text-gray-500">
+                    {{ item.reason }}
+                    <span v-if="codeFixResults[item.accountId]" :class="codeFixResults[item.accountId]?.ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                      · {{ codeFixResults[item.accountId]?.message }}
+                    </span>
+                  </p>
+                </div>
+                <div class="flex shrink-0 gap-2">
+                  <BaseButton
+                    v-if="item.autoFixable"
+                    variant="secondary"
+                    size="sm"
+                    :loading="codeFixing.has(item.accountId)"
+                    @click="tryAutoFix(item, true)"
+                  >
+                    {{ autoFixDisabled.has(item.accountId) ? '重试自动补' : '自动补 Code' }}
+                  </BaseButton>
+                  <BaseButton variant="primary" size="sm" @click="openRefillCodeModal(item)">
+                    立即补 Code
+                  </BaseButton>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1595,29 +1831,58 @@ async function handleResetSystemConfig() {
                   </div>
                 </div>
                 <div class="flex items-center justify-end gap-2 sm:flex-col sm:items-end">
-                  <span class="flex items-center gap-1 text-xs text-gray-500 sm:hidden">
-                    <div class="h-2 w-2 rounded-full" :class="acc.running ? 'bg-green-500' : 'bg-gray-300'" />
-                    {{ acc.running ? '运行中' : '已停止' }}
-                  </span>
                   <BaseButton
                     variant="secondary"
                     size="sm"
                     class="border rounded-full shadow-sm transition-all duration-500 ease-in-out sm:w-20 active:scale-95"
-                    :class="acc.running ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100 focus:ring-red-500 active:border-red-300 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 dark:focus:ring-red-500 dark:active:border-red-700' : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 focus:ring-green-500 active:border-green-300 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 dark:focus:ring-green-500 dark:active:border-green-700'"
-                    @click="toggleAccount(acc)"
+                    :class="isAccountActive(acc) ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100 focus:ring-red-500 active:border-red-300 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 dark:focus:ring-red-500 dark:active:border-red-700' : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 focus:ring-green-500 active:border-green-300 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 dark:focus:ring-green-500 dark:active:border-green-700'"
+                    :disabled="acc.runtimeState === 'stopping'"
+                    @click.stop="toggleAccount(acc)"
                   >
-                    <span class="mr-1" :class="acc.running ? 'i-carbon-stop-filled' : 'i-carbon-play-filled'" />
-                    {{ acc.running ? '停止' : '启动' }}
+                    <span class="mr-1" :class="isAccountActive(acc) ? 'i-carbon-stop-filled' : 'i-carbon-play-filled'" />
+                    {{ isAccountActive(acc) ? '停止' : '启动' }}
                   </BaseButton>
                 </div>
               </div>
 
+              <div class="mt-3 min-h-5 flex items-center gap-2 text-xs text-gray-600 tabular-nums dark:text-gray-300" role="status">
+                <span v-if="runtimeState(acc).busy" class="i-carbon-circle-dash shrink-0 animate-spin" />
+                <span v-else class="h-2 w-2 shrink-0 rounded-full" :class="runtimeState(acc).color" />
+                <span class="min-w-0 break-words">{{ runtimeState(acc).text }}</span>
+              </div>
+
+              <p v-if="acc.platform === 'wx'" class="mt-3 break-words text-xs tabular-nums" :class="credentialStatus(acc).color">
+                {{ credentialStatus(acc).text }}
+              </p>
+
+              <div v-if="wxPreflightBadge(acc)" class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span
+                  class="rounded px-1.5 py-0.5 text-[10px] leading-tight font-medium"
+                  :class="wxPreflightBadge(acc)?.badgeClass"
+                  :title="wxPreflightBadge(acc)?.hint"
+                >
+                  免扫码续期：{{ wxPreflightBadge(acc)?.text }}
+                </span>
+                <span class="hidden text-[10px] text-gray-400 sm:inline">{{ wxPreflightBadge(acc)?.hint }}</span>
+              </div>
+
+              <p
+                v-if="wxPreflightSummary(acc)"
+                class="mt-1.5 break-words text-xs tabular-nums"
+                :class="wxPreflightSummary(acc)?.color"
+                :title="wxPreflightSummary(acc)?.hint"
+              >
+                {{ wxPreflightSummary(acc)?.text }}
+              </p>
+
+              <!-- 微信账号比 QQ 多出凭证状态、免扫码标记与续期统计三块，卡片高度天然不一致。
+                   PC 端（sm 起）用这段弹性占位把剩余高度吃掉，让所有卡片的横线与底部按钮行
+                   落在同一水平线上；手机端单列排布不需要对齐，直接不渲染。 -->
+              <div class="hidden sm:block sm:flex-1" aria-hidden="true" />
+
               <div class="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 sm:mt-4 dark:border-gray-700 sm:pt-4">
-                <div class="hidden items-center gap-2 text-sm text-gray-500 sm:flex">
-                  <span class="flex items-center gap-1">
-                    <div class="h-2 w-2 rounded-full" :class="acc.running ? 'bg-green-500' : 'bg-gray-300'" />
-                    {{ acc.running ? '运行中' : '已停止' }}
-                  </span>
+                <div class="hidden items-center gap-2 text-xs text-gray-500 sm:flex">
+                  <span>{{ acc.name ? '点击卡片切换当前账号' : '' }}</span>
                 </div>
 
                 <div class="flex flex-1 justify-end gap-1 sm:flex-initial sm:gap-2">
@@ -1625,7 +1890,7 @@ async function handleResetSystemConfig() {
                     variant="ghost"
                     class="min-h-[36px] min-w-[36px] !p-2"
                     title="设置"
-                    @click="openSettings(acc)"
+                    @click.stop="openSettings(acc)"
                   >
                     <span class="i-carbon-settings" />
                   </BaseButton>
@@ -1633,7 +1898,7 @@ async function handleResetSystemConfig() {
                     variant="ghost"
                     class="min-h-[36px] min-w-[36px] !p-2"
                     title="编辑"
-                    @click="openEditModal(acc)"
+                    @click.stop="openEditModal(acc)"
                   >
                     <span class="i-carbon-edit" />
                   </BaseButton>
@@ -1641,7 +1906,7 @@ async function handleResetSystemConfig() {
                     variant="ghost"
                     class="min-h-[36px] min-w-[36px] text-red-500 !p-2 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300"
                     title="删除"
-                    @click="handleDelete(acc)"
+                    @click.stop="handleDelete(acc)"
                   >
                     <span class="i-carbon-trash-can" />
                   </BaseButton>
@@ -1649,6 +1914,8 @@ async function handleResetSystemConfig() {
               </div>
             </div>
           </div>
+
+          <AccountKeepAliveCard @notify="showAlert" />
 
           <AccountModal
             :show="showModal"

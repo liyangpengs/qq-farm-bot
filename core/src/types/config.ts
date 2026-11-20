@@ -150,6 +150,8 @@ export interface SystemConfig {
   timeZone: string;
   deviceInfo: DeviceInfo;
   autoCodeRefresh?: AutoCodeRefreshConfig;
+  /** 服务启动后是否自动拉起已保存账号（系统级，默认开启）。 */
+  autoStartAccounts?: boolean;
 }
 
 export interface GlobalConfig {

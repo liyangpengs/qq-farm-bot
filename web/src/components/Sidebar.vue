@@ -110,6 +110,7 @@ function openRemarkModal(acc: any) {
 
 onMounted(() => {
   accountStore.fetchAccounts()
+  accountStore.fetchCodeHealth()
   checkConnection()
   // 获取当前用户信息
   userStore.fetchUserInfo()
@@ -174,7 +175,11 @@ function handleAccountAvatarError(account: any) {
 }
 
 useIntervalFn(checkConnection, 30000)
-useIntervalFn(refreshStatusFallback, 10000)
+useIntervalFn(() => {
+  refreshStatusFallback()
+  // Code 自动监听的数据源：10 秒一次快照，账号管理页据此判定是否需要自动补 Code。
+  accountStore.fetchCodeHealth()
+}, 10000)
 
 watch(() => currentAccount.value?.id || currentAccount.value?.uin || '', () => {
   const accountRef = currentAccount.value?.id || currentAccount.value?.uin
