@@ -109,8 +109,16 @@ async function planAction(action: string, input: any, raw: any, produceTargets?:
         const bucketType = Number(input.bucketType);
         if (![1, 2].includes(bucketType)) throw error('INVALID_ARGUMENT', '请选择有机或普通罐头');
         const feedable = selectedAnimals(raw, input, () => true).filter(animal => animal.can_feed);
-        const animals = feedable.filter(animal => bucketType === 1 || !animal.limited_can_used);
+        const unused = feedable.filter(animal => bucketType === 1 || !animal.limited_can_used);
+        const animals = bucketType === 2 && input.normalStage === 'longest' ? unused.filter((animal) => {
+            const config = animalMap.get(Number(animal.animal_id));
+            if (!config) return false;
+            const durations = [0, config.infant_sec, config.grow_sec, config.product_round_sec, config.mature_sec];
+            const current = durations[animal.stage];
+            return current > 0 && current === Math.max(...durations);
+        }) : unused;
         if (!animals.length) plan.message = feedable.length ? '普通罐头本轮已使用' : '当前没有可喂养的动物';
+        if (unused.length && !animals.length) plan.message = '当前没有处于最长生长阶段的可喂养动物';
         plan.payload = { targets: animalRefs(animals), bucket_type: bucketType };
         const maxSeconds = animals.reduce((sum, animal) => {
             const config = animalMap.get(Number(animal.animal_id));
