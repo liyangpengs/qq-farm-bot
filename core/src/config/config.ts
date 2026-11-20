@@ -16,6 +16,12 @@ interface DevicePreset {
     deviceInfo: DeviceInfo;
 }
 
+interface AutoCodeRefreshConfig {
+    /** 掉线重登：账号掉线后等待一段时间自动续期并重登。 */
+    offlineEnabled: boolean;
+    offlineDelaySeconds: number;
+}
+
 interface SystemConfig {
     serverUrl: string;
     clientVersion: string;
@@ -26,6 +32,7 @@ interface SystemConfig {
     os: string;
     timeZone: string;
     deviceInfo: DeviceInfo;
+    autoCodeRefresh?: AutoCodeRefreshConfig;
 }
 
 interface RuntimeConfig extends SystemConfig {
@@ -201,9 +208,28 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     os: DEFAULT_DEVICE_INFO.os,
     timeZone: DEFAULT_TIME_ZONE,
     deviceInfo: { ...DEFAULT_DEVICE_INFO },
+    autoCodeRefresh: { offlineEnabled: true, offlineDelaySeconds: 60 },
 };
 
+/**
+ * 账号在线配置归一化：掉线等待 1~86400 秒。
+ *
+ * 掉线重登默认开启：它只在账号已经掉线后动作，是把账号拉回来的自愈通道，
+ * 不是常规运行策略。老配置里没有这个字段时按开启处理，只有明确保存过
+ * false（用户在面板上关过）才保持关闭。
+ */
+function normalizeAutoCodeRefresh(input: unknown): AutoCodeRefreshConfig {
+    const src: any = (input && typeof input === 'object') ? input : {};
+    const delay = Number(src.offlineDelaySeconds);
+    const hasFlag = src.offlineEnabled !== undefined && src.offlineEnabled !== null;
+    return {
+        offlineEnabled: hasFlag ? src.offlineEnabled === true : true,
+        offlineDelaySeconds: Number.isFinite(delay) ? Math.max(1, Math.min(86400, Math.round(delay))) : 60,
+    };
+}
+
 const CONFIG: RuntimeConfig = {
+    autoCodeRefresh: { ...DEFAULT_SYSTEM_CONFIG.autoCodeRefresh },
     serverUrl: DEFAULT_SYSTEM_CONFIG.serverUrl,
     clientVersion: DEFAULT_CLIENT_VERSION,
     clientVersionUpdatedAt: DEFAULT_CLIENT_VERSION_UPDATED_AT,
@@ -267,6 +293,9 @@ function updateRuntimeConfig(newConfig: Partial<SystemConfig>): void {
     if (newConfig.timeZone !== undefined) {
         CONFIG.timeZone = normalizeTimeZone(newConfig.timeZone);
     }
+    if (newConfig.autoCodeRefresh) {
+        CONFIG.autoCodeRefresh = normalizeAutoCodeRefresh(newConfig.autoCodeRefresh);
+    }
     if (newConfig.deviceInfo) {
         CONFIG.deviceInfo = normalizeDeviceInfo(newConfig.deviceInfo);
         // 同步 os 与 clientVersion 到顶层
@@ -286,11 +315,16 @@ function getRuntimeConfig(): SystemConfig {
         os: CONFIG.os,
         timeZone: CONFIG.timeZone,
         deviceInfo: { ...CONFIG.deviceInfo },
+        autoCodeRefresh: { ...CONFIG.autoCodeRefresh },
     };
 }
 
 function getDefaultSystemConfig(): SystemConfig {
-    return { ...DEFAULT_SYSTEM_CONFIG, deviceInfo: { ...DEFAULT_DEVICE_INFO } };
+    return {
+        ...DEFAULT_SYSTEM_CONFIG,
+        deviceInfo: { ...DEFAULT_DEVICE_INFO },
+        autoCodeRefresh: { ...DEFAULT_SYSTEM_CONFIG.autoCodeRefresh },
+    };
 }
 
 function getDevicePresets(): DevicePreset[] {
@@ -335,5 +369,7 @@ module.exports = {
     normalizeTimeZone,
     resolveClientVersion,
     resolveClientVersionUpdatedAt,
+    normalizeAutoCodeRefresh,
+    DEFAULT_AUTO_CODE_REFRESH: DEFAULT_SYSTEM_CONFIG.autoCodeRefresh,
     DEVICE_PRESETS,
 };

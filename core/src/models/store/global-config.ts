@@ -1,7 +1,7 @@
 import type { GlobalConfig, LoginSettings, OfflineReminder, SystemConfig, UIConfig } from '../../types/config';
 export {};
 
-const { DEFAULT_CLIENT_VERSION, DEFAULT_WX_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone, resolveClientVersionUpdatedAt } = require('../../config/config');
+const { DEFAULT_CLIENT_VERSION, DEFAULT_WX_CLIENT_VERSION, DEFAULT_TIME_ZONE, DEFAULT_AUTO_CODE_REFRESH, normalizeAutoCodeRefresh, normalizeTimeZone, resolveClientVersionUpdatedAt } = require('../../config/config');
 
 const sharedState = require('./shared-state');
 
@@ -114,7 +114,13 @@ function setOfflineReminder(cfg: Partial<OfflineReminder> | undefined): OfflineR
 }
 
 function getSystemConfig(): SystemConfig | null {
-    return globalConfig.systemConfig ? { ...globalConfig.systemConfig } : null;
+    if (!globalConfig.systemConfig) return null;
+    const config = globalConfig.systemConfig;
+    return {
+        ...config,
+        // 旧配置没有该字段时默认开启，保证升级后重启自动生效。
+        autoCodeRefresh: normalizeAutoCodeRefresh(config.autoCodeRefresh),
+    };
 }
 
 function setSystemConfig(config: Partial<SystemConfig> | undefined): SystemConfig | null {
@@ -172,6 +178,10 @@ function setSystemConfig(config: Partial<SystemConfig> | undefined): SystemConfi
         os: deviceInfo.os,
         timeZone: normalizeTimeZone(config.timeZone || current?.timeZone || DEFAULT_TIME_ZONE),
         deviceInfo,
+        // 只改账号保活时不要把其它系统设置清零：缺字段时沿用已保存的值。
+        autoCodeRefresh: normalizeAutoCodeRefresh(config.autoCodeRefresh === undefined
+            ? (current?.autoCodeRefresh || DEFAULT_AUTO_CODE_REFRESH)
+            : config.autoCodeRefresh),
     };
     saveGlobalConfig({ systemConfig: next });
     return { ...globalConfig.systemConfig };

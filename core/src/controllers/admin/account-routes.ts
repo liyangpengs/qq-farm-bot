@@ -19,13 +19,96 @@ const {
     resolveAccId,
 } = require('./middleware');
 
+/** 账号列表对外投影：只下发「能否免扫码续期」的判定结果与续期账本，不下发凭证明文。 */
+function toPublicAccountsPayload(data: any, canPreflight: (a: any) => boolean, stats: Record<string, any>, canRecover: (a: any) => boolean): any {
+    const PRIVATE_CREDENTIAL_KEYS = ['refreshtoken', 'accesstoken', 'loginBuffer'];
+    const emptyPublicStats = () => ({ date: '', lastSuccessAt: 0, lastFailureAt: 0, successesToday: 0, failuresToday: 0 });
+    const accounts = Array.isArray(data && data.accounts) ? data.accounts : [];
+    return {
+        ...(data || {}),
+        accounts: accounts.map((account: any) => {
+            const safe: any = { ...(account || {}) };
+            for (const key of PRIVATE_CREDENTIAL_KEYS) delete safe[key];
+            safe.wxPreflightSupported = typeof canPreflight === 'function' ? !!canPreflight(account) : false;
+            // QQ 账号不走微信续期机制，不下发这个字段，避免面板误渲染。
+            if (String(safe.platform || '') === 'wx') {
+                // 「能不能滚 token」和「掉线后能不能免扫码自愈」不是同一件事：只有
+                // loginBuffer 的账号滚不了 token（wxPreflightSupported=false），但换 Code
+                // 完全没问题，掉线重登照样会成功并写进自动续期账本。两个标记分开下发，
+                // 面板才不会把「有账本但滚不了 token」的账号整段隐藏。
+                safe.wxCanRecover = typeof canRecover === 'function' ? !!canRecover(account) : false;
+                const recorded = stats && stats[String(safe.id ?? '')];
+                safe.wxPreflightStats = recorded && typeof recorded === 'object'
+                    ? { ...emptyPublicStats(), ...recorded }
+                    : emptyPublicStats();
+            }
+            return safe;
+        }),
+    };
+}
+
+/** 账号 Code 自动监听：聚合微信凭证到期与 QQ 掉线日志，给出每账号的补 Code 状态。 */
+function buildProviderCodeHealth(ctx: AdminContext): any {
+    const { buildCodeHealthSnapshot } = require('../../services/code-watch');
+    const accounts = ctx.provider.getAccounts().accounts || [];
+    const rawLogs = ctx.provider.getAccountLogs ? ctx.provider.getAccountLogs(200) : [];
+    return buildCodeHealthSnapshot(accounts, {
+        accountLogs: Array.isArray(rawLogs) ? rawLogs : [],
+        isAccountRunning: (id: string) => !!(ctx.provider.isAccountRunning && ctx.provider.isAccountRunning(id)),
+    });
+}
+
 function mountAccountRoutes(app: Application, ctx: AdminContext): void {
 
     // API: 账号管理
     app.get('/api/accounts', (req: Request, res: Response) => {
         try {
             const data = ctx.provider.getAccounts();
-            res.json({ ok: true, data });
+            // 只把「能不能免扫码恢复」的判定结果发给浏览器，不下发长效凭证明文。
+            // 两个口径都要发：wxPreflightSupported = 能滚 token（wxid + refreshtoken），
+            // wxCanRecover = 掉线后能免扫码换 Code（再加上只有 loginBuffer 的情况），
+            // 后者与 wx-keepalive 的 canRecoverAccount 完全同一个函数。
+            // 同时附带自动续期账本快照（仅时间戳与次数），供卡片显示无人值守结果。
+            const { hasWxCredential } = require('../../services/wx-credential');
+            const { canRecoverAccount } = require('../../services/wx-keepalive');
+            const { getPreflightStatsSnapshot } = require('../../services/preflight-stats');
+            res.json({
+                ok: true,
+                data: toPublicAccountsPayload(data, hasWxCredential, getPreflightStatsSnapshot(), canRecoverAccount),
+            });
+        } catch (e: any) {
+            handleApiError(res, e);
+        }
+    });
+
+    // API: Code 自动监听快照（账号管理页 10 秒轮询；路由必须在 :id 之前注册）
+    app.get('/api/accounts/code-health', (_req: Request, res: Response) => {
+        try {
+            res.json({ ok: true, data: buildProviderCodeHealth(ctx) });
+        } catch (e: any) {
+            handleApiError(res, e);
+        }
+    });
+
+    // API: 手动续期（全链路：滚 token -> 换 loginBuffer -> 换游戏 Code）
+    app.post('/api/accounts/:id/renew', async (req: Request, res: Response) => {
+        try {
+            const { refreshAndMaybeRestart } = require('../../services/wx-keepalive');
+            const accountId = resolveAccId(ctx, req.params.id) || String(req.params.id || '');
+            const ok = await refreshAndMaybeRestart(accountId, 'manual');
+            res.json({ ok, data: { accountId, renewed: !!ok } });
+        } catch (e: any) {
+            handleApiError(res, e);
+        }
+    });
+
+    // API: 刷新 Code（只换 Code，不滚 token 不重启连接）
+    app.post('/api/accounts/:id/refresh-code', async (req: Request, res: Response) => {
+        try {
+            const { ensureFreshGameCode } = require('../../services/wx-credential');
+            const accountId = resolveAccId(ctx, req.params.id) || String(req.params.id || '');
+            const result = await ensureFreshGameCode(accountId);
+            res.json({ ok: !!result, data: result });
         } catch (e: any) {
             handleApiError(res, e);
         }
@@ -135,6 +218,12 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
 
             const before = ctx.provider.getAccounts();
             const target = findAccountByRef(before.accounts || [], req.params.id);
+            // 账号要被删掉，任何一条「等待重登」的定时器都必须先撤掉，
+            // 否则到点它会用一个已经不存在的账号去换 Code 并把进程拉起来。
+            try {
+                const { cancelPendingRelogin } = require('../../services/wx-keepalive');
+                cancelPendingRelogin(resolvedId);
+            } catch { /* 保活模块不可用时不影响删除 */ }
             ctx.provider.stopAccount(resolvedId);
             const data = deleteAccount(resolvedId);
             if (ctx.provider.addAccountLog) {
@@ -458,9 +547,17 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
 
     app.post('/api/settings/system-config', (req: Request, res: Response) => {
         try {
-            const { serverUrl, clientVersion, wxClientVersion, platform, os, timeZone, deviceInfo } = req.body || {};
-            const saved = store.setSystemConfig({ serverUrl, clientVersion, wxClientVersion, platform, os, timeZone, deviceInfo });
+            const { serverUrl, clientVersion, wxClientVersion, platform, os, timeZone, deviceInfo, autoCodeRefresh } = req.body || {};
+            const saved = store.setSystemConfig({ serverUrl, clientVersion, wxClientVersion, platform, os, timeZone, deviceInfo, autoCodeRefresh });
             updateRuntimeConfig(saved);
+            // 掉线重登策略改了要让保活模块重新读一次配置并写进系统日志；
+            // ctx.provider 是 data-provider 的产物，没有这个方法，直接调保活模块。
+            if (autoCodeRefresh !== undefined) {
+                try {
+                    const { applyWxKeepAliveConfig } = require('../../services/wx-keepalive');
+                    applyWxKeepAliveConfig();
+                } catch { /* 保活模块不可用时不影响配置保存 */ }
+            }
             if (ctx.provider && typeof ctx.provider.broadcastConfig === 'function') {
                 ctx.provider.broadcastConfig('');
             }

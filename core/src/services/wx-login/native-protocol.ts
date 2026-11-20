@@ -1,7 +1,12 @@
 import crypto from 'node:crypto';
 import net from 'node:net';
 
-type Target = { ip: string; port: number };
+// 这三个模块用 module.exports 导出（运行时值），所以走 require 而不是 import。
+const { resolveTargets } = require('./httpdns');
+const { loginBudget } = require('./login-budget');
+const { getCachedSession, invalidateCachedSession, sessionCacheKey, setCachedSession } = require('./session-cache');
+
+type Target = { host: string; port: number };
 type Session = { sendKey: Buffer; recvKey: Buffer; f9: Buffer; uin: bigint; deviceId: Buffer; hostAppId: Buffer; psk: Buffer; ticket: Buffer };
 const U8 = Buffer.from;
 const REC = 0xF103;
@@ -47,7 +52,51 @@ function pskClientHello(ticket: Buffer, timestamp: number) {
     ]);
     return hs(0x01, body);
 }
-async function socket(host: string, port: number, timeout = 30000) { const s = net.createConnection({ host, port }); const chunks: Buffer[] = []; let ended = false; s.on('data', x => chunks.push(Buffer.from(x))); s.on('end', () => { ended = true; }); await new Promise<void>((ok, no) => { s.once('connect', ok); s.once('error', no); setTimeout(() => no(new Error('connection timeout')), timeout); }); let offset = 0; async function take() { const until = Date.now() + timeout; for (;;) { const all = Buffer.concat(chunks); if (all.length - offset >= 5) { const n = all.readUInt16BE(offset + 3); if (all.length - offset >= n + 5) { const out = { type: all[offset], body: all.subarray(offset + 5, offset + 5 + n) }; offset += 5 + n; return out; } } if (ended || Date.now() > until) throw new Error('socket read timeout'); await new Promise(r => setTimeout(r, 10)); } } return { s, take, send: (b: Buffer) => new Promise<void>((ok, no) => s.write(b, e => e ? no(e) : ok())), close: () => s.destroy() }; }
+async function socket(host: string, port: number, timeout = 30000) {
+    const s = net.createConnection({ host, port });
+    const chunks: Buffer[] = [];
+    let ended = false;
+    s.on('data', x => chunks.push(Buffer.from(x)));
+    s.on('end', () => { ended = true; });
+    // 连接超时定时器原来既不保存句柄也不清理：即使 100ms 就连上，30s 的活定时器
+    // 仍挂在 event loop 上拖住 worker 退出；连接失败时 socket 也没人关。
+    let connectTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        await new Promise<void>((ok, no) => {
+            s.once('connect', ok);
+            s.once('error', no);
+            connectTimer = setTimeout(() => no(new Error('connection timeout')), timeout);
+        });
+    } catch (error) {
+        s.destroy();
+        throw error;
+    } finally {
+        if (connectTimer) clearTimeout(connectTimer);
+    }
+    let offset = 0;
+    async function take() {
+        const until = Date.now() + timeout;
+        for (;;) {
+            const all = Buffer.concat(chunks);
+            if (all.length - offset >= 5) {
+                const n = all.readUInt16BE(offset + 3);
+                if (all.length - offset >= n + 5) {
+                    const out = { type: all[offset], body: all.subarray(offset + 5, offset + 5 + n) };
+                    offset += 5 + n;
+                    return out;
+                }
+            }
+            if (ended || Date.now() > until) throw new Error('socket read timeout');
+            await new Promise(r => setTimeout(r, 10));
+        }
+    }
+    return {
+        s,
+        take,
+        send: (b: Buffer) => new Promise<void>((ok, no) => s.write(b, e => e ? no(e) : ok())),
+        close: () => s.destroy(),
+    };
+}
 function keys(secret: Buffer, label: string, hash: Buffer, size = 56) { const z = expand(secret, label, hash, size); return { ck: z.subarray(0, 16), sk: z.subarray(16, 32), ci: z.subarray(32, 44), si: z.subarray(44, 56) }; }
 function oneWayKeys(secret: Buffer, label: string, hash: Buffer) { const z = expand(secret, label, hash, 28); return { key: z.subarray(0, 16), iv: z.subarray(16, 28) }; }
 function manualRequest(buffer: string, app: Buffer) { const raw = Buffer.from(buffer, 'base64'); const f = pbf(raw); const ticket = f.get(1); const device = f.get(2); const host = f.get(3); if (!Buffer.isBuffer(ticket) || !ticket.length || !Buffer.isBuffer(device) || !device.length) throw new Error('invalid login buffer'); const base = Buffer.concat([pbl(1, app), pbv(2, 1901)]); const req = Buffer.concat([pbl(1, base), pbl(3, pbl(1, ticket)), pbv(4, 4), pbl(6, Buffer.alloc(0)), pbv(7, 0), pbv(8, 6)]); return { req, device, host: Buffer.isBuffer(host) && host.length ? host : HOST_APP }; }
@@ -96,15 +145,129 @@ function parseManual(body: Buffer, temp: any) {
 }
 function jsPlain(uin: bigint, appId: string, host: Buffer) { const mac = crypto.randomBytes(6); mac[0] = (mac[0] | 0x02) & 0xFE; const dev = U8(mac.toString('hex').match(/../g)!.join('-').toUpperCase()); const uin32 = BigInt.asUintN(32, uin); const info = (name: string) => Buffer.concat([pbl(1, U8('sessionkey')), pbv(2, uin32), pbl(3, dev), pbv(4, 1661404927), pbl(5, U8(name)), pbv(6, 0)]); const req = Buffer.concat([pbl(1, info('UnifiedPCWindows')), pbl(2, U8(appId)), pbv(4, 1), pbl(5, Buffer.alloc(0)), pbl(6, Buffer.alloc(0)), pbv(7, 1)]); return Buffer.concat([pbl(1, info('Windows')), pbl(2, U8('/cgi-bin/mmbiz-bin/js-login')), pbl(3, host), pbv(4, 5), pbl(5, req), pbl(6, U8(appId)), pbv(7, 1029), pbv(8, 1610627409), pbl(9, U8('WindowsxWebPlugin')), pbv(10, 573651281)]); }
 function envelope(s: Session, plain: Buffer) { const enc = layout(s.sendKey, lz4Literal(plain)); const head = wpkg({ 1: 1, 2: s.uin, 3: 0, 4: 0, 5: 524545, 6: 11, 7: 0, 8: 0, 9: 0, 10: 1, 11: 0, 12: 0, 13: 0, 17: 0, 18: 1, 20: 1504, 21: 0, 22: s.uin, 23: 0, 25: 16, 26: 4, 28: 1, 29: 1, 30: 0 }, { 14: Buffer.alloc(0), 24: s.deviceId, 27: s.f9 }); const inner = short(0x0B41, 0, Buffer.concat([head, enc])); const b = Buffer.concat([Buffer.alloc(2), TRANSFER_PATH, Buffer.alloc(2), TRANSFER_HOST, Buffer.alloc(4), inner]); b.writeUInt16BE(TRANSFER_PATH.length); b.writeUInt16BE(TRANSFER_HOST.length, 2 + TRANSFER_PATH.length); b.writeUInt32BE(inner.length, 4 + TRANSFER_PATH.length + TRANSFER_HOST.length); const n = Buffer.alloc(4); n.writeUInt32BE(b.length); return Buffer.concat([n, b]); }
-async function targets(kind: 'long' | 'short') { const r = await fetch('http://aedns.weixin.qq.com/cgi-bin/default/getdns?clientversion=0&devicetype=Windows&uin=0&format=json', { headers: { 'User-Agent': 'MicroMessenger Client' } }); const d: any = await r.json(); const item = d?.dns?.domainlist?.find((x: any) => x.name === (kind === 'long' ? 'longcloud.weixin.com' : 'shortcloud.weixin.com')); const proto = kind === 'long' ? 'mmtlsovertcp' : 'http'; const ports = item?.protocollist?.find((x: any) => x.name === proto)?.portlist || []; const ips = (item?.iplist || []).map((x: any) => x.ip); const out = ips.flatMap((ip: string) => ports.map((port: number) => ({ ip, port }))); return out.length ? out : [{ ip: kind === 'long' ? '180.153.202.85' : '120.241.131.173', port: kind === 'long' ? 8080 : 80 }]; }
+/**
+ * 解析 wx.login 的 JSLoginResponse。
+ *
+ * 结构（对应 YYB-Go-Enhanced 的 login_code_response.go）：
+ *   外层 field 2 = JSLoginResponse
+ *     ├─ field 1 = BaseResponse（其 field 1 = ret）
+ *     ├─ field 2 = JSAPI Result（其 field 1 = ret）
+ *     └─ field 3 = code
+ *
+ * 业务拒绝必须优先判断：ret 非 0 时即使响应里同时带了 code 形状的字段，
+ * 也以拒绝为准 —— `-14` 就是从这里出来的，早期实现只找 code、找不到就报
+ * 「解密失败」，于是把「AppID 拒绝」误当成「会话失效」去重新登录。
+ */
+function loginCodeFromPlain(plain: Buffer): string | null {
+    const outer = pbf(plain);
+    const inner = pbf(requiredField(outer, 2, 'wx.login response field 2'));
+    for (const field of [1, 2]) {
+        const block = inner.get(field);
+        if (!Buffer.isBuffer(block)) continue;
+        const ret = pbf(block).get(1);
+        if (typeof ret === 'bigint' && ret !== 0n) {
+            const stage = field === 1 ? 'jslogin_business' : 'jslogin_result';
+            // ret 在线上是 varint（负数按 64 位补码传），读回来要按 int32 还原，
+            // 否则 -14 会被打印成 18446744073709551602，后面的分类就对不上了。
+            throw new Error(`wx.login ${stage} rejected: code=${Number(BigInt.asIntN(32, ret))}`);
+        }
+    }
+    const code = inner.get(3);
+    if (Buffer.isBuffer(code) && code.length) return code.toString();
+    return null;
+}
 
-export async function getNativeWxLoginCode(loginBuffer: string, appId: string): Promise<string> {
-    const { req, device, host } = manualRequest(loginBuffer, crypto.randomBytes(32));
-    let session: Session | undefined;
-    const failures: string[] = [];
-    for (const t of (await targets('long')).slice(0, 6)) {
+/** 报文里的业务拒绝是确定结论：换接入点、换会话重试都只是重复被拒。 */
+function isBusinessRejection(error: any): boolean {
+    return /rejected: code=/.test(String((error && error.message) || ''));
+}
+
+/** 在已建立的会话上请求一次 wx.login；复用会话时不会产生新的 ManualAuth。 */
+async function requestCodeOnSession(session: Session, appId: string, target: Target): Promise<string> {
+    const env = envelope(session, jsPlain(session.uin, appId, session.hostAppId));
+    const ts = Math.floor(Date.now() / 1000);
+    const hello = pskClientHello(session.ticket, ts);
+    const ek = oneWayKeys(session.psk, 'early data key expansion', crypto.createHash('sha256').update(hello).digest());
+    const type8 = Buffer.from([0, 0, 0, 16, 8, 0, 0, 0, 11, 1, 0, 0, 0, 6, 0, 18, 0, 0, 0, 0]);
+    type8.writeUInt32BE(ts, 16);
+    const body = Buffer.concat([rec(0x19, hello), rec(0x19, gcm(ek.key, ek.iv, 1, 0x19, type8)), rec(0x17, gcm(ek.key, ek.iv, 2, 0x17, env)), rec(0x15, gcm(ek.key, ek.iv, 3, 0x15, Buffer.from([0, 0, 0, 3, 0, 1, 1])))]);
+    const requestHead = `POST /mmtls/${ts.toString(16).padStart(8, '0')} HTTP/1.0\r\nAccept: */*\r\nCache-Control: no-cache\r\nConnection: close\r\nContent-Length: ${body.length}\r\nContent-Type: application/octet-stream\r\nHost: shortcloud.weixin.com\r\nUpgrade: mmtls\r\nUser-Agent: MicroMessenger Client\r\nX-Online-Host: shortcloud.weixin.com\r\n\r\n`;
+    const c = await socket(target.host, target.port, 8000);
+    const chunks: Buffer[] = [];
+    c.s.on('data', chunk => chunks.push(Buffer.from(chunk)));
+    try {
+        await c.send(Buffer.concat([U8(requestHead), body]));
+        // 8 秒兜底定时器原来从不清理；c.send 失败时 c.close() 也被整段跳过，
+        // 泄漏一条 TCP 连接。两条都收进 finally。
+        let waitTimer: ReturnType<typeof setTimeout> | undefined;
         try {
-            const c = await socket(t.ip, t.port);
+            await new Promise<void>((resolve) => {
+                c.s.once('end', resolve);
+                waitTimer = setTimeout(resolve, 8000);
+            });
+        } finally {
+            if (waitTimer) clearTimeout(waitTimer);
+        }
+    } finally {
+        c.close();
+    }
+    const raw = Buffer.concat(chunks);
+    const headerEnd = raw.indexOf('\r\n\r\n');
+    if (headerEnd < 0) throw new Error('ShortLink returned an invalid HTTP response');
+    const responseRecords = records(raw.subarray(headerEnd + 4));
+    const serverHello = responseRecords.find(record => record.type === 0x16)?.body;
+    const appData = responseRecords.find(record => record.type === 0x17)?.body;
+    if (!serverHello || !appData) throw new Error('ShortLink response missing ServerHello/AppData');
+    const transcripts = [Buffer.concat([hello, serverHello]), Buffer.concat([hello, type8, serverHello]), Buffer.concat([hello, serverHello, type8])];
+    for (const transcript of transcripts) {
+        const hk = oneWayKeys(session.psk, 'handshake key expansion', crypto.createHash('sha256').update(transcript).digest());
+        for (const seq of [2, 1, 3]) {
+            try {
+                const decrypted = gcm(hk.key, hk.iv, seq, 0x17, appData, true);
+                const candidates: Buffer[] = [decrypted];
+                try { candidates.unshift(parseShort(decrypted).body); } catch {}
+                for (const candidate of candidates) {
+                    for (let offset = 0; offset < Math.min(220, candidate.length); offset++) {
+                        try {
+                            const plain = lz4(unlayout(session.recvKey, candidate.subarray(offset)));
+                            const code = loginCodeFromPlain(plain);
+                            if (code) return code;
+                        } catch (error: any) {
+                            // 业务拒绝是确定结论，不能被后面的 offset 尝试掩盖掉。
+                            if (isBusinessRejection(error)) throw error;
+                        }
+                    }
+                }
+            } catch (error: any) {
+                if (isBusinessRejection(error)) throw error;
+            }
+        }
+    }
+    throw new Error('ShortLink AppData decrypt/parse failed');
+}
+
+/** 依次尝试短链接入点；业务拒绝直接抛给上层分类，不做无意义的换点重试。 */
+async function tryShortTargets(session: Session, appId: string): Promise<string> {
+    const failures: string[] = [];
+    for (const target of await resolveTargets('short')) {
+        try {
+            return await requestCodeOnSession(session, appId, target);
+        } catch (error: any) {
+            if (isBusinessRejection(error)) throw error;
+            failures.push(`${target.host}:${target.port} ${String((error && error.message) || error).slice(0, 120)}`);
+        }
+    }
+    throw new Error(`Unable to request wx.login code: ${failures.join('; ') || 'no HTTPDNS target available'}`);
+}
+
+/** 完整握手：长链 mmtls + ManualAuth，拿到可复用的会话密钥。 */
+async function establishSession(loginBuffer: string): Promise<Session> {
+    const { req, device, host } = manualRequest(loginBuffer, crypto.randomBytes(32));
+    const failures: string[] = [];
+    for (const target of (await resolveTargets('long')).slice(0, 8)) {
+        let c: any = null;
+        try {
+            c = await socket(target.host, target.port);
             const a = ecdh(); const b = ecdh(); const hello = ch(a.pub, b.pub);
             await c.send(rec(0x16, hello));
             const sh = await c.take();
@@ -137,58 +300,67 @@ export async function getNativeWxLoginCode(loginBuffer: string, appId: string): 
                     const ar = await c.take(); const auth = parseShort(gcm(appKeys.sk, appKeys.si, rxSeq++, ar.type, ar.body, true)); const s = parseManual(auth.body, h.temp);
                     const tickets = certHash ? ticketEntries.filter(entry => entry[0] === 1).map(ticket => ({ psk: expand(secret, 'PSK_ACCESS', certHash!, 32), ticket })) : [];
                     if (!s.sendKey || !s.recvKey || !s.uin || !tickets.length) throw new Error('ManualAuth did not return a usable session');
-                    session = { ...s, deviceId: device, hostAppId: host, ...tickets[0] }; c.close(); break;
+                    const established: Session = { ...s, deviceId: device, hostAppId: host, ...tickets[0] };
+                    return established;
                 }
             }
-        } catch (error: any) { failures.push(`${t.ip}:${t.port} ${String(error?.message || error).slice(0, 120)}`); }
-        if (session) break;
-    }
-    if (!session) throw new Error(`Unable to establish WeChat protocol session: ${failures.join('; ') || 'no HTTPDNS target succeeded'}`);
-    const env = envelope(session, jsPlain(session.uin, appId, session.hostAppId));
-    const early = async (target: Target) => {
-        const ts = Math.floor(Date.now() / 1000);
-        const ticket = session!.ticket;
-        const hello = pskClientHello(ticket, ts);
-        const ek = oneWayKeys(session!.psk, 'early data key expansion', crypto.createHash('sha256').update(hello).digest());
-        const type8 = Buffer.from([0, 0, 0, 16, 8, 0, 0, 0, 11, 1, 0, 0, 0, 6, 0, 18, 0, 0, 0, 0]);
-        type8.writeUInt32BE(ts, 16);
-        const body = Buffer.concat([rec(0x19, hello), rec(0x19, gcm(ek.key, ek.iv, 1, 0x19, type8)), rec(0x17, gcm(ek.key, ek.iv, 2, 0x17, env)), rec(0x15, gcm(ek.key, ek.iv, 3, 0x15, Buffer.from([0, 0, 0, 3, 0, 1, 1])))]);
-        const requestHead = `POST /mmtls/${ts.toString(16).padStart(8, '0')} HTTP/1.0\r\nAccept: */*\r\nCache-Control: no-cache\r\nConnection: close\r\nContent-Length: ${body.length}\r\nContent-Type: application/octet-stream\r\nHost: shortcloud.weixin.com\r\nUpgrade: mmtls\r\nUser-Agent: MicroMessenger Client\r\nX-Online-Host: shortcloud.weixin.com\r\n\r\n`;
-        const c = await socket(target.ip, target.port, 8000);
-        const chunks: Buffer[] = [];
-        c.s.on('data', chunk => chunks.push(Buffer.from(chunk)));
-        await c.send(Buffer.concat([U8(requestHead), body]));
-        await new Promise<void>(resolve => { c.s.on('end', resolve); setTimeout(resolve, 8000); });
-        c.close();
-        const raw = Buffer.concat(chunks);
-        const headerEnd = raw.indexOf('\r\n\r\n');
-        if (headerEnd < 0) throw new Error('ShortLink returned an invalid HTTP response');
-        const responseRecords = records(raw.subarray(headerEnd + 4));
-        const serverHello = responseRecords.find(record => record.type === 0x16)?.body;
-        const appData = responseRecords.find(record => record.type === 0x17)?.body;
-        if (!serverHello || !appData) throw new Error('ShortLink response missing ServerHello/AppData');
-        const transcripts = [Buffer.concat([hello, serverHello]), Buffer.concat([hello, type8, serverHello]), Buffer.concat([hello, serverHello, type8])];
-        for (const transcript of transcripts) {
-            const hk = oneWayKeys(session!.psk, 'handshake key expansion', crypto.createHash('sha256').update(transcript).digest());
-            for (const seq of [2, 1, 3]) {
-                try {
-                    const decrypted = gcm(hk.key, hk.iv, seq, 0x17, appData, true);
-                    const candidates: Buffer[] = [decrypted];
-                    try { candidates.unshift(parseShort(decrypted).body); } catch {}
-                    for (const candidate of candidates) {
-                        for (let offset = 0; offset < Math.min(220, candidate.length); offset++) {
-                            try {
-                                const plain = lz4(unlayout(session!.recvKey, candidate.subarray(offset)));
-                                const outer = pbf(plain); const inner = pbf(requiredField(outer, 2, 'wx.login response field 2'));
-                                const code = inner.get(3);
-                                if (Buffer.isBuffer(code) && code.length) return code.toString();
-                            } catch {}
-                        }
-                    }
-                } catch {}
-            }
+        } catch (error: any) {
+            failures.push(`${target.host}:${target.port} ${String((error && error.message) || error).slice(0, 120)}`);
+        } finally {
+            // 握手中间任一步失败时，原来 try 内局部的 c 没有人关；最多 8 个接入点
+            // 逐个重试会泄漏 8 条 TCP 连接及其 data/end 监听器。
+            if (c) c.close();
         }
-        throw new Error('ShortLink AppData decrypt/parse failed');
-    };
-    let last: Error | undefined; for (const t of await targets('short')) try { return await early(t); } catch (e: any) { last = e; } throw last || new Error('Unable to request wx.login code');
+    }
+    throw new Error(`Unable to establish WeChat protocol session: ${failures.join('; ') || 'no HTTPDNS target succeeded'}`);
+}
+
+/**
+ * 取一次游戏登录 Code。
+ *
+ * 两条路径：
+ *   1. 会话缓存命中（20 分钟内换过）→ 直接用缓存的 PSK/ticket 走短链 early data，
+ *      跳过整个长链握手与 ManualAuth。这条路径不消耗登录预算，也不会在授权层
+ *      留下新的登录记录 —— 这正是 YYB-Go-Enhanced 反复强调的关键。
+ *   2. 未命中 → 完整握手。这一步要新建 ticket + ManualAuth，按账号走登录预算
+ *      （10 分钟 3 次），避免业务流量把 OAuth 层打爆。
+ */
+export async function getNativeWxLoginCode(loginBuffer: string, appId: string, options: { accountId?: string } = {}): Promise<string> {
+    const cacheKey = sessionCacheKey(loginBuffer, appId);
+
+    const cached = getCachedSession(cacheKey);
+    if (cached) {
+        try {
+            return await tryShortTargets(cached, appId);
+        } catch (error: any) {
+            if (isBusinessRejection(error)) throw error;
+            // 会话可能已被服务端回收，退回完整握手再试一次。
+            invalidateCachedSession(cacheKey);
+        }
+    }
+
+    const accountId = String(options.accountId || '');
+    if (accountId) {
+        const budget = loginBudget.take(accountId);
+        if (!budget.allowed) {
+            throw new Error(`登录预算已用尽（${Math.round(loginBudget.windowMs / 60000)} 分钟内已登录 ${budget.used} 次）：${Math.ceil(budget.retryAfterMs / 1000)} 秒后自动恢复，本次不再打上游`);
+        }
+    }
+
+    const session = await establishSession(loginBuffer);
+    setCachedSession(cacheKey, session);
+    try {
+        return await tryShortTargets(session, appId);
+    } catch (error: any) {
+        if (!isBusinessRejection(error)) invalidateCachedSession(cacheKey);
+        throw error;
+    }
+}
+
+/**
+ * 仅导出给单测：解析 wx.login 的 JSLoginResponse。
+ * 这是纯函数，不含网络与状态，单独测能覆盖 -14 这类「业务拒绝优先于 code」的分支。
+ */
+export function parseLoginCodeResponse(plain: Buffer): string | null {
+    return loginCodeFromPlain(plain);
 }
