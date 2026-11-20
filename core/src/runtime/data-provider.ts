@@ -1,6 +1,7 @@
 export {};
 const { findAccountByRef, normalizeAccountRef, resolveAccountId: resolveAccountIdByList } = require('../services/account-resolver');
 const { getSchedulerRegistrySnapshot } = require('../services/scheduler');
+const { getAccountRuntimeState, setAccountRuntimeState } = require('../services/account-runtime-state');
 
 interface DataProviderOptions {
     workers: Record<string, any>;
@@ -20,6 +21,13 @@ interface DataProviderOptions {
     startWorker: (account: any) => boolean;
     stopWorker: (accountId: string) => void;
     restartWorker: (account: any) => void;
+    /**
+     * 撤销账号「掉线后等待重登」的定时器，由 runtime-engine 注入
+     * （`wx-keepalive.cancelPendingRelogin`）。用注入而不是在这里 require，
+     * 是为了让 data-provider 不反向依赖保活模块——保活模块顶层会加载凭证服务，
+     * 测试里靠 Module._load 注入假实现，多一条静态依赖就会提前把真模块钉进缓存。
+     */
+    cancelPendingRelogin?: (accountId: string) => void;
 }
 
 function createDataProvider(options: DataProviderOptions) {
@@ -41,7 +49,23 @@ function createDataProvider(options: DataProviderOptions) {
         startWorker,
         stopWorker,
         restartWorker,
+        cancelPendingRelogin,
     } = options;
+
+    /**
+     * 用户手动「停止」/「启动」/「重启」都是明确的人工意图，必须让自动重登让位：
+     * 等待期内账号没有子进程，`stopWorker` 停不掉这条定时器，到点会把它重新拉起，
+     * 用户看到的就是「点了停止却自己启动了」。
+     */
+    function cancelPendingReloginSafe(accountId: string): void {
+        if (!accountId || typeof cancelPendingRelogin !== 'function') return;
+        try {
+            cancelPendingRelogin(accountId);
+        }
+        catch {
+            // 撤销失败不能影响停止 / 启动流程本身
+        }
+    }
 
     function getStoredAccountsList(): any[] {
         const data = getAccounts();
@@ -415,6 +439,18 @@ function createDataProvider(options: DataProviderOptions) {
             data.accounts.forEach((a: any) => {
                 const worker = workers[a.id];
                 a.running = !!worker;
+                // 账号维度的真实状态：登录中 / 等待重登（带倒计时）/ 运行中 / 已掉线 /
+                // 停止中 / 已停止。账本里没有记录时（本次进程还没碰过这个账号）按
+                // 有无子进程回落到「运行中 / 已停止」，与旧版字段语义保持一致。
+                const runtime = getAccountRuntimeState(a.id);
+                if (runtime) {
+                    a.runtimeState = runtime.state;
+                    a.reloginAt = runtime.state === 'relogin_waiting' ? runtime.reloginAt : 0;
+                }
+                else {
+                    a.runtimeState = a.running ? 'running' : 'stopped';
+                    a.reloginAt = 0;
+                }
                 if (worker && worker.status && worker.status.status && worker.status.status.name) {
                     a.nick = worker.status.status.name;
                 }
@@ -429,6 +465,8 @@ function createDataProvider(options: DataProviderOptions) {
             const accountId = resolveAccountRefId(accountRef);
             const acc = findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
+            // 用户点了「启动」：自动重登的等待应当立即作废，改走这次人工启动。
+            cancelPendingReloginSafe(String(acc.id || accountId || ''));
             startWorker(acc);
             return true;
         },
@@ -437,7 +475,17 @@ function createDataProvider(options: DataProviderOptions) {
             const accountId = resolveAccountRefId(accountRef);
             const acc = findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
-            if (accountId) stopWorker(accountId);
+            if (accountId) {
+                // 用户主动停止 = 明确不想再自动拉起。等待重登阶段账号本身没有子进程，
+                // 只靠 stopWorker 停不掉那条定时器，到点会把它重新启动。
+                cancelPendingReloginSafe(accountId);
+                const hadWorker = !!workers[accountId];
+                stopWorker(accountId);
+                if (!hadWorker) {
+                    // 本来就没在跑：不会有进程退出事件来收尾，直接把状态落成「已停止」。
+                    setAccountRuntimeState(accountId, 'stopped');
+                }
+            }
             return true;
         },
 
@@ -445,6 +493,9 @@ function createDataProvider(options: DataProviderOptions) {
             const accountId = resolveAccountRefId(accountRef);
             const acc = findAccountByAnyRef(accountId || accountRef);
             if (!acc) return false;
+            // 手动重启要走确定的路径，别让一条还没到点的自动重登定时器在背后
+            // 再来一次「换码 + 重启」，把刚起来的连接又打断。
+            cancelPendingReloginSafe(accountId);
             restartWorker(acc);
             return true;
         },

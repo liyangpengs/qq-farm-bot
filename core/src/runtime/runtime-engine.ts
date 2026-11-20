@@ -9,6 +9,8 @@ const { createDataProvider } = require('./data-provider');
 const { createReloginReminderService } = require('./relogin-reminder');
 const { createRuntimeState } = require('./runtime-state');
 const { createWorkerManager } = require('./worker-manager');
+const { startWxKeepAlive, stopWxKeepAlive, applyWxKeepAliveConfig, notifyAccountOffline, cancelPendingRelogin } = require('../services/wx-keepalive');
+const { recordAutoRefreshSuccess, recordAutoRefreshFailure } = require('../services/preflight-stats');
 
 const OPERATION_KEYS = ['harvest', 'farming', 'fertilize', 'plant', 'steal', 'helpFarming', 'taskClaim', 'sell', 'upgrade'];
 
@@ -66,6 +68,9 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         sendConfiguredPush,
     } = reloginReminder;
 
+    // 保活回调要在 workerManager 之后才能拿到 restartWorker，这里用一层间接引用避免循环依赖。
+    const wxKeepAliveBridge: { notify?: (accountId: string, accountName: string, reason: string) => void } = {};
+
     const { startWorker, stopWorker, restartWorker, callWorkerApi } = createWorkerManager({
         fork,
         WorkerThread: Worker,
@@ -92,7 +97,34 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
             runtimeEvents.emit('worker_log', { entry, accountId, accountName });
             if (onLog) onLog(entry, accountId, accountName);
         },
+        onAccountOffline: (accountId: string, accountName: string, reason: string) => {
+            if (typeof wxKeepAliveBridge.notify === 'function') wxKeepAliveBridge.notify(accountId, accountName, reason);
+        },
     });
+
+    wxKeepAliveBridge.notify = (accountId: string, _accountName: string, reason: string) => {
+        notifyAccountOffline(accountId, reason);
+    };
+
+    function startAccountKeepAlive(): void {
+        startWxKeepAlive({
+            restartWorker: (account: any) => restartWorker(account),
+            isAccountRunning: (accountId: string) => !!workers[String(accountId)],
+            log,
+            addAccountLog,
+            // 自动续期账本：只记到期前预防 / 掉线重登，供账号卡片展示无人值守结果。
+            recordPreflightResult: (accountId: string, ok: boolean, at: number) => {
+                if (ok) recordAutoRefreshSuccess(accountId, at);
+                else recordAutoRefreshFailure(accountId, at);
+            },
+        });
+    }
+
+    /** 系统配置里改了「掉线重登」后，把新策略读回来并写进系统日志。 */
+    function applyAccountKeepAliveConfig(): void {
+        applyWxKeepAliveConfig();
+    }
+
     const dataProvider = createDataProvider({
         workers,
         globalLogs: GLOBAL_LOGS,
@@ -111,6 +143,8 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         startWorker,
         stopWorker,
         restartWorker,
+        // 手动停止 / 启动 / 重启要先撤掉「等待重登」，否则定时器到点会把账号拉回来。
+        cancelPendingRelogin,
     });
 
     runtimeEvents.on('log', (entry: any) => {
@@ -170,9 +204,12 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         if (shouldAutoStartAccounts) {
             startAllAccounts();
         }
+
+        startAccountKeepAlive();
     }
 
     function stopAllAccounts(): void {
+        stopWxKeepAlive();
         for (const accountId of Object.keys(workers)) {
             stopWorker(accountId);
         }
@@ -186,6 +223,8 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         start,
         startAllAccounts,
         stopAllAccounts,
+        startAccountKeepAlive,
+        applyAccountKeepAliveConfig,
         broadcastConfigToWorkers,
         broadcastGameConfigReload,
         startWorker,
