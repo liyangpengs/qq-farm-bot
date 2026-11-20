@@ -2,7 +2,7 @@
 import { NButton } from 'naive-ui/es/button'
 import { NDropdown } from 'naive-ui/es/dropdown'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { BUCKETS, formatCount, formatDuration, formatHours, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchAnimalCard from '@/components/ranch/RanchAnimalCard.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
@@ -11,7 +11,7 @@ import { useRanchStore } from '@/stores/ranch'
 
 const { state, loading } = storeToRefs(useRanchStore())
 const { refresh } = useRanchLoader('animals')
-const { disabled, request } = useRanchActions()
+const { disabled, request, requestDirect } = useRanchActions()
 const { remainingSeconds } = useRanchClock()
 
 const pens = computed<any[]>(() => (state.value?.facilities || []).filter((f: any) => f.ranch))
@@ -46,15 +46,23 @@ const buckets = computed(() => BUCKETS.map(bucket => ({
   ...bucket,
   seconds: state.value?.buckets?.find((b: any) => Number(b.id) === bucket.id)?.seconds ?? 0,
 })))
-const feedOptions = computed(() => buckets.value.map(({ id, name, seconds }) => {
-  const organic = id === 7004
-  return {
-    key: organic ? 1 : 2,
-    label: `${name}喂养`,
-    disabled: Number(seconds) <= 0 || !animals.value.some(({ animal }) => animal.canFeed && (organic || !animal.limitedCanUsed)),
-  }
-}))
-const canFeed = computed(() => feedOptions.value.some(option => !option.disabled))
+const feedOptions = computed(() => buckets.value.map(({ id, name, seconds }) => ({
+  key: id === 7004 ? 1 : 2,
+  label: `${name}（剩余 ${formatHours(seconds)}）`,
+})))
+
+// 生产确认和货架上架是两个时点。到达服务器给出的交付时间后只补读一次。
+const deliveryAt = computed(() => Math.max(0, ...animals.value.map(({ animal }) => Number(animal.deliveringUntilMs) || 0)))
+let lastDeliveryRead = 0
+watch([deliveryAt, disabled], ([deadline, blocked], _, onCleanup) => {
+  if (blocked || deadline <= lastDeliveryRead)
+    return
+  const timer = setTimeout(() => {
+    lastDeliveryRead = deadline
+    void refresh()
+  }, remainingSeconds(deadline) * 1000 + 350)
+  onCleanup(() => clearTimeout(timer))
+}, { immediate: true })
 
 const summary = computed(() => [
   { key: 'harvest', label: '可收获', icon: 'i-carbon-wheat text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.canHarvest).length },
@@ -69,7 +77,8 @@ const stock = computed(() => [
 
 /** 倒计时已到但服务器尚未推进阶段时，显示阶段名而不是“0秒”。 */
 function animalRemaining(animal: any) {
-  const seconds = animal.nextAtMs ? remainingSeconds(animal.nextAtMs) : 0
+  const deadline = animal.deliveringUntilMs || animal.nextAtMs
+  const seconds = deadline ? remainingSeconds(deadline) : 0
   return seconds > 0 ? formatDuration(seconds) : ''
 }
 function target(animal: any) {
@@ -87,21 +96,21 @@ function target(animal: any) {
             <small class="ranch-head__count">{{ animals.length }} / {{ capacity }}</small>
           </h3>
           <div class="ranch-actions">
-            <NButton :disabled="disabled || !hazards" @click="request('clean')">
+            <NButton :disabled="disabled || !hazards" @click="requestDirect('clean')">
               <span class="i-carbon-clean" />一键清理
             </NButton>
-            <NDropdown trigger="click" placement="bottom" :options="feedOptions" @select="(type: 1 | 2) => request('feed', { all: true, bucketType: type })">
-              <NButton :disabled="disabled || !canFeed">
+            <NDropdown trigger="click" placement="bottom" :options="feedOptions" @select="(type: 1 | 2) => requestDirect('feed', { all: true, bucketType: type })">
+              <NButton :disabled="disabled || !animals.length">
                 <span class="i-carbon-time" aria-hidden="true" />一键喂养
               </NButton>
             </NDropdown>
-            <NButton :disabled="disabled || !canProduce" @click="request('produce', { all: true })">
+            <NButton :disabled="disabled || !canProduce" @click="requestDirect('produce', { all: true })">
               <span class="i-carbon-circle-dash" />一键生产
             </NButton>
-            <NButton type="primary" :disabled="disabled || !canHarvest" @click="request('harvest', { all: true })">
+            <NButton type="primary" :disabled="disabled || !canHarvest" @click="requestDirect('harvest', { all: true })">
               <span class="i-carbon-flash" />一键收获
             </NButton>
-            <NButton circle quaternary title="刷新牧场" aria-label="刷新牧场" :loading="loading" @click="refresh">
+            <NButton circle quaternary title="刷新牧场" aria-label="刷新牧场" :loading="loading" :disabled="disabled" @click="refresh">
               <template #icon>
                 <span class="i-carbon-renew" />
               </template>
@@ -144,9 +153,9 @@ function target(animal: any) {
                   :remaining="animalRemaining(animal)"
                   actionable
                   :disabled="disabled"
-                  @produce="request('produce', target(animal))"
-                  @harvest="request('harvest', target(animal))"
-                  @feed="type => request('feed', { ...target(animal), bucketType: type })"
+                  @produce="requestDirect('produce', target(animal))"
+                  @harvest="requestDirect('harvest', target(animal))"
+                  @feed="type => requestDirect('feed', { ...target(animal), bucketType: type })"
                   @release="request('release', target(animal))"
                 />
               </div>

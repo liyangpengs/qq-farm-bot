@@ -155,7 +155,7 @@ watch(category, () => failed.value = {})
             </NButton>
           </div>
           <NButton size="small" type="warning" secondary :disabled="disabled || !canSellProducts" @click="request('sell', { all: true })">
-            <span class="i-carbon-shopping-cart-arrow-down mr-1" />出售全部产物
+            <span class="i-carbon-shopping-cart-arrow-down mr-1" />{{ canSellProducts ? '出售全部产物' : '暂无可售动物产物' }}
           </NButton>
         </div>
 
