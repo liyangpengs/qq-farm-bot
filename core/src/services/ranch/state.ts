@@ -237,7 +237,10 @@ async function getState(view = 'animals', shopId?: number, hostGid?: string): Pr
         }
         if (view === 'friends') {
             if (hostGid !== undefined) state.friendRanch = await require('./friends').getFriend(hostGid);
-            else state.friends = (await getRanchFriendList()).map(friend => ({ ...friend, gid: String(friend.gid) }));
+            else {
+                const blacklist = new Set(require('../../models/store').getRanchFriendBlacklist());
+                state.friends = (await getRanchFriendList()).map(friend => ({ ...friend, gid: String(friend.gid), blacklisted: blacklist.has(friend.gid) }));
+            }
         }
         return state;
     });
