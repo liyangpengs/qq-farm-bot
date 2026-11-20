@@ -33,6 +33,7 @@ interface SystemConfig {
     timeZone: string;
     deviceInfo: DeviceInfo;
     autoCodeRefresh?: AutoCodeRefreshConfig;
+    autoStartAccounts?: boolean;
 }
 
 interface RuntimeConfig extends SystemConfig {
@@ -209,6 +210,7 @@ const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     timeZone: DEFAULT_TIME_ZONE,
     deviceInfo: { ...DEFAULT_DEVICE_INFO },
     autoCodeRefresh: { offlineEnabled: true, offlineDelaySeconds: 60 },
+    autoStartAccounts: true,
 };
 
 /**
@@ -296,6 +298,9 @@ function updateRuntimeConfig(newConfig: Partial<SystemConfig>): void {
     if (newConfig.autoCodeRefresh) {
         CONFIG.autoCodeRefresh = normalizeAutoCodeRefresh(newConfig.autoCodeRefresh);
     }
+    if (newConfig.autoStartAccounts !== undefined) {
+        CONFIG.autoStartAccounts = newConfig.autoStartAccounts === true;
+    }
     if (newConfig.deviceInfo) {
         CONFIG.deviceInfo = normalizeDeviceInfo(newConfig.deviceInfo);
         // 同步 os 与 clientVersion 到顶层
@@ -316,6 +321,7 @@ function getRuntimeConfig(): SystemConfig {
         timeZone: CONFIG.timeZone,
         deviceInfo: { ...CONFIG.deviceInfo },
         autoCodeRefresh: { ...CONFIG.autoCodeRefresh },
+        autoStartAccounts: CONFIG.autoStartAccounts !== false,
     };
 }
 

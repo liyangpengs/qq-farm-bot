@@ -120,6 +120,8 @@ function getSystemConfig(): SystemConfig | null {
         ...config,
         // 旧配置没有该字段时默认开启，保证升级后重启自动生效。
         autoCodeRefresh: normalizeAutoCodeRefresh(config.autoCodeRefresh),
+        // 旧配置没有该字段时默认开启：升级前用户从没关过这个开关。
+        autoStartAccounts: config.autoStartAccounts !== false,
     };
 }
 
@@ -182,6 +184,10 @@ function setSystemConfig(config: Partial<SystemConfig> | undefined): SystemConfi
         autoCodeRefresh: normalizeAutoCodeRefresh(config.autoCodeRefresh === undefined
             ? (current?.autoCodeRefresh || DEFAULT_AUTO_CODE_REFRESH)
             : config.autoCodeRefresh),
+        // 同上：缺字段沿用已保存值，避免只保存保活配置时把自动登录关掉。
+        autoStartAccounts: config.autoStartAccounts === undefined
+            ? (current?.autoStartAccounts !== false)
+            : config.autoStartAccounts === true,
     };
     saveGlobalConfig({ systemConfig: next });
     return { ...globalConfig.systemConfig };
