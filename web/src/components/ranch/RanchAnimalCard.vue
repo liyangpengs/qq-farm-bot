@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
-import { NDropdown } from 'naive-ui/es/dropdown'
 import { computed, ref, watch } from 'vue'
+import RanchFeedMenu from '@/components/ranch/RanchFeedMenu.vue'
 
 /** 单只动物：与农场土地卡同一套结构（顶部标签 / 图 / 名称 / 状态 / 进度条），可选底部操作。 */
 const props = withDefaults(defineProps<{
@@ -13,9 +13,10 @@ const props = withDefaults(defineProps<{
   actionable?: boolean
   friend?: boolean
   disabled?: boolean
+  buckets?: ReadonlyArray<{ id: number, name: string, seconds?: number | string }>
 }>(), { pen: '', remaining: '', actionable: false, friend: false, disabled: false })
 
-const emit = defineEmits<{ produce: [], harvest: [], feed: [bucketType: 1 | 2], release: [], stroke: [] }>()
+const emit = defineEmits<{ produce: [], harvest: [], feed: [bucketType: 1 | 2, produceAfterFeed: boolean], release: [], stroke: [] }>()
 const failed = ref(false)
 watch(() => props.animal?.image, () => failed.value = false)
 
@@ -38,10 +39,6 @@ const rounds = computed(() => {
   const max = Number(props.animal?.maxProduceCount) || 0
   return max > 0 ? { done: Math.min(max, Number(props.animal.produceCount) || 0), max } : null
 })
-const feedOptions = computed(() => [
-  { key: 2, label: props.animal.limitedCanUsed ? '普通罐头（本轮已用）' : '普通罐头喂养' },
-  { key: 1, label: '有机罐头喂养' },
-])
 </script>
 
 <template>
@@ -81,11 +78,11 @@ const feedOptions = computed(() => [
       <NButton v-else-if="animal.canProduce" size="tiny" type="primary" secondary :disabled="disabled" @click="emit('produce')">
         生产
       </NButton>
-      <NDropdown v-else-if="animal.canFeed" trigger="click" placement="bottom" :options="feedOptions" @select="(key: 1 | 2) => emit('feed', key)">
-        <NButton size="tiny" secondary :disabled="disabled">
+      <RanchFeedMenu v-else-if="animal.canFeed" v-slot="{ unavailable }" :buckets="buckets" :limited-can-used="animal.limitedCanUsed" :disabled="disabled" @feed="(type, produce) => emit('feed', type, produce)">
+        <NButton size="tiny" secondary aria-haspopup="menu" :disabled="unavailable" :title="unavailable && !disabled ? '可用罐头不足或本轮已使用' : undefined">
           <span class="i-carbon-flash mr-0.5" aria-hidden="true" />喂养
         </NButton>
-      </NDropdown>
+      </RanchFeedMenu>
       <span v-else class="pen__idle">成长中</span>
       <NButton v-if="!friend && animal.canRelease" size="tiny" quaternary :disabled="disabled" :aria-label="`放生${animal.name}，${pen}第${animal.slot}栏`" @click="emit('release')">
         放生

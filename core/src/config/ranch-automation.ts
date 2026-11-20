@@ -4,6 +4,7 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_harvest: true,
     ranch_produce: true,
     ranch_buy: true,
+    ranch_activate_shed: true,
     ranch_upgrade: true,
     ranch_sell: true,
     // 旧总开关仅用于兼容旧配置；运行时分别检查两种货币开关。
@@ -76,7 +77,11 @@ export function normalizeRanchSetting(key: string, value: unknown): boolean | nu
     return value;
 }
 
-export const RANCH_MARKET_SWITCH_KEYS = ['ranch_market_organic_poop', 'ranch_market_organic_pinecone'] as const;
+export const RANCH_MARKET_SWITCH_BY_CURRENCY = {
+    7002: 'ranch_market_organic_poop',
+    1008: 'ranch_market_organic_pinecone',
+} as const;
+export const RANCH_MARKET_SWITCH_KEYS = Object.values(RANCH_MARKET_SWITCH_BY_CURRENCY);
 
 /** 旧配置的总开关只填充缺失的新字段，已明确设置的独立开关优先。 */
 export function migrateRanchMarketAutomation(input: Record<string, any>): Record<string, any> {

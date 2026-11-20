@@ -80,14 +80,16 @@ export function provideRanchActions(): RanchActions {
       const can = input.bucketType === 1 ? '有机罐头' : '普通罐头'
       const remaining = Number(result.bucketRemainingSeconds)
       const duration = remaining > 0 && remaining < 3600 ? formatDuration(remaining) : formatHours(remaining)
-      const message = `喂养完成，${can}剩余 ${duration}${result.autoProduced ? `，已自动开始生产 ${result.autoProduced} 只` : ''}`
+      let message = `喂养完成，${can}剩余 ${duration}`
+      if (input.produceAfterFeed)
+        message += result.autoProduced ? `，已开始生产 ${result.autoProduced} 只` : '，当前没有可生产的动物'
       if (result.autoProductionNotice)
         toast.warning(`${message}。${result.autoProductionNotice}`)
       else
         toast.success(message)
     }
     else {
-      const labels = { feed: '喂养完成', produce: '已开始生产，产物上架后自动更新', harvest: '收获完成', clean: '清理完成' }
+      const labels = { feed: '喂养完成', produce: '已开始生产', harvest: '收获完成', clean: '清理完成' }
       toast.success(result.notice || labels[action])
     }
     if (result.refreshRequired)

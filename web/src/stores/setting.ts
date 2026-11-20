@@ -7,6 +7,7 @@ export interface AutomationConfig {
   ranch_produce?: boolean
   ranch_buy?: boolean
   ranch_upgrade?: boolean
+  ranch_activate_shed?: boolean
   ranch_sell?: boolean
   ranch_market_organic?: boolean
   ranch_market_organic_poop?: boolean

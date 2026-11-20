@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
-import { NDropdown } from 'naive-ui/es/dropdown'
 import { storeToRefs } from 'pinia'
 import { computed, watch } from 'vue'
 import { BUCKETS, formatCount, formatDuration, formatHours, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchAnimalCard from '@/components/ranch/RanchAnimalCard.vue'
+import RanchFeedMenu from '@/components/ranch/RanchFeedMenu.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useRanchStore } from '@/stores/ranch'
@@ -46,12 +46,10 @@ const buckets = computed(() => BUCKETS.map(bucket => ({
   ...bucket,
   seconds: state.value?.buckets?.find((b: any) => Number(b.id) === bucket.id)?.seconds ?? 0,
 })))
-const feedOptions = computed(() => buckets.value.map(({ id, name, seconds }) => ({
-  key: id === 7004 ? 1 : 2,
-  label: `${name}（剩余 ${formatHours(seconds)}）`,
-})))
+const feedable = computed(() => animals.value.filter(({ animal }) => animal.canFeed))
+const normalCanUsed = computed(() => feedable.value.every(({ animal }) => animal.limitedCanUsed))
 
-// 生产确认和货架上架是两个时点。到达服务器给出的交付时间后只补读一次。
+// 只在快照仍有在途产物时补读，正常生产响应已经带回上架后的货架。
 const deliveryAt = computed(() => Math.max(0, ...animals.value.map(({ animal }) => Number(animal.deliveringUntilMs) || 0)))
 let lastDeliveryRead = 0
 watch([deliveryAt, disabled], ([deadline, blocked], _, onCleanup) => {
@@ -64,14 +62,22 @@ watch([deliveryAt, disabled], ([deadline, blocked], _, onCleanup) => {
   onCleanup(() => clearTimeout(timer))
 }, { immediate: true })
 
-/**
- * 禁用按钮只给一个灰壳，用户无法判断是缺罐头还是没动物可喂，所以把原因算出来放到 title 上。
- * 可用时返回 undefined，避免悬停出现无意义的提示。
- */
-const cleanHint = computed(() => (hazards.value ? undefined : '当前没有需要清理的动物'))
-const produceHint = computed(() => (canProduce.value ? undefined : '当前没有可生产的动物'))
-const harvestHint = computed(() => (canHarvest.value ? undefined : '当前没有可收获的动物或货架产物'))
-const feedHint = computed(() => (animals.value.length ? undefined : '当前没有可喂养的动物'))
+const busyHint = computed(() => disabled.value ? (loading.value ? '正在读取牧场' : '请先完成当前牧场操作') : undefined)
+const cleanHint = computed(() => busyHint.value || (hazards.value ? undefined : '栏舍暂无可清理的污物'))
+const produceHint = computed(() => busyHint.value || (canProduce.value ? undefined : '当前没有可生产的动物'))
+const harvestHint = computed(() => busyHint.value || (canHarvest.value ? undefined : '当前没有可收获的动物或货架产物'))
+const feedHint = computed(() => {
+  if (busyHint.value)
+    return busyHint.value
+  if (!feedable.value.length)
+    return '当前没有可喂养的动物'
+  if (!buckets.value.some(bucket => Number(bucket.seconds) > 0 && (bucket.id === 7004 || !normalCanUsed.value))) {
+    return buckets.value.some(bucket => Number(bucket.seconds) > 0)
+      ? '普通罐头本轮已用，有机罐头不足'
+      : '罐头桶可用时长不足'
+  }
+  return undefined
+})
 
 const summary = computed(() => [
   { key: 'harvest', label: '可收获', icon: 'i-carbon-wheat text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.canHarvest).length },
@@ -109,11 +115,11 @@ function target(animal: any) {
             <NButton :disabled="disabled || !hazards" :title="cleanHint" @click="requestDirect('clean')">
               <span class="i-carbon-clean" />一键清理
             </NButton>
-            <NDropdown trigger="click" placement="bottom" :options="feedOptions" @select="(type: 1 | 2) => requestDirect('feed', { all: true, bucketType: type })">
-              <NButton :disabled="disabled || !animals.length" :title="feedHint">
+            <RanchFeedMenu :buckets="buckets" :limited-can-used="normalCanUsed" :disabled="!!feedHint" @feed="(bucketType, produceAfterFeed) => requestDirect('feed', { all: true, bucketType, produceAfterFeed })">
+              <NButton aria-haspopup="menu" :disabled="!!feedHint" :title="feedHint">
                 <span class="i-carbon-time" aria-hidden="true" />一键喂养
               </NButton>
-            </NDropdown>
+            </RanchFeedMenu>
             <NButton :disabled="disabled || !canProduce" :title="produceHint" @click="requestDirect('produce', { all: true })">
               <span class="i-carbon-circle-dash" />一键生产
             </NButton>
@@ -139,6 +145,9 @@ function target(animal: any) {
               <img :src="item.image" alt="">{{ item.label }}<b>{{ item.value }}</b>
             </span>
           </div>
+          <p v-if="busyHint || (animals.length && feedHint)" class="w-full text-xs text-gray-500 dark:text-gray-400" role="status">
+            {{ busyHint || feedHint }}
+          </p>
         </div>
 
         <div class="p-4 sm:p-5">
@@ -161,11 +170,12 @@ function target(animal: any) {
                   :key="`${animal.ranchId}:${animal.id}`"
                   :animal="animal"
                   :remaining="animalRemaining(animal)"
+                  :buckets="buckets"
                   actionable
                   :disabled="disabled"
                   @produce="requestDirect('produce', target(animal))"
                   @harvest="requestDirect('harvest', target(animal))"
-                  @feed="type => requestDirect('feed', { ...target(animal), bucketType: type })"
+                  @feed="(bucketType, produceAfterFeed) => requestDirect('feed', { ...target(animal), bucketType, produceAfterFeed })"
                   @release="request('release', target(animal))"
                 />
               </div>

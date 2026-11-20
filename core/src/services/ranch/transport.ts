@@ -42,6 +42,8 @@ const ROUTES: Record<string, [string, string, string, string?]> = {
     claimTasks: ['taskpb.TaskService', 'BatchClaimTaskReward', 'BatchClaimTaskReward'],
     reportTask: ['taskpb.TaskService', 'ClientReportProgress', 'ClientReportProgress'],
     book: ['illustratedpb.IllustratedService', 'GetIllustratedListV2', 'RanchGetIllustratedListV2'],
+    bookLevels: ['illustratedpb.IllustratedService', 'GetIllustratedLevelListV2', 'GetIllustratedLevelListV2'],
+    clearBookNew: ['illustratedpb.IllustratedService', 'ClearNewUnlockedFruitsV2', 'ClearNewUnlockedFruitsV2'],
     weightBook: ['illustratedpb.IllustratedService', 'GetRanchWeightScoreV2', 'RanchGetRanchWeightScoreV2'],
     claimBook: ['illustratedpb.IllustratedService', 'ClaimAllRewardsV2', 'RanchClaimAllRewardsV2'],
     claimWeight: ['illustratedpb.IllustratedService', 'ClaimRanchWeightScoreRewardV2', 'RanchClaimRanchWeightScoreRewardV2'],

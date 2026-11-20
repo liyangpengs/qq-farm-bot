@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 import AutomationSettingsForm from '@/components/settings/AutomationSettingsForm.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -35,10 +35,17 @@ const { settings, loading: settingsLoading, loadedAccountId } = storeToRefs(sett
 
 const model = ref<any>({})
 const ranchAnimalOptions = ref<Array<{ value: number, label: string, kind: string }>>([])
+const animalOptionsLoading = ref(false)
+const animalOptionsError = ref('')
 const saving = ref(false)
 const error = ref('')
 
 const ready = computed(() => !!currentAccountId.value && loadedAccountId.value === currentAccountId.value)
+const needsAnimalOptions = computed(() => {
+  const auto = model.value.automation
+  return auto?.ranch_strategy === 'preferred' || (auto?.ranch_strategy === 'bag_priority' && auto.ranch_bag_fallback === 'preferred')
+})
+const waitingForAnimalOptions = computed(() => needsAnimalOptions.value && !ranchAnimalOptions.value.length)
 
 /** 只把牧场相关开关交给后端，避免整份账号配置被覆盖。 */
 function ranchAutomationOnly(automation: Record<string, unknown>) {
@@ -65,9 +72,11 @@ async function load() {
   if (!accountId)
     return
   try {
-    await settingStore.fetchSettings(accountId)
+    const loaded = await settingStore.fetchSettings(accountId)
     if (accountId !== currentAccountId.value)
       return
+    if (!loaded)
+      throw new Error('牧场策略读取失败')
     syncFromStore()
   }
   catch (cause) {
@@ -75,9 +84,11 @@ async function load() {
   }
 }
 
-watch(() => currentAccountId.value, () => {
+watch(currentAccountId, (accountId) => {
   model.value = {}
   void load()
+  if (accountId && !ranchAnimalOptions.value.length)
+    void loadAnimalOptions()
 }, { immediate: true })
 
 watch(settings, () => {
@@ -85,18 +96,28 @@ watch(settings, () => {
     syncFromStore()
 })
 
-onMounted(async () => {
+async function loadAnimalOptions() {
+  if (animalOptionsLoading.value)
+    return
+  animalOptionsLoading.value = true
+  animalOptionsError.value = ''
   try {
-    const response = await api.get('/api/ranch/automation-options')
-    if (response.data.ok)
-      ranchAnimalOptions.value = response.data.data
+    const { data } = await api.get('/api/ranch/automation-options', { skipErrorToast: true } as any)
+    if (!data?.ok || !Array.isArray(data.data) || !data.data.length)
+      throw new Error(getApiErrorMessage(data, '牧场动物选项读取失败'))
+    ranchAnimalOptions.value = data.data
   }
-  catch (cause) { showError(cause, '牧场动物选项读取失败') }
-})
+  catch (cause) {
+    animalOptionsError.value = getApiErrorMessage(cause, '牧场动物选项读取失败')
+  }
+  finally {
+    animalOptionsLoading.value = false
+  }
+}
 
 async function save() {
   const accountId = currentAccountId.value
-  if (!accountId || saving.value || !ready.value)
+  if (!accountId || saving.value || !ready.value || waitingForAnimalOptions.value)
     return
   saving.value = true
   error.value = ''
@@ -124,10 +145,13 @@ async function save() {
       <p v-if="error" class="text-sm text-red-600 dark:text-red-400" role="alert">
         {{ error }}
       </p>
-      <p v-if="settingsLoading || !ready" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+      <p v-if="settingsLoading" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400" role="status">
         <span class="i-carbon-circle-dash mx-auto mb-2 inline-block animate-spin text-2xl" />
         加载中...
       </p>
+      <BaseButton v-else-if="!ready" variant="secondary" size="sm" @click="load">
+        重新读取策略
+      </BaseButton>
       <template v-else>
         <AutomationSettingsForm
           v-model="model"
@@ -135,26 +159,28 @@ async function save() {
           panel="strategy"
           hide-save
           :ranch-animal-options="ranchAnimalOptions"
+          :ranch-animal-options-loading="animalOptionsLoading"
+          :ranch-animal-options-error="animalOptionsError"
           :account-id="currentAccountId"
           :connected="currentAccountConnected"
           :saving="saving"
           :fertilizer-land-type-options="fertilizerLandTypeOptions"
           :fertilizer-options="fertilizerOptions"
           @save="save"
+          @reload-animals="loadAnimalOptions"
         />
         <AutomationSettingsForm
           v-model="model"
           in-ranch
           panel="automation"
           hide-save
-          :ranch-animal-options="ranchAnimalOptions"
           :saving="saving"
           :fertilizer-land-type-options="fertilizerLandTypeOptions"
           :fertilizer-options="fertilizerOptions"
           @save="save"
         />
         <div class="flex justify-end">
-          <BaseButton variant="primary" size="sm" :loading="saving" @click="save">
+          <BaseButton variant="primary" size="sm" :loading="saving" :disabled="waitingForAnimalOptions" @click="save">
             保存牧场策略
           </BaseButton>
         </div>

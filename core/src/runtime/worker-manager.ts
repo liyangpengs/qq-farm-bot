@@ -11,6 +11,7 @@ const API_CALL_TIMEOUTS_MS: Record<string, number> = {
     getPetDiaryFriend: 30000,
     scanWeatherFriends: 60000,
     getWeatherFriends: 30000,
+    clearRanchIllustratedNew: 40000,
 };
 
 interface WorkerManagerOptions {
@@ -424,6 +425,21 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 if (error) req.reject(errorFromWorkerPayload(error));
                 else req.resolve(result);
                 worker.requests.delete(id);
+            }
+        } else if (msg.type === 'ranch_friend_blacklist_add') {
+            const gid = Number(msg.gid);
+            if (!Number.isSafeInteger(gid) || gid <= 0) return;
+            try {
+                const { addRanchFriendToBlacklist } = require('../models/store');
+                if (!addRanchFriendToBlacklist(accountId, gid)) return;
+                worker.process.send({ type: 'config_sync', config: buildConfigSnapshotForAccount(accountId) });
+                log('牧场', `${msg.friendName || `GID:${gid}`} 不是好友，已加入牧场黑名单`, {
+                    accountId: String(accountId), accountName: worker.name, module: 'ranch', event: 'ranch_friend_blacklist', result: 'ok',
+                });
+            } catch (error: any) {
+                log('牧场', `同步牧场黑名单失败：${error.message}`, {
+                    accountId: String(accountId), accountName: worker.name, module: 'ranch', event: 'ranch_friend_blacklist', result: 'error',
+                });
             }
         } else if (msg.type === 'friend_blacklist_add') {
             const gid = Number(msg.gid) || 0;
