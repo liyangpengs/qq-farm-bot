@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import CommerceItemImage from '@/components/commerce/CommerceItemImage.vue'
 import CommerceShopBar from '@/components/commerce/CommerceShopBar.vue'
-import { formatCount, useRanchActions, useRanchLoader } from '@/components/ranch/ranch-shared'
+import { formatCount, formatRanchReward, useRanchActions, useRanchLoader } from '@/components/ranch/ranch-shared'
 import RanchAmountDialog from '@/components/ranch/RanchAmountDialog.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
@@ -25,16 +25,16 @@ const shopId = ref(5)
 const canSlot = ref(6)
 const shelf = ref<number | 'all'>('all')
 const autoPlace = ref(false)
-const { refresh } = useRanchLoader(props.tab, () => ({ shopId: props.tab === 'shop' ? shopId.value : props.tab === 'cans' ? canSlot.value : undefined }))
+const { refresh } = useRanchLoader(props.tab === 'cans' ? 'mall' : props.tab, () => ({ shopId: props.tab === 'shop' ? shopId.value : props.tab === 'cans' ? canSlot.value : undefined }))
 
-const ACTION = { shop: 'buy', market: 'exchange', cans: 'buyCan' } as const
+const ACTION = { shop: 'buy', market: 'exchange', cans: 'buyMall' } as const
 const VERB = { shop: '购买', market: '兑换', cans: '购买' } as const
 
 const segments = computed(() => {
   if (props.tab === 'shop')
     return [{ key: 5, label: '幼崽' }, { key: 6, label: '饲料' }]
   if (props.tab === 'cans')
-    return [{ key: 6, label: '常驻商品' }, { key: 7, label: '限时商品' }]
+    return [{ key: 6, label: '礼包商城' }, { key: 7, label: '特惠商城' }]
   const shelves = [...(state.value?.market?.shelves || [])].sort((a: any, b: any) => a.sort - b.sort)
   return [{ key: 'all' as const, label: '全部' }, ...shelves.map((s: any) => ({ key: s.id as number, label: s.name }))]
 })
@@ -66,7 +66,7 @@ const allGoods = computed<RanchGood[]>(() => {
   if (props.tab === 'shop')
     return state.value?.shop?.goods || []
   if (props.tab === 'cans')
-    return state.value?.canShop?.goods || []
+    return state.value?.mall?.goods || []
   return state.value?.market?.goods || []
 })
 const goods = computed(() => props.tab === 'market' && shelf.value !== 'all' ? allGoods.value.filter(g => g.shelfId === shelf.value) : allGoods.value)
@@ -78,9 +78,9 @@ const status = computed(() => {
       return { text: '', tone: 'muted' as const }
     return market.present ? { text: '仓鼠驿站今日到访，可用便便或松果兑换', tone: 'muted' as const } : { text: '仓鼠驿站当前未到访', tone: 'warning' as const }
   }
-  return { text: props.tab === 'shop' ? '牧场商店 · 购买幼崽与饲料' : '罐头商城 · 使用罐头喂养动物', tone: 'muted' as const }
+  return { text: props.tab === 'shop' ? '牧场商店 · 购买幼崽与饲料' : '购买罐头和沙漏', tone: 'muted' as const }
 })
-/** 余额栏只列当前商品实际用到的货币（集市同时用便便和松果，罐头商城可能用钻石）。 */
+/** 余额栏只列当前商品实际用到的货币。 */
 const currencies = computed(() => {
   const result = new Map<number, { id: number, name: string, image: string, amount: number | null }>()
   for (const good of allGoods.value) {
@@ -210,11 +210,11 @@ function priceCaption(good: RanchGood | null) {
             </div>
             <div v-if="good.rewards && good.rewards.length > 1" class="goods-card__rewards">
               <span v-for="reward in good.rewards" :key="reward.id" class="reward-chip" :title="reward.name">
-                <CommerceItemImage :src="reward.image" :alt="reward.name" size="sm" /><b>×{{ formatCount(reward.count) }}</b>
+                <CommerceItemImage :src="reward.image" :alt="reward.name" size="sm" /><b>{{ formatRanchReward(reward) }}</b>
               </span>
             </div>
             <div v-else class="goods-card__single">
-              {{ good.reward.name }} <b>×{{ formatCount(good.reward.count) }}</b>
+              {{ good.reward.name }} <b>{{ formatRanchReward(good.reward) }}</b>
             </div>
             <div class="goods-card__meta">
               <span v-if="good.remaining !== null && good.remaining !== undefined">剩余 {{ good.remaining }}</span>
@@ -247,7 +247,7 @@ function priceCaption(good: RanchGood | null) {
     <RanchAmountDialog
       :show="!!active"
       :title="`${activeVerb}${activeName}`"
-      :name="active?.rewards && active.rewards.length > 1 ? activeName : active ? `${active.reward.name} ×${formatCount(active.reward.count)}` : ''"
+      :name="active?.rewards && active.rewards.length > 1 ? activeName : active ? `${active.reward.name} ${formatRanchReward(active.reward)}` : ''"
       :image="active?.reward?.image"
       :caption="priceCaption(active)"
       :max="active ? maxCount(active) : 1"
@@ -271,7 +271,7 @@ function priceCaption(good: RanchGood | null) {
             购买后放养至{{ active.animal.husbandry_type }}
           </p>
           <p v-if="count !== null && active.rewards && active.rewards.length > 1" class="purchase-detail">
-            {{ active.rewards.map(reward => `${reward.name} ×${formatCount(scaled(reward, count).count)}`).join('、') }}
+            {{ active.rewards.map(reward => `${reward.name} ${formatRanchReward(scaled(reward, count))}`).join('、') }}
           </p>
         </template>
       </template>

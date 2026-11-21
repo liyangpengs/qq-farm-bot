@@ -65,6 +65,17 @@ const operations: OperationsMap = {
     levelUp: 0,
 };
 
+const ranchOperations: Record<string, number> = {
+    harvest: 0,
+    produce: 0,
+    helpFarming: 0,
+    steal: 0,
+};
+
+function restoreOperationCounts(target: Record<string, number>, saved: Record<string, number> = {}): void {
+    for (const key of Object.keys(target)) target[key] = Number(saved?.[key]) || 0;
+}
+
 let currentDateKey: string | null = null;
 
 interface LastState {
@@ -112,10 +123,11 @@ let currentAccountId: string | null = null;
 let sessionStartedAt = Date.now();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-function recordOperation(type: string, count: number = 1): void {
+function recordOperation(type: string, count: number = 1, scene: 'farm' | 'ranch' = 'farm'): void {
     checkAndResetDailyStats();
-    if (operations[type] !== undefined) {
-        operations[type] += count;
+    const target = scene === 'ranch' ? ranchOperations : operations;
+    if (target[type] !== undefined) {
+        target[type] += count;
         scheduleSave();
     }
 }
@@ -125,9 +137,8 @@ function checkAndResetDailyStats(): void {
     const todayKey: string = getTodayKey();
     if (currentDateKey && currentDateKey !== todayKey) {
         console.warn(`[统计] 检测到跨天，重置每日统计 (${currentDateKey} -> ${todayKey})`);
-        Object.keys(operations).forEach((key: string) => {
-            operations[key] = 0;
-        });
+        restoreOperationCounts(operations);
+        restoreOperationCounts(ranchOperations);
     }
     currentDateKey = todayKey;
 }
@@ -143,10 +154,10 @@ function scheduleSave(): void {
 
 function doSave(): void {
     if (!currentAccountId) return;
-    const todayKey: string = getTodayKey();
     const data: any = {
-        date: todayKey,
+        date: currentDateKey ?? getTodayKey(),
         operations: { ...operations },
+        ranchOperations: { ...ranchOperations },
         initialState: { ...initialState },
         savedAt: Date.now(),
     };
@@ -172,20 +183,13 @@ function initStatsWithPersistence(accountId: string, gold: number, exp: number, 
     currentDateKey = todayKey;
     const saved: any = loadPersistedStats(accountId);
 
-    if (saved && saved.date === todayKey) {
-        Object.keys(saved.operations || {}).forEach((key: string) => {
-            if (operations[key] !== undefined) {
-                operations[key] = Number(saved.operations[key]) || 0;
-            }
-        });
+    const isToday = saved?.date === todayKey;
+    restoreOperationCounts(operations, isToday ? saved.operations : undefined);
+    restoreOperationCounts(ranchOperations, isToday ? saved.ranchOperations : undefined);
+    if (isToday) {
         console.warn(`[统计] 已恢复今日统计数据: ${JSON.stringify(saved.operations)}`);
-    } else {
-        Object.keys(operations).forEach((key: string) => {
-            operations[key] = 0;
-        });
-        if (saved) {
-            console.warn(`[统计] 日期已变更，重置统计 (${saved.date} -> ${todayKey})`);
-        }
+    } else if (saved) {
+        console.warn(`[统计] 日期已变更，重置统计 (${saved.date} -> ${todayKey})`);
     }
 
     initStats(gold, exp, coupon);
@@ -282,6 +286,7 @@ function getStats(statusData: any, userState: any, connected: boolean, limits: a
         uptime: process.uptime(),
         sessionElapsedSeconds: Math.max(0, (Date.now() - sessionStartedAt) / 1000),
         operations: operationsSnapshot,
+        ranchOperations: { ...ranchOperations },
         sessionExpGained: session.expGained,
         sessionGoldGained: session.goldGained,
         sessionCouponGained: session.couponGained,

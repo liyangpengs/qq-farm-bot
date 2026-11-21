@@ -38,7 +38,7 @@ const SECTIONS: Record<Section, Tab[]> = {
   mall: [
     { key: 'shop', label: '牧场商店', icon: 'i-carbon-shopping-bag', panel: RanchMallPanel, props: { tab: 'shop' } },
     { key: 'market', label: '仓鼠集市', icon: 'i-carbon-store', panel: RanchMallPanel, props: { tab: 'market' } },
-    { key: 'cans', label: '罐头商城', icon: 'i-carbon-shopping-cart', panel: RanchMallPanel, props: { tab: 'cans' } },
+    { key: 'cans', label: '礼包商城', icon: 'i-carbon-shopping-cart', panel: RanchMallPanel, props: { tab: 'cans' } },
   ],
   friends: [{ key: 'friends', label: '好友', icon: 'i-carbon-user-multiple', panel: RanchFriendsPanel }],
   activity: [{ key: 'activity', label: '活动', icon: 'i-carbon-gift', panel: RanchActivityPanel }],
