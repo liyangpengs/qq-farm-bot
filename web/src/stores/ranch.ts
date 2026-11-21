@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 
-export type RanchView = 'animals' | 'facilities' | 'shop' | 'market' | 'bag' | 'tasks' | 'illustrated' | 'friends' | 'activities' | 'cans'
+export type RanchView = 'overview' | 'mall' | 'animals' | 'facilities' | 'shop' | 'market' | 'bag' | 'tasks' | 'illustrated' | 'friends' | 'activities' | 'cans'
 export interface RanchItem { id: number, name: string, count: string, image: string }
 export interface RanchQuote {
   action: string

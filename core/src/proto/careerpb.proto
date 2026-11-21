@@ -15,6 +15,20 @@ message CareerHarvestItem {
     int64 harvest_count = 2;
 }
 
+message RanchCareerHarvestItem {
+    int64 item_id = 1;
+    int64 harvest_count = 2;
+}
+
+message RanchCareerInfo {
+    repeated RanchCareerHarvestItem harvest_items = 1;
+    int64 total_harvest_count = 2;
+    int64 total_mature_count = 3;
+    int64 total_steal_count = 4;
+    int64 level = 5;
+    int64 exp = 6;
+}
+
 message CareerInfoGetReply {
     repeated CareerHarvestItem harvest_items = 1;
     int64 total_harvest_count = 2;
@@ -26,4 +40,5 @@ message CareerInfoGetReply {
     int64 gid = 11;
     int32 platform = 13;
     string open_id = 15;
+    RanchCareerInfo ranch = 16;
 }

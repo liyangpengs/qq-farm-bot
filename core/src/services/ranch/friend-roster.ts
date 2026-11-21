@@ -6,6 +6,8 @@ export interface RanchFriend {
     avatarUrl: string;
     canSteal: boolean;
     canHelp: boolean;
+    stealLotCount: number;
+    helpCount: number;
     statusAtMs: number;
 }
 
@@ -24,8 +26,8 @@ let cache: (RosterScope & { friends: RanchFriend[]; expiresAt: number }) | null 
 let sync: (RosterScope & { offset: number; friends: Map<number, RanchFriend> }) | null = null;
 
 // 实包核对：can_steal 按当前账号计算，偷过后变为 false；can_help 排除当前账号自己投放的蚊子。
-function farmStatus(status: any, statusAtMs: number): Pick<RanchFriend, 'canSteal' | 'canHelp' | 'statusAtMs'> {
-    return { canSteal: status.can_steal, canHelp: status.can_help, statusAtMs };
+function farmStatus(status: any, statusAtMs: number): Pick<RanchFriend, 'canSteal' | 'canHelp' | 'stealLotCount' | 'helpCount' | 'statusAtMs'> {
+    return { canSteal: status.can_steal, canHelp: status.can_help, stealLotCount: status.steal_lot_count, helpCount: status.help_count, statusAtMs };
 }
 
 function assertRanchSession(socket: unknown): void {
@@ -55,15 +57,15 @@ export async function refreshRanchFriendStatus(friends: RanchFriend[], start: nu
 }
 
 // 调用方持有牧场场景任务。同步分批保留进度，让路后从下一批继续。
-export async function getRanchFriendList(checkpoint?: (completedBatch: boolean) => void): Promise<RanchFriend[]> {
+export async function getRanchFriendList(checkpoint?: (completedBatch: boolean) => void, fresh = false): Promise<RanchFriend[]> {
     const state = getUserState();
     if (state.globalSceneId !== 2) throw error('RANCH_SCENE_REQUIRED', '同步好友需要先进入牧场场景');
     const self = toNum(state.gid);
     const socket = getWs();
     const gids: number[] = CONFIG.platform === 'qq' ? getKnownFriendGids().filter((gid: number) => gid !== self) : [];
     const key = `${CONFIG.platform}:${self}:${gids.join(',')}`;
-    if (cache && cache.socket === socket && cache.key === key && Date.now() < cache.expiresAt) return cache.friends;
-    if (!sync || sync.socket !== socket || sync.key !== key) {
+    if (!fresh && cache && cache.socket === socket && cache.key === key && Date.now() < cache.expiresAt) return cache.friends;
+    if (fresh || !sync || sync.socket !== socket || sync.key !== key) {
         sync = { socket, key, offset: 0, friends: new Map() };
     }
     const current = sync;
