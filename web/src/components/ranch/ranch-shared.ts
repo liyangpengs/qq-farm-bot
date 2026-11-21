@@ -216,6 +216,10 @@ export function formatHours(seconds: number | string) {
 }
 
 /** 数量字段可能超出安全整数，按 BigInt 加千分位。 */
+export function formatRanchReward(item: RanchItem) {
+  return Number(item.id) === 1006 ? formatDuration(item.count) : `×${formatCount(item.count)}`
+}
+
 export function formatCount(value: unknown) {
   const text = String(value ?? '0')
   try {

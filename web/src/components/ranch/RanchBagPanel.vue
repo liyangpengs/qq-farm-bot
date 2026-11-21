@@ -8,6 +8,7 @@ import RanchAmountDialog from '@/components/ranch/RanchAmountDialog.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { useAccountStore } from '@/stores/account'
 import { useRanchStore } from '@/stores/ranch'
 
 /** 幼崽按适用设施分成窝、棚两类，窝在前，不混在一起。 */
@@ -26,6 +27,7 @@ const RANK: Record<Exclude<Category, 'all'>, number> = { product: 0, coop: 1, sh
 const PEN_TYPE: Record<string, number> = { 窝: 6, 棚: 7 }
 
 const { state, loading } = storeToRefs(useRanchStore())
+const { currentAccountId } = storeToRefs(useAccountStore())
 const { refresh } = useRanchLoader('bag')
 const { disabled, request } = useRanchActions()
 
@@ -33,6 +35,8 @@ const items = computed<any[]>(() => state.value?.bag || [])
 const pens = computed<any[]>(() => (state.value?.facilities || []).filter((f: any) => f.ranch && f.state !== 2))
 const category = ref<Category>('all')
 const failed = ref<Record<string, boolean>>({})
+const batchLockMode = ref(false)
+const selectedUids = ref<string[]>([])
 
 function categoryOf(item: any): Exclude<Category, 'all'> {
   if (item.can)
@@ -56,6 +60,18 @@ const sorted = computed(() => [...items.value].sort((a, b) => RANK[categoryOf(a)
   || String(a.uid).localeCompare(String(b.uid))))
 const filtered = computed(() => category.value === 'all' ? sorted.value : sorted.value.filter(item => categoryOf(item) === category.value))
 const canSellProducts = computed(() => items.value.some(item => item.canSell && [106, 107].includes(Number(item.type))))
+const selectedItems = computed(() => filtered.value.filter(item => item.lockable && selectedUids.value.includes(item.uid)))
+
+function toggleBatchLockMode() {
+  batchLockMode.value = !batchLockMode.value
+  selectedUids.value = []
+}
+
+function submitBatchLock(locked: boolean) {
+  const itemUids = selectedItems.value.filter(item => !!item.locked !== locked).map(item => item.uid)
+  if (itemUids.length)
+    void request('setItemLock', { itemUids, locked })
+}
 
 interface BagAction {
   key: 'useCan' | 'place' | 'sell'
@@ -117,7 +133,14 @@ function caption(item: any) {
   const prices = item.sellPrices?.map((price: RanchItem) => `${formatCount(price.count)} ${price.name}`).join(' + ')
   return prices ? `单价 ${prices} · 库存 ${formatCount(item.count)}` : `库存 ${formatCount(item.count)}`
 }
-watch(category, () => failed.value = {})
+watch(category, () => {
+  failed.value = {}
+  selectedUids.value = []
+})
+watch(currentAccountId, () => {
+  batchLockMode.value = false
+  selectedUids.value = []
+})
 </script>
 
 <template>
@@ -154,8 +177,31 @@ watch(category, () => failed.value = {})
               <span :class="cat.icon" class="mr-1.5" />{{ cat.label }}<span class="ml-1 text-xs opacity-70">({{ counts[cat.value] }})</span>
             </NButton>
           </div>
-          <NButton size="small" type="warning" secondary :disabled="disabled || !canSellProducts" @click="request('sell', { all: true })">
-            <span class="i-carbon-shopping-cart-arrow-down mr-1" />{{ canSellProducts ? '出售全部产物' : '暂无可售动物产物' }}
+          <div class="flex flex-wrap items-center gap-2">
+            <NButton
+              v-if="batchLockMode || items.some(item => item.lockable)"
+              attr-type="button"
+              size="small"
+              secondary
+              :aria-pressed="batchLockMode"
+              :disabled="disabled"
+              @click="toggleBatchLockMode"
+            >
+              {{ batchLockMode ? '退出批量' : '批量锁定' }}
+            </NButton>
+            <NButton v-if="!batchLockMode" size="small" type="warning" secondary :disabled="disabled || !canSellProducts" @click="request('sell', { all: true })">
+              <span class="i-carbon-shopping-cart-arrow-down mr-1" />{{ canSellProducts ? '出售全部产物' : '暂无可售动物产物' }}
+            </NButton>
+          </div>
+        </div>
+
+        <div v-if="batchLockMode" class="flex flex-wrap items-center gap-2 pb-3" role="group" aria-label="批量锁定操作">
+          <span class="text-sm text-gray-500">已选 {{ selectedItems.length }} 格</span>
+          <NButton attr-type="button" size="small" secondary :disabled="disabled || !selectedItems.some(item => !item.locked)" @click="submitBatchLock(true)">
+            批量上锁
+          </NButton>
+          <NButton attr-type="button" size="small" secondary :disabled="disabled || !selectedItems.some(item => item.locked)" @click="submitBatchLock(false)">
+            批量解锁
           </NButton>
         </div>
 
@@ -177,7 +223,27 @@ watch(category, () => failed.value = {})
             </div>
             <footer class="bag-item__foot">
               <span class="bag-item__qty"><small>×</small>{{ formatCount(item.count) }}</span>
-              <div class="bag-item__actions">
+              <input
+                v-if="batchLockMode && item.lockable"
+                v-model="selectedUids"
+                type="checkbox"
+                :value="item.uid"
+                :aria-label="`选择${item.name}`"
+                :disabled="disabled"
+                class="h-4 w-4"
+              >
+              <div v-if="!batchLockMode" class="bag-item__actions">
+                <NButton
+                  v-if="item.lockable"
+                  attr-type="button"
+                  size="tiny"
+                  secondary
+                  :disabled="disabled"
+                  :aria-label="`${item.locked ? '解锁' : '上锁'}${item.name}`"
+                  @click="request('setItemLock', { uid: item.uid, locked: !item.locked })"
+                >
+                  {{ item.locked ? '解锁' : '上锁' }}
+                </NButton>
                 <NButton
                   v-for="action in actionsFor(item)"
                   :key="action.key"

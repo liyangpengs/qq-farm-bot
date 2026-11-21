@@ -3,6 +3,7 @@ import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { BUCKETS, formatCount, formatDuration, formatHours, RANCH_IMAGE, sortFacilities, useRanchClock, useRanchLoader, useRanchUnmountReset } from '@/components/ranch/ranch-shared'
+import RanchCareerPanel from '@/components/ranch/RanchCareerPanel.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import RunLogCard from '@/components/RunLogCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -15,7 +16,7 @@ const accountStore = useAccountStore()
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
 const { status, currentAccountConnected: isOnline } = storeToRefs(useStatusStore())
 const { state, loading } = storeToRefs(useRanchStore())
-const { refresh } = useRanchLoader('animals')
+const { refresh } = useRanchLoader('overview')
 const { remainingSeconds } = useRanchClock()
 useRanchUnmountReset()
 
@@ -76,6 +77,19 @@ const todo = computed(() => [
   { key: 'feed', label: '可喂养', icon: 'i-carbon-flash text-sky-500', value: animals.value.filter(({ animal }) => animal.canFeed).length },
   { key: 'clean', label: '待清理', icon: 'i-carbon-clean text-violet-400', value: hazards.value },
 ])
+
+const todayOperations = computed(() => {
+  const current = status.value
+  if (String(current?.accountId || '') !== String(currentAccountId.value || '') || !current?.ranchOperations)
+    return []
+  const operations = current.ranchOperations
+  return [
+    { key: 'harvest', label: '收获', count: operations.harvest },
+    { key: 'produce', label: '生产', count: operations.produce },
+    { key: 'helpFarming', label: '帮忙清理', count: operations.helpFarming },
+    { key: 'steal', label: '偷取货架', count: operations.steal },
+  ]
+})
 
 function facilityMeter(f: any) {
   if (f.state === 2)
@@ -166,6 +180,8 @@ function facilityMeter(f: any) {
         </section>
       </div>
 
+      <RanchCareerPanel v-if="state.career" :key="currentAccountId" :career="state.career" />
+
       <div v-if="blocked" class="ranch-alert" role="status">
         <span class="i-carbon-warning-alt" aria-hidden="true" />
         <span>牧草不足，{{ blocked }} 只动物已暂停成长。</span>
@@ -179,7 +195,23 @@ function facilityMeter(f: any) {
         <RunLogCard />
 
         <div class="min-w-0 flex flex-col gap-6 md:w-1/4">
-          <!-- 待处理：对应农场的“今日统计” -->
+          <section v-if="todayOperations.length" class="farm-card rounded-2xl p-5">
+            <h3 class="mb-3 flex items-center gap-2 text-lg font-display font-medium">
+              <span class="i-carbon-chart-column" aria-hidden="true" />今日收益统计
+            </h3>
+            <dl class="grid grid-cols-2 gap-2">
+              <div v-for="item in todayOperations" :key="item.key" class="ranch-todo" :class="{ 'is-zero': !item.count }">
+                <dt class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ item.label }}
+                </dt>
+                <dd class="m-0 tabular-nums font-semibold">
+                  {{ formatCount(item.count) }}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <!-- 待处理 -->
           <section class="farm-card rounded-2xl p-5">
             <header class="ranch-card-head">
               <h3 class="flex items-center gap-2 text-lg font-display font-medium">

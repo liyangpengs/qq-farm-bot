@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import { formatCount, formatDuration, useRanchActions } from '@/components/ranch/ranch-shared'
+import { formatCount, formatDuration, formatRanchReward, useRanchActions } from '@/components/ranch/ranch-shared'
 import { useRanchStore } from '@/stores/ranch'
 
 const { pending, confirm, cancel } = useRanchActions()
@@ -11,7 +11,7 @@ const quote = computed(() => pending.value?.quote)
 
 /** 罐头桶以秒计量：报价里给的是最多消耗的秒数。 */
 function costAmount(item: { id: number, count: string }) {
-  return [7003, 7004].includes(Number(item.id)) ? `最多 ${formatDuration(item.count)}` : `×${formatCount(item.count)}`
+  return [1006, 7003, 7004].includes(Number(item.id)) ? `最多 ${formatDuration(item.count)}` : `×${formatCount(item.count)}`
 }
 function costName(item: { id: number, name: string }) {
   return Number(item.id) === 7003 ? '普通罐头桶' : Number(item.id) === 7004 ? '有机罐头桶' : item.name
@@ -40,7 +40,7 @@ function costName(item: { id: number, name: string }) {
         <div v-for="reward in quote.rewards" :key="reward.id" class="quote__row">
           <span class="quote__well"><img v-if="reward.image" :src="reward.image" alt=""></span>
           <span class="quote__name">{{ reward.name }}</span>
-          <b class="quote__amount">×{{ formatCount(reward.count) }}</b>
+          <b class="quote__amount">{{ formatRanchReward(reward) }}</b>
         </div>
       </section>
       <p v-if="quote.message || !quote.costItems.length && !quote.rewards.length" class="quote__plain">
