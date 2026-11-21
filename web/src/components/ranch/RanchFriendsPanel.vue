@@ -258,16 +258,21 @@ async function reloadList() {
                 </span>
                 <span class="friend-tags">
                   <span v-if="blacklistedSet.has(Number(friend.gid))" class="f-tag f-tag--blocked">已拉黑</span>
-                  <template v-else-if="selected === friend.gid && detail">
-                    <span class="f-tag f-tag--level">牧场 Lv.{{ detail.level }}</span>
-                    <span class="f-tag" :class="{ 'f-tag--steal': detail.canSteal }">
-                      <span class="i-carbon-shopping-bag" />{{ detail.canSteal ? `可偷 ${detail.stealableShelves} 个货架` : '暂无可偷产物' }}
-                    </span>
-                  </template>
                   <template v-else>
-                    <span v-if="friend.canHelp" class="f-tag">{{ friend.helpCount > 0 ? `可清理 ${friend.helpCount}` : '可清理' }}</span>
-                    <span v-if="friend.canSteal" class="f-tag f-tag--steal">可偷取</span>
-                    <span v-if="!friend.canHelp && !friend.canSteal" class="f-tag">点击查看牧场</span>
+                    <span v-if="friend.canHelp" class="f-tag">
+                      <span class="i-carbon-clean text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                      {{ friend.helpCount > 0 ? `可清理 ${friend.helpCount}` : '可清理' }}
+                    </span>
+                    <template v-if="selected === friend.gid && detail">
+                      <span class="f-tag f-tag--level">牧场 Lv.{{ detail.level }}</span>
+                      <span class="f-tag" :class="{ 'f-tag--steal': detail.canSteal }">
+                        <span class="i-carbon-shopping-bag" />{{ detail.canSteal ? `可偷 ${detail.stealableShelves} 个货架` : '暂无可偷产物' }}
+                      </span>
+                    </template>
+                    <template v-else>
+                      <span v-if="friend.canSteal" class="f-tag f-tag--steal">可偷取</span>
+                      <span v-if="!friend.canHelp && !friend.canSteal" class="f-tag">点击查看牧场</span>
+                    </template>
                   </template>
                 </span>
               </span>

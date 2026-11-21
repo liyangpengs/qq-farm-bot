@@ -80,7 +80,7 @@ const status = computed(() => {
   }
   return { text: props.tab === 'shop' ? '牧场商店 · 购买幼崽与饲料' : '购买罐头和沙漏', tone: 'muted' as const }
 })
-/** 余额栏只列当前商品实际用到的货币（集市同时用便便和松果，罐头商城可能用钻石）。 */
+/** 余额栏只列当前商品实际用到的货币。 */
 const currencies = computed(() => {
   const result = new Map<number, { id: number, name: string, image: string, amount: number | null }>()
   for (const good of allGoods.value) {
