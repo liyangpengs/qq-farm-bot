@@ -4,16 +4,9 @@ const path = require('node:path');
 const isPackaged: boolean = !!(process as any).pkg;
 
 function getResourceRoot(): string {
-    // When compiled (node client.js): __dirname = core/dist/config/ → resources at core/src/
-    // When tsx (tsx client.ts): __dirname = core/src/config/ → resources at core/src/
     const parent = path.join(__dirname, '..');
-    if (!isPackaged) {
-        // Check if we're inside dist/ (compiled mode)
-        const parentName = path.basename(parent);
-        if (parentName === 'dist') {
-            return path.join(parent, '..', 'src');
-        }
-    }
+    // 编译和打包后仍从 src 读取协议、配置和 WASM 等静态资源。
+    if (path.basename(parent) === 'dist') return path.join(parent, '..', 'src');
     return parent;
 }
 
