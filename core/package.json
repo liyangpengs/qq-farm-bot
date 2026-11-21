@@ -42,6 +42,9 @@
     "typescript": "~5.9.3"
   },
   "pkg": {
+    "scripts": [
+      "dist/**/*.js"
+    ],
     "assets": [
       "../web/dist/**/*",
       "dist/gameConfig/**/*",
