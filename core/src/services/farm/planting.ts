@@ -187,8 +187,9 @@ async function plantSeeds(seedId: number | string, landIds: number[], options: {
             for (const expectedId of layout.landIds) reservedLandIds.add(expectedId);
         } catch (e: any) {
             uncertain = true;
-            logWarn('种植', `土地#${landId} 失败: ${e.message}`, {
-                module: 'farm', event: '种植种子', result: 'rpc_uncertain', seedId: toNum(seedId), landId
+            const id = toNum(seedId);
+            logWarn('种植', `土地#${landId} 播种${getPlantNameBySeedId(id)}(${id})失败，${e.message}`, {
+                module: 'farm', event: '种植种子', result: 'rpc_uncertain', seedId: id, landId
             });
             if (options.propagateErrors) throw e;
             break;
@@ -301,7 +302,7 @@ async function plantFromBagSeeds(landsToPlant: any[], landTypeById?: Map<number,
     const allBagSeeds = (Array.isArray(bagSeeds) ? bagSeeds : []);
     
     const stateLevel = toNum(state && state.level);
-    const filteredForLevelAndCount = allBagSeeds.map((seed: any) => ({
+    const normalizedSeeds = allBagSeeds.map((seed: any) => ({
         seedId: seed.seedId,
         name: seed.name,
         count: toNum(seed && seed.count),
@@ -309,18 +310,15 @@ async function plantFromBagSeeds(landsToPlant: any[], landTypeById?: Map<number,
         plantSize: Math.max(1, toNum(seed && seed.plantSize) || getPlantSizeBySeedId(seed && seed.seedId)),
         // 拿不到土地类型时按不限制处理，避免整轮种不下去。
         landTypes: landTypeAvailable ? resolveSeedLandTypes(bagSeedLandTypes, seed && seed.seedId) : null,
-        stateLevel,
     }));
-    // log('种植', `背包种子原始: ${filteredForLevelAndCount.map((s: any) => `${s.name}(${s.seedId})x${s.count},lv${s.requiredLevel},size${s.plantSize}`).join('; ')}`, {
+    // log('种植', `背包种子原始: ${normalizedSeeds.map((s: any) => `${s.name}(${s.seedId})x${s.count},lv${s.requiredLevel},size${s.plantSize}`).join('; ')}`, {
     //     module: 'farm', event: '种植种子', result: 'bag_raw', priority: priorityList, stateLevel,
     // });
 
-    // 背包里已有的种子不再用玩家等级过滤：等级限制主要限制购买，拥有后应允许尝试种植。
-    // 不可种的种子服务端会拒绝，这里记录后继续下一优先种子。
+    // 背包已有种子按优先级选取，种植资格由服务端校验。
     const skippedSeeds: any[] = [];
-    const levelLockedSeeds: any[] = [];
     const usableSeeds = sortBagSeedsForPlanting(
-        filteredForLevelAndCount.filter((seed: any) => {
+        normalizedSeeds.filter((seed: any) => {
             if (seed.count <= 0) {
                 skippedSeeds.push({ seedId: seed.seedId, name: seed.name, reason: 'count_zero', count: seed.count });
                 return false;
@@ -329,20 +327,11 @@ async function plantFromBagSeeds(landsToPlant: any[], landTypeById?: Map<number,
                 skippedSeeds.push({ seedId: seed.seedId, name: seed.name, reason: 'invalid_size', plantSize: seed.plantSize });
                 return false;
             }
-            if (seed.requiredLevel > seed.stateLevel) {
-                levelLockedSeeds.push({ seedId: seed.seedId, name: seed.name, requiredLevel: seed.requiredLevel, stateLevel: seed.stateLevel });
-            }
             return true;
         }),
         priorityList,
     );
 
-    const levelLockedSeedIds = new Set<number>(levelLockedSeeds.map((s: any) => toNum(s && s.seedId)));
-    if (levelLockedSeeds.length > 0) {
-        // log('种植', `背包种子等级锁定但仍尝试: ${levelLockedSeeds.map((s: any) => `${s.name}(${s.seedId}) 需等级${s.requiredLevel}>当前${s.stateLevel}`).join('; ')}`, {
-        //     module: 'farm', event: '种植种子', result: 'bag_seed_level_lock_try', strategy: 'bag_priority', levelLocked: levelLockedSeeds,
-        // });
-    }
     if (skippedSeeds.length > 0) {
         log('种植', `背包种子不可种植: ${skippedSeeds.map((s: any) => `${s.name}(${s.seedId}) ${s.reason}`).join('; ')}`, {
             module: 'farm', event: '种植种子', result: 'bag_seed_skip', strategy: 'bag_priority', skipped: skippedSeeds,
@@ -459,20 +448,12 @@ async function plantFromBagSeeds(landsToPlant: any[], landTypeById?: Map<number,
             if (!result.uncertain && remainingLandIds.length > 0 && isSlicedPlanting(pacing)) pacing.deferred = true;
         }
         
-        if (result.uncertain) {
-            // 等级锁定的种子尝试失败后，不应阻止第二优先策略补种其他空地。
-            if (levelLockedSeedIds.has(seed.seedId)) {
-                log('种植', `背包种子 ${seed.name} 为等级锁定种子，尝试失败但不阻止第二优先策略`, {
-                    module: 'farm', event: '种植种子', result: 'bag_level_lock_fail_continue', seedId: seed.seedId,
-                    requested: layouts.length, planted: result.planted,
-                });
-            } else {
-                fallbackAllowed = false;
-                logWarn('种植', `背包种子 ${seed.name} 的种植或占地状态不确定，为避免误购商店种子，本轮不执行第二优先策略`, {
-                    module: 'farm', event: '种植种子', result: 'bag_plant_uncertain', seedId: seed.seedId,
-                    requested: layouts.length, planted: result.planted
-                });
-            }
+        if (result.uncertain && seed.requiredLevel <= stateLevel) {
+            fallbackAllowed = false;
+            logWarn('种植', `背包种子 ${seed.name} 的种植或占地状态不确定，为避免误购商店种子，本轮不执行第二优先策略`, {
+                module: 'farm', event: '种植种子', result: 'bag_plant_uncertain', seedId: seed.seedId,
+                requested: layouts.length, planted: result.planted
+            });
         }
     }
 
