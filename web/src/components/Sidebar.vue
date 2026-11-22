@@ -8,16 +8,19 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
 import AccountModal from '@/components/AccountModal.vue'
 import RemarkModal from '@/components/RemarkModal.vue'
+import UpdateModal from '@/components/UpdateModal.vue'
 import BrandMark from '@/components/ui/BrandMark.vue'
 import { useCopyFeedback } from '@/composables/useCopyFeedback'
 import { getSpaceMenu } from '@/router/menu'
 import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/account'
 import { useAppStore } from '@/stores/app'
 import { useStatusStore } from '@/stores/status'
+import { useUpdateStore } from '@/stores/update'
 import { useUserStore } from '@/stores/user'
 
 const accountStore = useAccountStore()
 const statusStore = useStatusStore()
+const updateStore = useUpdateStore()
 const appStore = useAppStore()
 const userStore = useUserStore()
 const route = useRoute()
@@ -111,6 +114,7 @@ function openRemarkModal(acc: any) {
 onMounted(() => {
   accountStore.fetchAccounts()
   checkConnection()
+  updateStore.fetchStatus()
   // 获取当前用户信息
   userStore.fetchUserInfo()
 })
@@ -722,8 +726,35 @@ async function copyToken() {
             <span v-if="serverVersion">Core v{{ serverVersion }}</span>
           </div>
         </div>
+        <button
+          v-if="updateStore.status?.hasUpdate || updateStore.status?.state === 'running'"
+          class="update-chip"
+          type="button"
+          @click="updateStore.modalOpen = true"
+        >
+          <span class="update-chip__dot" :class="{ 'animate-pulse': updateStore.status?.state === 'running' }" />
+          {{ updateStore.status?.state === 'running' ? '更新中…' : `新版本 ${updateStore.status?.latestShort || ''}` }}
+        </button>
       </template>
       <div v-else class="sidebar-footer__compact">
+        <NTooltip
+          v-if="updateStore.status?.hasUpdate || updateStore.status?.state === 'running'"
+          placement="right"
+          :show-arrow="false"
+          :theme-overrides="sidebarTooltipTheme"
+        >
+          <template #trigger>
+            <button class="sidebar-footer__icon update-icon" type="button" aria-label="有新版本" @click="updateStore.modalOpen = true">
+              <span class="i-carbon-download text-lg" />
+              <span class="update-icon__dot" :class="{ 'animate-pulse': updateStore.status?.state === 'running' }" />
+            </button>
+          </template>
+          <div class="sidebar-tooltip-content">
+            <strong>{{ updateStore.status?.state === 'running' ? '正在更新' : '有新版本' }}</strong>
+            <span v-if="updateStore.status?.latestShort">最新 {{ updateStore.status?.latestShort }}</span>
+            <span>点击查看更新详情</span>
+          </div>
+        </NTooltip>
         <NTooltip placement="right" :show-arrow="false" :theme-overrides="sidebarTooltipTheme">
           <template #trigger>
             <span class="sidebar-footer__icon" tabindex="0" :aria-label="`连接状态：${connectionStatus.text}`">
@@ -772,6 +803,8 @@ async function copyToken() {
       </div>
     </div>
   </aside>
+
+  <UpdateModal />
 
   <!-- Overlay for mobile when sidebar is open -->
   <div
@@ -1203,5 +1236,51 @@ nav a:hover {
   .app-sidebar.is-collapsed .sidebar-footer {
     padding: 8px 11px 10px;
   }
+}
+
+.update-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 3px 9px;
+  border: 1px solid rgba(24, 160, 88, 0.35);
+  border-radius: 999px;
+  background: rgba(24, 160, 88, 0.12);
+  color: #14824a;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.update-chip:hover {
+  background: rgba(24, 160, 88, 0.2);
+}
+
+.update-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #18a058;
+}
+
+.update-icon {
+  position: relative;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.update-icon__dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #18a058;
+  box-shadow: 0 0 0 2px var(--ui-surface, transparent);
 }
 </style>

@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getSpaceMenu } from '@/router/menu'
+import { useUpdateStore } from '@/stores/update'
 
 const route = useRoute()
+const updateStore = useUpdateStore()
+
+onMounted(() => {
+  updateStore.fetchStatus()
+})
 
 // 与侧栏使用同一份名称和图标，只在底栏放最常用的五项。
 const MOBILE_ITEMS: Array<[string, string?]> = [['dashboard'], ['personal'], ['activity-center'], ['game-mall', '商城'], ['Settings']]
 const items = computed(() => MOBILE_ITEMS.flatMap(([name, shortLabel]) => {
   const inRanch = route.meta.gameSpace === 'ranch'
   const item = getSpaceMenu(inRanch).find(item => item.name === `${inRanch ? 'ranch-' : ''}${name}`)
-  return item ? [{ path: `/${item.path}`, label: shortLabel || item.label, icon: item.icon }] : []
+  return item ? [{ path: `/${item.path}`, name: item.name, label: shortLabel || item.label, icon: item.icon }] : []
 }))
 </script>
 
@@ -24,6 +30,11 @@ const items = computed(() => MOBILE_ITEMS.flatMap(([name, shortLabel]) => {
       exact-active-class="mobile-bottom-nav__item--active"
     >
       <div :class="item.icon" class="mobile-bottom-nav__icon" />
+      <span
+        v-if="item.name?.endsWith('Settings') && updateStore.status?.hasUpdate"
+        class="mobile-bottom-nav__badge"
+        aria-label="有新版本"
+      />
       <span>{{ item.label }}</span>
     </RouterLink>
   </nav>
@@ -57,6 +68,7 @@ const items = computed(() => MOBILE_ITEMS.flatMap(([name, shortLabel]) => {
 }
 
 .mobile-bottom-nav__item {
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: center;
@@ -82,5 +94,15 @@ const items = computed(() => MOBILE_ITEMS.flatMap(([name, shortLabel]) => {
   color: var(--ui-primary);
   background: var(--ui-primary-soft);
   box-shadow: none !important;
+}
+
+.mobile-bottom-nav__badge {
+  position: absolute;
+  top: 3px;
+  right: calc(50% - 18px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #18a058;
 }
 </style>
