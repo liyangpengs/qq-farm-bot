@@ -61,8 +61,8 @@ const ranchSwitches = [
   ['ranch_grass', '自动补充牧草'],
   ['ranch_grass_buy', '牧草不足时购买（金券）'],
   ['ranch_fill_cans', '自动填充库存罐头'],
-  ['ranch_feed_normal', '普通罐头喂养'],
-  ['ranch_feed_organic', '有机罐头喂养'],
+  ['ranch_feed_normal', '普通罐头', 'ranch_feed_normal_stage'],
+  ['ranch_feed_organic', '有机罐头', 'ranch_feed_organic_stage'],
   ['ranch_task', '自动领取任务奖励'],
   ['ranch_illustrated', '自动领取图鉴奖励'],
   ['ranch_share', '每日分享礼包'],
@@ -79,9 +79,11 @@ const ranchStrategies = [
   { label: '指定动物', value: 'preferred' },
   { label: '优先背包幼崽', value: 'bag_priority' },
 ]
-const ranchFeedNormalStages = [
-  { label: '任意可喂养阶段', value: 'any' },
-  { label: '仅最长生长阶段', value: 'longest' },
+const ranchFeedStages = [
+  { label: '可喂养时就用', value: 'any' },
+  { label: '仅最长阶段', value: 'longest' },
+  { label: '成长期 · 加速到生产期', value: 'to_production' },
+  { label: '成熟期 · 距收获 10 分钟内', value: 'near_harvest' },
 ]
 </script>
 
@@ -105,21 +107,21 @@ const ranchFeedNormalStages = [
           </div>
           <div v-if="panel === 'automation'" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div
-              v-for="[key, label] in ranchSwitches"
+              v-for="[key, label, stageKey] in ranchSwitches"
               :key="key"
               class="automation-setting-item"
-              :class="{ 'ranch-feed-setting': key === 'ranch_feed_normal' }"
+              :class="{ 'ranch-feed-setting': stageKey }"
             >
-              <BaseSwitch v-model="settings.automation[key]" :label="label" :disabled="key === 'ranch_grass_buy' && !settings.automation.ranch_grass" />
-              <div v-if="key === 'ranch_feed_normal'" class="ranch-feed-stage">
-                <BaseSelect
-                  v-model="settings.automation.ranch_feed_normal_stage"
-                  aria-label="普通罐头使用阶段"
-                  size="small"
-                  :options="ranchFeedNormalStages"
-                  :disabled="!settings.automation.ranch_feed_normal"
-                />
-              </div>
+              <BaseSwitch v-model="settings.automation[key]" :label="stageKey ? `${label}喂养` : label" :disabled="key === 'ranch_grass_buy' && !settings.automation.ranch_grass" />
+              <BaseSelect
+                v-if="stageKey"
+                v-model="settings.automation[stageKey]"
+                :label="`${label}使用时机`"
+                :aria-label="`${label}使用时机`"
+                size="small"
+                :options="ranchFeedStages"
+                :disabled="!settings.automation[key]"
+              />
             </div>
             <div class="col-span-full text-xs text-gray-500 dark:text-gray-400">
               两种兑换可独立开启；松果按 8 小时、4 小时、1 小时兑换，粑粑按 4 小时、1 小时兑换。到访或货币到账后排队，登录、重连和日常巡查时核对集市状态。
@@ -513,15 +515,9 @@ const ranchFeedNormalStages = [
 }
 
 .ranch-feed-setting {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding-block: 5px;
-}
-
-.ranch-feed-stage {
-  width: 9.5rem;
-  max-width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
 @media (max-width: 1279px) {

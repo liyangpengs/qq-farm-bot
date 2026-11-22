@@ -1,5 +1,9 @@
 import { animalMap, cubMap } from './ranch-animals';
 
+const RANCH_FEED_STAGES = ['any', 'longest', 'to_production', 'near_harvest'] as const;
+export type RanchFeedStage = typeof RANCH_FEED_STAGES[number];
+export const RANCH_NEAR_HARVEST_MS = 10 * 60_000;
+
 export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_harvest: true,
     ranch_produce: true,
@@ -16,8 +20,9 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_grass_threshold_percent: 20,
     ranch_fill_cans: true,
     ranch_feed_normal: true,
-    ranch_feed_normal_stage: 'longest' as 'any' | 'longest',
+    ranch_feed_normal_stage: 'longest' as RanchFeedStage,
     ranch_feed_organic: true,
+    ranch_feed_organic_stage: 'near_harvest' as RanchFeedStage,
     ranch_clean: true,
     ranch_stroke: true,
     ranch_friend_steal: true,
@@ -41,9 +46,11 @@ export const RANCH_SWITCH_KEYS = Object.keys(RANCH_AUTOMATION_DEFAULTS).filter(k
 export const RANCH_ANIMAL_OPTIONS = [...animalMap.values()].filter(animal => animal.enable_flag).map(animal => ({ value: animal.id, label: animal.name, kind: animal.husbandry_type }));
 
 export function normalizeRanchSetting(key: string, value: unknown): boolean | number | string | number[] {
-    if (key === 'ranch_feed_normal_stage') {
-        if (value === 'any' || value === 'longest') return value;
-        throw Object.assign(new Error('请选择有效的普通罐头使用阶段'), { code: 'INVALID_CONFIG' });
+    if (key === 'ranch_feed_normal_stage' || key === 'ranch_feed_organic_stage') {
+        if (typeof value !== 'string' || !RANCH_FEED_STAGES.includes(value as RanchFeedStage)) {
+            throw Object.assign(new Error('请选择有效的罐头使用时机'), { code: 'INVALID_CONFIG' });
+        }
+        return value;
     }
     if (key === 'ranch_strategy' || key === 'ranch_bag_fallback') {
         const allowed = key === 'ranch_strategy' ? ['level', 'preferred', 'bag_priority'] : ['level', 'preferred'];
