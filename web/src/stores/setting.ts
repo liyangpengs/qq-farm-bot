@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 
+type RanchFeedStage = 'any' | 'longest' | 'to_production' | 'near_harvest'
+
 export interface AutomationConfig {
   ranch_harvest?: boolean
   ranch_produce?: boolean
@@ -17,8 +19,9 @@ export interface AutomationConfig {
   ranch_grass_threshold_percent?: number
   ranch_fill_cans?: boolean
   ranch_feed_normal?: boolean
-  ranch_feed_normal_stage?: 'any' | 'longest'
+  ranch_feed_normal_stage?: RanchFeedStage
   ranch_feed_organic?: boolean
+  ranch_feed_organic_stage?: RanchFeedStage
   ranch_clean?: boolean
   ranch_stroke?: boolean
   ranch_friend_steal?: boolean

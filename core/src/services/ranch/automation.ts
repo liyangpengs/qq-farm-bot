@@ -1,11 +1,11 @@
-import type { RanchAutomationConfig } from '../../config/ranch-automation';
+import type { RanchAutomationConfig, RanchFeedStage } from '../../config/ranch-automation';
 import type { RanchFriend } from './friend-roster';
 import type { FriendPatrolProgress } from './friends';
 import { getRanchFriendList, refreshRanchFriendStatus } from './friend-roster';
 import { postToMaster } from '../friend/gid-manager';
 export {};
 
-const { RANCH_SWITCH_KEYS, RANCH_MARKET_SWITCH_KEYS, RANCH_MARKET_SWITCH_BY_CURRENCY, isRanchMarketEnabled } = require('../../config/ranch-automation');
+const { RANCH_SWITCH_KEYS, RANCH_MARKET_SWITCH_KEYS, RANCH_MARKET_SWITCH_BY_CURRENCY, RANCH_NEAR_HARVEST_MS, isRanchMarketEnabled } = require('../../config/ranch-automation');
 const { getAutomation, getRanchFriendBlacklist } = require('../../models/store');
 const { inScene, isUnlocked } = require('./transport');
 const { loadRaw, isPendingShed, shedAwaitingActivation, snapshot, inventory, catalog, market, readMarketRotation, balance } = require('./state');
@@ -193,15 +193,32 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
             }
             checkpoint();
             let raw = await loadRaw(cells);
+            const available = (id: number) => {
+                const funds = balance(raw.bag, id);
+                return BigInt(funds.total) - BigInt(funds.locked) - BigInt(reservations.forCurrentAccount().reserved(`item:${id}`));
+            };
             let nextActionAt = Infinity;
             const updateDeadline = (reopenOwn = false) => {
                 const state = snapshot(raw);
+                const normalStage = auto.ranch_feed_normal && available(7003) > 0n && auto.ranch_feed_normal_stage;
+                const organicStage = auto.ranch_feed_organic && available(7004) > 0n && auto.ranch_feed_organic_stage;
+                const timedFeed = normalStage && normalStage !== 'any' || organicStage && organicStage !== 'any';
                 const upcoming = state.facilities.flatMap((f: any) => [
-                    ...(auto.ranch_harvest || auto.ranch_produce ? (f.ranch?.animals || []).flatMap((a: any) =>
+                    ...(auto.ranch_harvest || auto.ranch_produce || timedFeed ? (f.ranch?.animals || []).flatMap((a: any) =>
                         [a.nextAtMs, auto.ranch_harvest ? a.deliveringUntilMs : 0]) : []),
                     auto.ranch_upgrade && f.upgradeState ? (f.upgradeEndTime < 100_000_000_000 ? f.upgradeEndTime * 1000 : f.upgradeEndTime) : 0,
-                ]).filter((at: any) => at > state.serverTime);
-                nextActionAt = upcoming.length ? Date.now() + Math.min(...upcoming) - state.serverTime : Infinity;
+                ]);
+                if (normalStage === 'near_harvest' || organicStage === 'near_harvest') {
+                    for (const facility of raw.cells.facilities) {
+                        for (const animal of facility.ranch?.animals || []) {
+                            if (animal.stage !== 4 || !animal.can_feed || (organicStage !== 'near_harvest' && animal.limited_can_used)) continue;
+                            const harvestAt = Number(animal.mature_ready_at_ms);
+                            if (harvestAt > state.serverTime) upcoming.push(Math.max(state.serverTime + 1000, harvestAt - RANCH_NEAR_HARVEST_MS));
+                        }
+                    }
+                }
+                const future = upcoming.filter((at: number) => at > state.serverTime);
+                nextActionAt = future.length ? Date.now() + Math.min(...future) - state.serverTime : Infinity;
                 for (const [action, flag] of [['harvest', 'can_harvest'], ['produce', 'can_deliver']]) {
                     const ready = raw.cells.facilities.some((f: any) => f.ranch?.animals.some((a: any) => a[flag])
                         || action === 'harvest' && f.ranch?.shelves.some((s: any) => s.can_collect));
@@ -216,26 +233,27 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
             };
             // 已完成的产出可以提前复查，随后先给本轮的其他待办一次执行机会。
             updateDeadline(!ownRecheckUsed);
-            const available = (id: number) => {
-                const funds = balance(raw.bag, id);
-                return BigInt(funds.total) - BigInt(funds.locked) - BigInt(reservations.forCurrentAccount().reserved(`item:${id}`));
-            };
             const affordable = (good: any, wanted: number) => {
                 const money = available(good.price.id);
                 const count = money > 0n ? money / BigInt(good.price.count) : 0n;
                 return Number(count < BigInt(wanted) ? count : BigInt(wanted));
             };
             async function act(key: string, action: string, input: any = {}, currency?: number, progress?: string, expectedRewardId?: number): Promise<boolean> {
+                const feedStageKey = action === 'feed'
+                    ? input.bucketType === 2 ? 'ranch_feed_normal_stage' : 'ranch_feed_organic_stage'
+                    : undefined;
+                const feedStage: RanchFeedStage | undefined = feedStageKey ? getAutomation()[feedStageKey] : undefined;
                 const canLabel = key === 'ranch_feed_organic' ? '有机罐头'
-                    : key === 'ranch_feed_normal' ? (input.normalStage === 'longest' ? '普通罐头（仅最长阶段）' : '普通罐头') : '';
-                const isEnabled = () => enabled(key) && (key !== 'ranch_grass_buy' || enabled('ranch_grass'));
+                    : key === 'ranch_feed_normal' ? (feedStage === 'longest' ? '普通罐头（仅最长阶段）' : '普通罐头') : '';
+                const isEnabled = () => enabled(key) && (key !== 'ranch_grass_buy' || enabled('ranch_grass'))
+                    && (!feedStageKey || getAutomation()[feedStageKey] === feedStage);
                 if (!isEnabled()) return false;
                 const step = `${action}:${JSON.stringify(input)}${progress === undefined ? '' : `:${progress}`}`;
                 if (completedSteps.has(step)) return false;
                 checkpoint(action === 'exchange');
                 let label = action;
                 try {
-                    const quote = await prepareAction(action, input);
+                    const quote = await prepareAction(action, input, feedStage);
                     label = quote.label;
                     if (quote.skipped || currency && quote.costItems.some((cost: any) => cost.id !== currency)
                         || expectedRewardId !== undefined && (quote.rewards.length !== 1 || Number(quote.rewards[0].id) !== expectedRewardId)) {
@@ -249,9 +267,9 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     const parent = getAmbientSendContext();
                     const result = await runWithSendContext({
                         check: (service: string, method: string) => parent?.check(service, method) || (isEnabled() ? null
-                            : Object.assign(new Error('牧场操作开关已关闭'), { code: 'RANCH_AUTOMATION_DISABLED' })),
+                            : Object.assign(new Error('牧场操作设置已变化'), { code: 'RANCH_AUTOMATION_DISABLED' })),
                         onSent: (service: string, method: string) => parent?.onSent(service, method),
-                    }, () => operate(action, { ...input, expected: quote.expected }));
+                    }, () => operate(action, { ...input, expected: quote.expected }, feedStage));
                     completedSteps.add(step);
                     markStep(action);
                     if (result.status === 'skipped') {
@@ -457,7 +475,7 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     logCanFeed(normalStage === 'longest' ? '普通罐头（仅最长阶段）' : '普通罐头', '罐头桶没有可用时长，本轮未喂养', 'skipped');
                     return;
                 }
-                await act('ranch_feed_normal', 'feed', { all: true, bucketType: 2, normalStage });
+                await act('ranch_feed_normal', 'feed', { all: true, bucketType: 2 });
             });
             await phase('feed-organic', async () => {
                 if (!enabled('ranch_feed_organic')) return;
