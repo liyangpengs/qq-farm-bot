@@ -436,7 +436,7 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     for (const original of raw.cells.facilities.filter((f: any) => f.state === 1 && f.feed_machine)) {
                         const id = quantity(original.instance_id);
                         let room = original.capacity - original.feed_machine.feed_count;
-                        if (room <= 0 || original.feed_machine.feed_count * 100 >= original.capacity * auto.ranch_grass_threshold_percent) continue;
+                        if (room <= 0 || original.feed_machine.feed_count * 100 > original.capacity * auto.ranch_grass_threshold_percent) continue;
                         let stock = Math.max(0, Number(available(7001)));
                         if (stock < room && enabled('ranch_grass_buy')) {
                             const shop = await catalog(raw, 6);

@@ -8,6 +8,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useAccountStore } from '@/stores/account'
 import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
+import { useToastStore } from '@/stores/toast'
 
 // 牧场的自动化开关与养殖策略独立成页，避免和农场账号设置混在一起。
 const fertilizerLandTypeOptions = [
@@ -29,6 +30,7 @@ const fertilizerOptions = [
 
 const accountStore = useAccountStore()
 const settingStore = useSettingStore()
+const toast = useToastStore()
 const { currentAccountId } = storeToRefs(accountStore)
 const { currentAccountConnected } = storeToRefs(useStatusStore())
 const { settings, loading: settingsLoading, loadedAccountId } = storeToRefs(settingStore)
@@ -128,6 +130,7 @@ async function save() {
     if (!result.ok)
       throw new Error(result.error || '保存失败')
     syncFromStore()
+    toast.success('牧场策略已保存')
   }
   catch (cause) {
     showError(cause, '牧场策略保存失败')

@@ -4,7 +4,8 @@ import { storeToRefs } from 'pinia'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 import CareerHarvestSteal from '@/components/CareerHarvestSteal.vue'
-import { formatCount, useRanchActions } from '@/components/ranch/ranch-shared'
+import { formatCount, RANCH_IMAGE, useRanchActions } from '@/components/ranch/ranch-shared'
+import RanchAmountDialog from '@/components/ranch/RanchAmountDialog.vue'
 import RanchAnimalCard from '@/components/ranch/RanchAnimalCard.vue'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -20,7 +21,11 @@ const { disabled, request } = useRanchActions()
 
 const friends = ref<any[]>([])
 const listLoaded = ref(false)
-const selected = ref('')
+const expandedGids = ref<Record<string, boolean>>({})
+const detailsByGid = ref<Record<string, any>>({})
+const errorsByGid = ref<Record<string, string>>({})
+const loadingGid = ref('')
+const grassDialogGid = ref('')
 const query = ref('')
 const failedAvatars = ref<Record<string, boolean>>({})
 const showBlacklist = ref(false)
@@ -77,8 +82,6 @@ async function toggleBlacklist(gid: string | number) {
     if (!data?.ok)
       throw new Error(getApiErrorMessage(data, '牧场黑名单保存失败'))
     blacklistGids.value = data.data.gids
-    if (data.data.blacklisted && Number(selected.value) === Number(gid))
-      selected.value = ''
     toast.success(data.data.blacklisted ? '已加入牧场黑名单' : '已移出牧场黑名单')
   }
   catch (cause) {
@@ -103,16 +106,108 @@ const blacklistItems = computed(() => blacklistGids.value.map((gid) => {
   return { gid, name: friend?.name || `GID:${gid}`, avatarUrl: friend?.avatarUrl || '' }
 }))
 
-const visible = computed(() => {
-  const keyword = query.value.trim()
-  return keyword ? friends.value.filter(f => String(f.name || '').includes(keyword) || String(f.gid).includes(keyword)) : friends.value
+watch(blacklistGids, (gids) => {
+  for (const gid of gids)
+    collapseFriend(String(gid))
 })
-const detail = computed(() => selected.value && state.value?.friendRanch?.gid === selected.value ? state.value.friendRanch : null)
-const detailShelves = computed(() => (detail.value?.ranches || []).flatMap((r: any) => r.shelves.map((s: any) => ({ ...s, key: `${r.id}:${s.slot}` }))))
-watch(detail, (live) => {
-  if (!live)
+
+function detailOf(gid: unknown) {
+  return detailsByGid.value[String(gid ?? '')] ?? null
+}
+
+function grassAvailableOf(friendDetail: any) {
+  return friendDetail?.grassAvailable ?? '0'
+}
+
+function grassRoomOf(friendDetail: any) {
+  return friendDetail?.feedMachine ? friendDetail.feedMachine.capacity - friendDetail.feedMachine.count : 0
+}
+
+function grassLimitOf(friendDetail: any) {
+  return Math.max(0, Math.min(Number(grassAvailableOf(friendDetail)), grassRoomOf(friendDetail)))
+}
+
+function detailShelvesOf(friendDetail: any) {
+  return (friendDetail?.ranches || []).flatMap((r: any) =>
+    (r.shelves || []).map((s: any) => ({ ...s, key: `${r.id}:${s.slot}` })),
+  )
+}
+
+const visible = computed(() => {
+  const keyword = query.value.trim().toLowerCase()
+  return keyword
+    ? friends.value.filter(f => String(f.name || '').toLowerCase().includes(keyword) || String(f.gid).includes(keyword))
+    : friends.value
+})
+
+const visibleEntries = computed(() => visible.value.map((friend) => {
+  const gid = String(friend.gid ?? '')
+  const detail = detailOf(gid)
+  const blacklisted = blacklistedSet.value.has(Number(gid))
+  return {
+    friend,
+    gid,
+    expanded: !blacklisted && Boolean(expandedGids.value[gid]),
+    blacklisted,
+    detail,
+    error: errorsByGid.value[gid] || '',
+    shelves: detail ? detailShelvesOf(detail) : [],
+    grassAvailable: grassAvailableOf(detail),
+    grassRoom: grassRoomOf(detail),
+    grassLimit: grassLimitOf(detail),
+  }
+}))
+
+const expandedCount = computed(() => Object.keys(expandedGids.value).length)
+const grassDialogDetail = computed(() => grassDialogGid.value ? detailOf(grassDialogGid.value) : null)
+const grassDialogMachine = computed(() => grassDialogDetail.value?.feedMachine ?? null)
+const grassDialogAvailable = computed(() => grassAvailableOf(grassDialogDetail.value))
+const grassDialogLimit = computed(() => grassLimitOf(grassDialogDetail.value))
+
+function resetExpandedState() {
+  expandedGids.value = {}
+  detailsByGid.value = {}
+  errorsByGid.value = {}
+  loadingGid.value = ''
+  grassDialogGid.value = ''
+}
+
+watch(() => state.value?.friendRanch, (live) => {
+  if (!live?.gid)
     return
-  const friend = friends.value.find(entry => entry.gid === live.gid)
+  const liveGid = String(live.gid)
+  const nextDetails: Record<string, any> = {}
+  for (const [gid, cached] of Object.entries(detailsByGid.value)) {
+    if (gid === liveGid || !cached)
+      continue
+    nextDetails[gid] = {
+      ...cached,
+      strokeRemaining: live.strokeRemaining,
+      mosquitoRemaining: live.mosquitoRemaining,
+      grassAvailable: live.grassAvailable,
+      ranches: Array.isArray(cached.ranches)
+        ? cached.ranches.map((pen: any) => ({
+            ...pen,
+            animals: Array.isArray(pen.animals)
+              ? pen.animals.map((animal: any) => ({
+                  ...animal,
+                  canStroke: live.strokeRemaining > 0 && Boolean(animal.mutation?.canStroke) && !animal.stroked,
+                }))
+              : pen.animals,
+          }))
+        : cached.ranches,
+    }
+  }
+  nextDetails[liveGid] = live
+  detailsByGid.value = nextDetails
+
+  if (errorsByGid.value[liveGid]) {
+    const nextErrors = { ...errorsByGid.value }
+    delete nextErrors[liveGid]
+    errorsByGid.value = nextErrors
+  }
+
+  const friend = friends.value.find(entry => String(entry.gid) === liveGid)
   if (friend) {
     friend.canHelp = live.cleanableHazards > 0
     friend.helpCount = live.cleanableHazards
@@ -147,7 +242,7 @@ async function enter(id: string) {
 }
 
 watch(currentAccountId, (id) => {
-  selected.value = ''
+  resetExpandedState()
   friends.value = []
   listLoaded.value = false
   showBlacklist.value = false
@@ -162,21 +257,86 @@ watch(currentAccountId, (id) => {
   else ranch.reset()
 }, { immediate: true })
 
-async function toggle(friend: any) {
+async function fetchFriendDetail(id: string, gid: string) {
+  loadingGid.value = gid
+  if (errorsByGid.value[gid]) {
+    const nextErrors = { ...errorsByGid.value }
+    delete nextErrors[gid]
+    errorsByGid.value = nextErrors
+  }
+  try {
+    await ranch.load(id, 'friends', undefined, gid)
+    if (!alive || id !== String(currentAccountId.value || ''))
+      return
+    if (!detailsByGid.value[gid] && error.value)
+      errorsByGid.value = { ...errorsByGid.value, [gid]: error.value }
+  }
+  finally {
+    if (loadingGid.value === gid)
+      loadingGid.value = ''
+  }
+}
+
+function collapseFriend(gid: string) {
+  if (expandedGids.value[gid]) {
+    const nextExpanded = { ...expandedGids.value }
+    delete nextExpanded[gid]
+    expandedGids.value = nextExpanded
+  }
+  if (grassDialogGid.value === gid)
+    grassDialogGid.value = ''
+}
+
+async function toggle(friend: any, event: Event) {
+  const gid = String(friend.gid ?? '')
   const id = String(currentAccountId.value || '')
-  if (!id || disabled.value || blacklistedSet.value.has(Number(friend.gid)))
+  if (!id || !gid || disabled.value || blacklistedSet.value.has(Number(gid)))
     return
-  if (selected.value === friend.gid) {
-    selected.value = ''
+  if (expandedGids.value[gid]) {
+    collapseFriend(gid)
     return
   }
-  selected.value = friend.gid
-  await ranch.load(id, 'friends', undefined, friend.gid)
+  const scrollEl = (event.currentTarget as HTMLElement).closest<HTMLElement>('.page-scroll')
+  const savedTop = scrollEl?.scrollTop
+  expandedGids.value = { ...expandedGids.value, [gid]: true }
+  await nextTick()
+  if (scrollEl && savedTop !== undefined && scrollEl.scrollTop !== savedTop)
+    scrollEl.scrollTop = savedTop
+  await fetchFriendDetail(id, gid)
 }
+
+async function refreshFriend(gid: string) {
+  const id = String(currentAccountId.value || '')
+  if (!id || !gid || disabled.value)
+    return
+  await fetchFriendDetail(id, gid)
+}
+
+function collapseAll() {
+  expandedGids.value = {}
+  grassDialogGid.value = ''
+}
+
+function openGrassDialog(gid: string) {
+  grassDialogGid.value = gid
+}
+
+function submitGrass(count: number) {
+  const targetDetail = grassDialogDetail.value
+  const machine = grassDialogMachine.value
+  grassDialogGid.value = ''
+  if (targetDetail && machine) {
+    void request('addGrass', { hostGid: targetDetail.gid, facilityId: machine.id, count }, {
+      costItems: [{ id: 7001, count: String(count) }],
+      rewards: [],
+    })
+  }
+}
+
 async function reloadList() {
   const id = String(currentAccountId.value || '')
   if (id && !disabled.value) {
-    selected.value = ''
+    resetExpandedState()
     void loadBlacklist()
     await loadList(id)
   }
@@ -192,13 +352,16 @@ async function reloadList() {
           <span class="i-carbon-search" aria-hidden="true" />
           <input v-model="query" type="search" placeholder="搜索好友" aria-label="搜索好友">
         </label>
+        <NButton v-if="!showBlacklist && expandedCount > 1" size="small" quaternary @click="collapseAll">
+          全部收起
+        </NButton>
         <NButton secondary size="small" :disabled="!currentAccountId" :title="showBlacklist ? '返回好友列表' : '牧场黑名单'" :aria-label="showBlacklist ? '返回好友列表' : '牧场黑名单'" @click="toggleBlacklistView">
           <template #icon>
             <span class="i-carbon-subtract-alt" />
           </template>
           {{ showBlacklist ? '返回好友' : '牧场黑名单' }}
         </NButton>
-        <NButton secondary circle :title="showBlacklist ? '刷新黑名单' : '刷新好友'" :aria-label="showBlacklist ? '刷新黑名单' : '刷新好友'" :loading="showBlacklist ? blacklistLoading : loading && !selected" :disabled="showBlacklist ? blacklistBusy : disabled && !loading" @click="showBlacklist ? loadBlacklist() : reloadList()">
+        <NButton secondary circle :title="showBlacklist ? '刷新黑名单' : '刷新好友'" :aria-label="showBlacklist ? '刷新黑名单' : '刷新好友'" :loading="showBlacklist ? blacklistLoading : loading && !loadingGid" :disabled="showBlacklist ? blacklistBusy : disabled && !loading" @click="showBlacklist ? loadBlacklist() : reloadList()">
           <template #icon>
             <span class="i-carbon-renew" />
           </template>
@@ -241,37 +404,37 @@ async function reloadList() {
         <span class="i-svg-spinners-90-ring-with-bg" />
       </div>
       <EmptyState v-else-if="listLoaded && !friends.length" title="暂无好友" description="添加游戏好友后可以互相拜访牧场" icon="i-carbon-user-multiple" />
-      <EmptyState v-else-if="listLoaded && !visible.length" title="没有匹配的好友" description="换个昵称或 GID 试试" icon="i-carbon-search" />
+      <EmptyState v-else-if="listLoaded && !visibleEntries.length" title="没有匹配的好友" description="换个昵称或 GID 试试" icon="i-carbon-search" />
 
       <div v-else class="friends__list">
-        <div v-for="friend in visible" :key="friend.gid" class="friend-card" :class="{ 'is-expanded': selected === friend.gid, 'is-blacklisted': blacklistedSet.has(Number(friend.gid)) }">
+        <div v-for="entry in visibleEntries" :key="entry.gid" class="friend-card" :class="{ 'is-expanded': entry.expanded, 'is-blacklisted': entry.blacklisted }">
           <div class="friend-row">
-            <button type="button" class="friend-open" :aria-expanded="selected === friend.gid" :aria-label="`${friend.name}，查看牧场`" :disabled="disabled || blacklistedSet.has(Number(friend.gid))" @click="toggle(friend)">
+            <button type="button" class="friend-open" :aria-expanded="entry.expanded" :aria-label="`${entry.friend.name}，查看牧场`" :disabled="disabled || entry.blacklisted" @click="toggle(entry.friend, $event)">
               <span class="friend-avatar">
-                <img v-if="friend.avatarUrl && !failedAvatars[friend.gid]" :src="friend.avatarUrl" alt="" loading="lazy" @error="failedAvatars[friend.gid] = true">
+                <img v-if="entry.friend.avatarUrl && !failedAvatars[entry.gid]" :src="entry.friend.avatarUrl" alt="" loading="lazy" @error="failedAvatars[entry.gid] = true">
                 <span v-else class="i-carbon-user" />
               </span>
               <span class="friend-main">
                 <span class="friend-name-row">
-                  <strong class="friend-name" :title="friend.name">{{ friend.name }}</strong>
-                  <span class="friend-gid">{{ friend.gid }}</span>
+                  <strong class="friend-name" :title="entry.friend.name">{{ entry.friend.name }}</strong>
+                  <span class="friend-gid">{{ entry.gid }}</span>
                 </span>
                 <span class="friend-tags">
-                  <span v-if="blacklistedSet.has(Number(friend.gid))" class="f-tag f-tag--blocked">已拉黑</span>
+                  <span v-if="entry.blacklisted" class="f-tag f-tag--blocked">已拉黑</span>
                   <template v-else>
-                    <span v-if="friend.canHelp" class="f-tag">
+                    <span v-if="entry.friend.canHelp" class="f-tag">
                       <span class="i-carbon-clean text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                      {{ friend.helpCount > 0 ? `可清理 ${friend.helpCount}` : '可清理' }}
+                      {{ entry.friend.helpCount > 0 ? `可清理 ${entry.friend.helpCount}` : '可清理' }}
                     </span>
-                    <template v-if="selected === friend.gid && detail">
-                      <span class="f-tag f-tag--level">牧场 Lv.{{ detail.level }}</span>
-                      <span class="f-tag" :class="{ 'f-tag--steal': detail.canSteal }">
-                        <span class="i-carbon-shopping-bag" />{{ detail.canSteal ? `可偷 ${detail.stealableShelves} 个货架` : '暂无可偷产物' }}
+                    <template v-if="entry.expanded && entry.detail">
+                      <span class="f-tag f-tag--level">牧场 Lv.{{ entry.detail.level }}</span>
+                      <span class="f-tag" :class="{ 'f-tag--steal': entry.detail.canSteal }">
+                        <span class="i-carbon-shopping-bag" />{{ entry.detail.canSteal ? `可偷 ${entry.detail.stealableShelves} 个货架` : '暂无可偷产物' }}
                       </span>
                     </template>
                     <template v-else>
-                      <span v-if="friend.canSteal" class="f-tag f-tag--steal">可偷取</span>
-                      <span v-if="!friend.canHelp && !friend.canSteal" class="f-tag">点击查看牧场</span>
+                      <span v-if="entry.friend.canSteal" class="f-tag f-tag--steal">可偷取</span>
+                      <span v-if="!entry.friend.canHelp && !entry.friend.canSteal" class="f-tag">点击查看牧场</span>
                     </template>
                   </template>
                 </span>
@@ -281,119 +444,196 @@ async function reloadList() {
             <button
               type="button"
               class="friend-blacklist-btn"
-              :class="{ 'is-out': blacklistedSet.has(Number(friend.gid)) }"
-              :aria-label="blacklistedSet.has(Number(friend.gid)) ? `移出${friend.name}黑名单` : `将${friend.name}加入黑名单`"
+              :class="{ 'is-out': entry.blacklisted }"
+              :aria-label="entry.blacklisted ? `移出${entry.friend.name}黑名单` : `将${entry.friend.name}加入黑名单`"
               :disabled="blacklistBusy || !!blacklistError"
               :title="blacklistError || undefined"
-              @click="toggleBlacklist(friend.gid)"
+              @click="toggleBlacklist(entry.gid)"
             >
-              {{ blacklistedSet.has(Number(friend.gid)) ? '移出黑名单' : '加入黑名单' }}
+              {{ entry.blacklisted ? '移出黑名单' : '加入黑名单' }}
             </button>
           </div>
 
-          <div v-if="selected === friend.gid" class="friend-shelves">
-            <div v-if="loading && !detail" class="flex justify-center py-6">
+          <div v-if="entry.expanded" class="friend-shelves">
+            <div v-if="loadingGid === entry.gid && !entry.detail" class="flex justify-center py-6">
               <span class="i-svg-spinners-90-ring-with-bg text-2xl text-green-600" />
             </div>
-            <template v-else-if="detail">
-              <p v-if="detail.notice" class="friend-shelves__notice" role="alert">
-                {{ detail.notice }}
+            <template v-else-if="entry.detail">
+              <p v-if="entry.detail.notice" class="friend-shelves__notice" role="alert">
+                {{ entry.detail.notice }}
               </p>
-              <CareerHarvestSteal v-if="detail.career" :career="detail.career" />
-              <div class="friend-interactions">
-                <span>今日可抚摸 <b>{{ detail.strokeRemaining }}</b> 次</span>
-                <span>今日可放蚊子 <b>{{ detail.mosquitoRemaining }}</b> 次</span>
-                <NButton size="small" secondary :disabled="disabled || !detail.cleanableHazards" @click="request('cleanFriend', { hostGid: friend.gid })">
-                  一键清理
-                </NButton>
-              </div>
-              <section v-for="pen in detail.ranches" :key="pen.id" class="friend-pen">
-                <div class="friend-shelves__head">
-                  <h4>{{ pen.name }} <small>蚊子 {{ pen.mosquitoes }} / {{ pen.mosquitoLimit }}</small></h4>
-                  <NButton size="small" secondary :disabled="disabled || !pen.mosquitoRoom || !detail.mosquitoRemaining" :aria-label="`向好友${pen.name}放蚊子`" @click="request('putMosquito', { hostGid: friend.gid, ranchId: pen.id })">
-                    放蚊子
-                  </NButton>
+
+              <div class="friend-overview">
+                <div v-if="entry.detail.career" class="friend-overview__career">
+                  <CareerHarvestSteal :career="entry.detail.career" variant="tiles" />
                 </div>
-                <div class="friend-pen__animals">
-                  <RanchAnimalCard
-                    v-for="animal in pen.animals" :key="animal.id" :animal="animal" :pen="pen.name"
-                    friend actionable :disabled="disabled"
-                    @stroke="request('stroke', { hostGid: friend.gid, ranchId: pen.id, animalId: animal.id })"
-                  />
-                </div>
-              </section>
-              <div class="friend-shelves__head">
-                <span><span class="i-carbon-box" aria-hidden="true" />货架产物</span>
-                <NButton size="small" type="primary" :disabled="disabled || !detail.canSteal" @click="request('steal', { hostGid: friend.gid })">
-                  <template #icon>
-                    <span class="i-carbon-shopping-bag" />
-                  </template>
-                  一键偷取
-                </NButton>
-              </div>
-              <div v-if="detailShelves.length" class="friend-shelves__grid">
-                <div v-for="shelf in detailShelves" :key="shelf.key" class="shelf" :class="{ 'is-stealable': shelf.canSteal }">
-                  <span class="shelf__slot">货架 {{ shelf.slot }}</span>
-                  <div class="shelf__products">
-                    <span v-for="product in shelf.products" :key="product.id" :title="product.name">
-                      <img :src="product.image" alt="">{{ product.name }}<b>×{{ formatCount(product.count) }}</b>
+                <div class="friend-overview__toolbar">
+                  <div class="friend-overview__stats">
+                    <span v-if="entry.detail.feedMachine" class="friend-stat">
+                      <span class="i-carbon-wheat text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                      <span>牧草机 <b>{{ formatCount(entry.detail.feedMachine.count) }} / {{ formatCount(entry.detail.feedMachine.capacity) }}</b></span>
+                    </span>
+                    <span class="friend-stat" :class="{ 'is-zero': !entry.detail.strokeRemaining }">
+                      <span class="i-carbon-favorite text-rose-500 dark:text-rose-400" aria-hidden="true" />
+                      <span>今日可抚摸 <b>{{ entry.detail.strokeRemaining }}</b> 次</span>
+                    </span>
+                    <span class="friend-stat" :class="{ 'is-zero': !entry.detail.mosquitoRemaining }">
+                      <span class="i-carbon-debug text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                      <span>今日可放蚊子 <b>{{ entry.detail.mosquitoRemaining }}</b> 次</span>
                     </span>
                   </div>
-                  <span class="shelf__state">{{ shelf.canSteal ? '可偷取' : '不可偷' }}</span>
+                  <div class="friend-overview__actions">
+                    <NButton
+                      v-if="entry.detail.feedMachine"
+                      size="small"
+                      :type="entry.grassLimit > 0 ? 'primary' : 'default'"
+                      secondary
+                      :disabled="disabled || !entry.grassLimit"
+                      @click="openGrassDialog(entry.gid)"
+                    >
+                      <template #icon>
+                        <span class="i-carbon-wheat" />
+                      </template>
+                      {{ entry.grassRoom <= 0 ? '牧草已满' : !entry.grassLimit ? '牧草库存不足' : '赠送牧草' }}
+                    </NButton>
+                    <NButton
+                      size="small"
+                      :type="entry.detail.cleanableHazards > 0 ? 'primary' : 'default'"
+                      secondary
+                      :disabled="disabled || !entry.detail.cleanableHazards"
+                      @click="request('cleanFriend', { hostGid: entry.gid })"
+                    >
+                      <template #icon>
+                        <span class="i-carbon-clean" />
+                      </template>
+                      {{ entry.detail.cleanableHazards > 0 ? `一键清理 (${entry.detail.cleanableHazards})` : '一键清理' }}
+                    </NButton>
+                    <NButton
+                      size="small"
+                      quaternary
+                      circle
+                      title="刷新好友牧场"
+                      aria-label="刷新好友牧场"
+                      :loading="loadingGid === entry.gid"
+                      :disabled="disabled"
+                      @click="refreshFriend(entry.gid)"
+                    >
+                      <template #icon>
+                        <span class="i-carbon-renew" />
+                      </template>
+                    </NButton>
+                  </div>
                 </div>
               </div>
-              <p v-else class="friend-shelves__empty">
-                好友的货架上暂时没有产物
-              </p>
+
+              <section v-for="pen in entry.detail.ranches" :key="pen.id" class="friend-section friend-pen">
+                <header class="friend-section__head">
+                  <div class="friend-section__title">
+                    <i class="friend-section__bar" aria-hidden="true" />
+                    <h4>{{ pen.name }}</h4>
+                    <span class="friend-section__meta">{{ pen.animals.length }} 只</span>
+                    <span class="friend-pill" :class="{ 'is-full': !pen.mosquitoRoom }">
+                      <span class="i-carbon-debug" aria-hidden="true" />
+                      蚊子 <b>{{ pen.mosquitoes }} / {{ pen.mosquitoLimit }}</b>
+                    </span>
+                  </div>
+                  <NButton
+                    size="small"
+                    :type="pen.mosquitoRoom > 0 && entry.detail.mosquitoRemaining > 0 ? 'primary' : 'default'"
+                    secondary
+                    :disabled="disabled || !pen.mosquitoRoom || !entry.detail.mosquitoRemaining"
+                    :aria-label="`向好友${pen.name}放蚊子`"
+                    @click="request('putMosquito', { hostGid: entry.gid, ranchId: pen.id })"
+                  >
+                    <template #icon>
+                      <span class="i-carbon-debug" />
+                    </template>
+                    放蚊子
+                  </NButton>
+                </header>
+                <div v-if="pen.animals.length" class="friend-pen__animals">
+                  <RanchAnimalCard
+                    v-for="animal in pen.animals"
+                    :key="animal.id"
+                    :animal="animal"
+                    friend
+                    actionable
+                    :disabled="disabled"
+                    @stroke="request('stroke', { hostGid: entry.gid, ranchId: pen.id, animalId: animal.id })"
+                  />
+                </div>
+                <p v-else class="friend-section__empty">
+                  {{ pen.name }}里暂时没有动物
+                </p>
+              </section>
+
+              <section class="friend-section friend-shelf-box">
+                <header class="friend-section__head">
+                  <div class="friend-section__title">
+                    <i class="friend-section__bar" aria-hidden="true" />
+                    <h4>货架产物</h4>
+                    <span class="friend-section__meta">{{ entry.shelves.length ? `${entry.shelves.length} 个货架` : '空' }}</span>
+                    <span v-if="entry.detail.canSteal" class="friend-pill is-highlight">
+                      可偷 {{ entry.detail.stealableShelves }} 个
+                    </span>
+                  </div>
+                  <NButton size="small" type="primary" :disabled="disabled || !entry.detail.canSteal" @click="request('steal', { hostGid: entry.gid })">
+                    <template #icon>
+                      <span class="i-carbon-shopping-bag" />
+                    </template>
+                    一键偷取
+                  </NButton>
+                </header>
+                <div v-if="entry.shelves.length" class="friend-shelves__grid">
+                  <div v-for="shelf in entry.shelves" :key="shelf.key" class="shelf" :class="{ 'is-stealable': shelf.canSteal }">
+                    <span class="shelf__slot">货架 {{ shelf.slot }}</span>
+                    <div class="shelf__products">
+                      <span v-for="product in shelf.products" :key="product.id" :title="product.name">
+                        <img :src="product.image" alt="">{{ product.name }}<b>×{{ formatCount(product.count) }}</b>
+                      </span>
+                    </div>
+                    <span class="shelf__state">{{ shelf.canSteal ? '可偷取' : '不可偷' }}</span>
+                  </div>
+                </div>
+                <p v-else class="friend-section__empty">
+                  好友的货架上暂时没有产物
+                </p>
+              </section>
             </template>
-            <p v-else-if="error" class="friend-shelves__notice" role="alert">
-              {{ error }}
+            <p v-else-if="entry.error" class="friend-shelves__notice" role="alert">
+              {{ entry.error }}
             </p>
           </div>
         </div>
       </div>
     </RanchGate>
+    <RanchAmountDialog
+      :show="!!grassDialogGid && !!grassDialogMachine"
+      title="赠送牧草"
+      name="牧草"
+      :image="RANCH_IMAGE(7001)"
+      :caption="`赠送给 ${grassDialogDetail?.name ?? ''} · 可用牧草 ${formatCount(grassDialogAvailable)}`"
+      :max="grassDialogLimit"
+      submit-text="确认赠送"
+      @close="grassDialogGid = ''"
+      @submit="submitGrass"
+    />
   </div>
 </template>
 
 <style scoped>
-.friend-interactions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  color: var(--ui-muted);
-  font-size: 12px;
-}
-
-.friend-interactions b {
-  color: var(--ui-primary);
-}
-.friend-pen {
-  display: grid;
-  gap: 10px;
-  margin: 14px 0;
-}
-.friend-pen h4 {
-  margin: 0;
-  font-size: 14px;
-}
-.friend-pen h4 small {
-  margin-left: 6px;
-  color: var(--ui-subtle);
-  font-weight: normal;
-}
-.friend-pen__animals {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
-  gap: 10px;
+.friends,
+.friends__list,
+.friend-card,
+.friend-shelves {
+  overflow-anchor: none;
 }
 
 .friends {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   padding-bottom: 24px;
 }
 
@@ -441,7 +681,7 @@ async function reloadList() {
 .friends__list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .friend-card {
@@ -655,48 +895,195 @@ async function reloadList() {
 .friend-shelves {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 14px;
+  padding: 16px 18px 18px;
   border-top: 1px solid var(--ui-border);
   background: color-mix(in srgb, var(--ui-surface-soft) 55%, transparent);
 }
 
-.friend-shelves__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.friend-shelves__head > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ui-ink);
-  font-size: 14px;
-  font-weight: var(--fw-600);
-}
-
 .friend-shelves__notice {
   margin: 0;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-radius: 10px;
   color: var(--ui-danger);
   background: var(--ui-danger-soft);
   font-size: 13px;
 }
 
-.friend-shelves__empty {
+.friend-overview {
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+}
+
+.friend-overview__career {
+  padding: 12px 14px;
+}
+
+.friend-overview__career :deep(.career-tiles) {
+  gap: 10px;
+}
+
+.friend-overview__career :deep(.career-tile) {
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.friend-overview__career :deep(.career-tile__value) {
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.friend-overview__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 11px 14px;
+}
+
+.friend-overview__career + .friend-overview__toolbar {
+  border-top: 1px solid var(--ui-border);
+}
+
+.friend-overview__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.friend-stat {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  color: var(--ui-muted);
+  background: var(--ui-surface-soft);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.friend-stat b {
+  color: var(--ui-ink);
+  font-weight: var(--fw-650);
+}
+
+.friend-stat.is-zero {
+  opacity: 0.65;
+}
+
+.friend-overview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.friend-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+}
+
+.friend-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.friend-section__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.friend-section__bar {
+  width: 3px;
+  height: 14px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--ui-primary);
+}
+
+.friend-section__title h4 {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: 14px;
+  font-weight: var(--fw-650);
+  line-height: 1.3;
+}
+
+.friend-section__meta {
   color: var(--ui-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.friend-pill {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: var(--ui-muted);
+  background: var(--ui-surface-soft);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.friend-pill b {
+  color: var(--ui-ink);
+  font-weight: var(--fw-600);
+}
+
+.friend-pill.is-full {
+  opacity: 0.72;
+}
+
+.friend-pill.is-highlight {
+  color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+  font-weight: var(--fw-600);
+}
+
+.friend-section__empty {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--ui-border-strong);
+  border-radius: 10px;
+  color: var(--ui-subtle);
+  background: color-mix(in srgb, var(--ui-surface-soft) 50%, transparent);
   font-size: 13px;
   text-align: center;
 }
 
+.friend-pen__animals {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .friend-shelves__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 10px;
 }
 
 .shelf {
@@ -704,14 +1091,15 @@ async function reloadList() {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border: 1px solid var(--ui-border);
-  border-radius: 12px;
-  background: var(--ui-surface);
+  border-radius: 10px;
+  background: var(--ui-surface-soft);
 }
 
 .shelf.is-stealable {
-  border-color: color-mix(in srgb, var(--ui-primary) 40%, var(--ui-border));
+  border-color: color-mix(in srgb, var(--ui-primary) 42%, var(--ui-border));
+  background: color-mix(in srgb, var(--ui-primary-soft) 45%, var(--ui-surface-soft));
 }
 
 .shelf__slot {
@@ -757,6 +1145,13 @@ async function reloadList() {
   font-weight: var(--fw-600);
 }
 
+@media (max-width: 1199px) {
+  .friend-pen__animals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
 @media (max-width: 767px) {
   .friend-row {
     padding: 12px;
@@ -779,7 +1174,37 @@ async function reloadList() {
   }
 
   .friend-shelves {
+    gap: 12px;
     padding: 12px;
+  }
+
+  .friend-overview__career,
+  .friend-overview__toolbar {
+    padding: 10px 12px;
+  }
+
+  .friend-overview__actions {
+    width: 100%;
+  }
+
+  .friend-overview__actions :deep(.n-button:not(.n-button--circle)) {
+    flex: 1 1 auto;
+  }
+
+  .friend-section {
+    padding: 12px;
+  }
+
+  .friend-pen__animals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+@media (max-width: 479px) {
+  .friend-pen__animals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 }
 </style>
