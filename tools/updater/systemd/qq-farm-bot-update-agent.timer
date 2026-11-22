@@ -1,0 +1,10 @@
+[Unit]
+Description=Fallback poll for qq-farm-bot update requests
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

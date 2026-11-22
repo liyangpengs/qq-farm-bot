@@ -1,0 +1,11 @@
+[Unit]
+Description=React to qq-farm-bot panel update requests
+
+[Path]
+# Edit these two paths if your data volume is not named qq-farm-data.
+PathExists=/var/lib/docker/volumes/qq-farm-data/_data/update-check-request
+PathExists=/var/lib/docker/volumes/qq-farm-data/_data/update-request.json
+Unit=qq-farm-bot-update-agent.service
+
+[Install]
+WantedBy=paths.target

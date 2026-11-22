@@ -1,0 +1,13 @@
+[Unit]
+Description=qq-farm-bot panel update request agent
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=REPO=/opt/qq-farm-bot
+Environment=OPS=/opt/qq-farm-bot-ops
+Environment=DATA=/var/lib/docker/volumes/qq-farm-data/_data
+EnvironmentFile=-/etc/qq-farm-bot-updater.env
+ExecStart=/opt/qq-farm-bot-ops/update-agent.sh
+TimeoutStartSec=1800

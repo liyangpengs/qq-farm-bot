@@ -1,0 +1,13 @@
+[Unit]
+Description=qq-farm-bot upstream update check
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=REPO=/opt/qq-farm-bot
+Environment=OPS=/opt/qq-farm-bot-ops
+EnvironmentFile=-/etc/qq-farm-bot-updater.env
+ExecStart=/opt/qq-farm-bot-ops/update-check.sh
+Nice=10
+TimeoutStartSec=1800
