@@ -1,6 +1,8 @@
 import { useStorage } from '@vueuse/core'
 import axios from 'axios'
+import { useAppUpdateStore } from '@/stores/app-update'
 import { useToastStore } from '@/stores/toast'
+import { isTransientNetworkError } from '@/utils/panel-update'
 
 const tokenRef = useStorage('admin_token', '')
 const accountIdRef = useStorage('current_account_id', '')
@@ -49,6 +51,12 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use((response) => {
+  const appUpdate = useAppUpdateStore()
+  appUpdate.notifyBackendReachable()
+  const observedBuildId = response?.data?.data?.webBuildId
+  if (typeof observedBuildId === 'string' && observedBuildId)
+    appUpdate.observeBuildId(observedBuildId)
+
   const responseData = response?.data
   const skipToast = (response?.config as any)?.skipErrorToast
   if (responseData && typeof responseData === 'object' && responseData.ok === false) {
@@ -66,6 +74,15 @@ api.interceptors.response.use((response) => {
     return Promise.reject(error)
 
   const toast = useToastStore()
+  const appUpdate = useAppUpdateStore()
+  const isLoginRequest = String(error.config?.url || '').includes('/api/login')
+  const transient = isTransientNetworkError(error)
+  if (error.response && Number(error.response.status) < 500)
+    appUpdate.notifyBackendReachable()
+  if (transient && !isLoginRequest)
+    appUpdate.notifyBackendUnavailable()
+  const suppressTransientToast = transient && !isLoginRequest && appUpdate.reconnecting
+
   const normalizedMessage = getApiErrorMessage(error, '')
   if (normalizedMessage) {
     error.message = normalizedMessage
@@ -91,7 +108,7 @@ api.interceptors.response.use((response) => {
       if (backendError === '账号未运行' || backendError === 'API Timeout') {
         return Promise.reject(error)
       }
-      if (!skipToast) {
+      if (!skipToast && !suppressTransientToast) {
         toast.error(backendError || '请求失败，请稍后重试')
       }
     }
@@ -102,7 +119,7 @@ api.interceptors.response.use((response) => {
     }
   }
   else if (error.request) {
-    if (!skipToast) {
+    if (!skipToast && !suppressTransientToast) {
       toast.error('网络错误，无法连接到服务器')
     }
   }

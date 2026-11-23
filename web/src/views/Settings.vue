@@ -3,7 +3,7 @@ import { NButton } from 'naive-ui/es/button'
 import { NTab } from 'naive-ui/es/tabs'
 import { NTimePicker } from 'naive-ui/es/time-picker'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api, { getApiErrorMessage } from '@/api'
 import AccountModal from '@/components/AccountModal.vue'
@@ -15,9 +15,12 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
+import { useUnsavedEditGuard } from '@/composables/useUnsavedEditGuard'
 import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/account'
+import { useAppUpdateStore } from '@/stores/app-update'
 import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
+import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
 
 const fertilizerLandTypeOptions = [
@@ -36,6 +39,8 @@ const accountStore = useAccountStore()
 const userStore = useUserStore()
 const settingStore = useSettingStore()
 const statusStore = useStatusStore()
+const appUpdateStore = useAppUpdateStore()
+const toast = useToastStore()
 
 type SettingsTab = 'account' | 'strategy' | 'automation' | 'system'
 const storedTab = localStorage.getItem('settings-active-tab')
@@ -148,7 +153,7 @@ onMounted(async () => {
   }
   if (currentAccountId.value)
     await loadStrategyData(currentAccountId.value)
-  await Promise.all([loadSystemConfig(), loadDevicePresets()])
+  await Promise.all([loadSystemConfig(), loadDevicePresets(), loadUpdateStatus()])
 })
 
 function openSettings(account: any) {
@@ -753,6 +758,10 @@ watch(() => [
   }
 }, { immediate: true })
 
+const savedStrategySnapshot = ref('')
+const savedAutomationSnapshot = ref('')
+const savedOfflineSnapshot = ref('')
+
 function syncLocalStrategySettings() {
   if (settings.value) {
     localStrategySettings.value = JSON.parse(JSON.stringify({
@@ -774,6 +783,7 @@ function syncLocalStrategySettings() {
         ...(settings.value.friendQuietHours || {}),
       },
     }))
+    savedStrategySnapshot.value = JSON.stringify(localStrategySettings.value)
   }
 }
 
@@ -786,7 +796,7 @@ async function loadStrategyData(accountId = currentAccountId.value) {
     return
   syncLocalStrategySettings()
   syncLocalAutomationSettings()
-  syncLocalOfflineSettings()
+  syncLocalOfflineSettings(true)
   if (isAccountConnected(accountId))
     await fetchSeedOptions(accountId)
 }
@@ -823,6 +833,9 @@ async function saveStrategySettings() {
 }
 
 watch(currentAccountId, (accountId) => {
+  savedOfflineSnapshot.value = ''
+  savedAutomationSnapshot.value = ''
+  savedStrategySnapshot.value = ''
   strategySaving.value = false
   automationSaving.value = false
   draggingBagSeedId.value = null
@@ -1013,6 +1026,7 @@ function syncLocalAutomationSettings() {
     localAutomationSettings.value.autoAcceptHarvestStealEnabled = settings.value.autoAcceptHarvestStealEnabled ?? true
     localAutomationSettings.value.autoAcceptHarvestStealHarvest = settings.value.autoAcceptHarvestStealHarvest ?? 8
     localAutomationSettings.value.autoAcceptHarvestStealSteal = settings.value.autoAcceptHarvestStealSteal ?? 1
+    savedAutomationSnapshot.value = JSON.stringify(localAutomationSettings.value)
   }
 }
 
@@ -1159,7 +1173,9 @@ function openChannelDocs() {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-function syncLocalOfflineSettings() {
+function syncLocalOfflineSettings(force = false) {
+  if (!force && savedOfflineSnapshot.value && JSON.stringify(localOffline.value) !== savedOfflineSnapshot.value)
+    return
   if (settings.value?.offlineReminder) {
     const saved = JSON.parse(JSON.stringify(settings.value.offlineReminder))
     const next = {
@@ -1184,6 +1200,7 @@ function syncLocalOfflineSettings() {
     }
 
     localOffline.value = next
+    savedOfflineSnapshot.value = JSON.stringify(next)
   }
 }
 
@@ -1212,7 +1229,7 @@ function validateDingTalkWebhook(): string {
 }
 
 watch(settings, () => {
-  syncLocalOfflineSettings()
+  syncLocalOfflineSettings(false)
 }, { deep: true })
 
 async function handleChangePassword() {
@@ -1262,6 +1279,7 @@ async function handleSaveOffline() {
     const res = await settingStore.saveOfflineConfig(localOffline.value)
 
     if (res.ok) {
+      savedOfflineSnapshot.value = JSON.stringify(localOffline.value)
       showAlert('下线提醒设置已保存', 'primary')
     }
     else {
@@ -1302,6 +1320,8 @@ async function handleTestOffline() {
 const systemConfigSaving = ref(false)
 const systemConfigLoading = ref(false)
 const loginSettingsSaving = ref(false)
+const savedSystemConfigSnapshot = ref('')
+const savedLoginSettingsSnapshot = ref('')
 
 const defaultDeviceInfo = {
   os: 'Windows',
@@ -1412,6 +1432,8 @@ async function loadSystemConfig() {
       defaultSystemConfig.value = normalizeSystemConfig(data.data.default, defaultSystemConfig.value)
       localSystemConfig.value = normalizeSystemConfig(data.data.saved || data.data.default, defaultSystemConfig.value)
       localLoginSettings.value = normalizeLoginSettings(data.data.loginSettings)
+      savedSystemConfigSnapshot.value = JSON.stringify(localSystemConfig.value)
+      savedLoginSettingsSnapshot.value = JSON.stringify(localLoginSettings.value)
     }
   }
   catch (e) {
@@ -1433,6 +1455,7 @@ async function handleSaveLoginSettings() {
     const { data } = await api.post('/api/settings/login-config', localLoginSettings.value)
     if (data?.ok) {
       localLoginSettings.value = normalizeLoginSettings(data.data)
+      savedLoginSettingsSnapshot.value = JSON.stringify(localLoginSettings.value)
     }
     showAlert(data?.ok ? '登录设置已保存' : getApiErrorMessage(data, '保存失败'), data?.ok ? 'primary' : 'danger')
   }
@@ -1450,6 +1473,8 @@ async function handleSaveSystemConfig() {
     localSystemConfig.value.clientVersion = localSystemConfig.value.deviceInfo.clientVersion
     localSystemConfig.value.os = localSystemConfig.value.deviceInfo.os
     const { data } = await api.post('/api/settings/system-config', localSystemConfig.value)
+    if (data?.ok)
+      savedSystemConfigSnapshot.value = JSON.stringify(localSystemConfig.value)
     showAlert(data?.ok ? '系统配置已保存，连接参数在下次登录时生效' : getApiErrorMessage(data, '保存失败'), data?.ok ? 'primary' : 'danger')
   }
   catch (e: any) {
@@ -1467,6 +1492,7 @@ async function handleResetSystemConfig() {
     if (data?.ok) {
       localSystemConfig.value = normalizeSystemConfig(data.data.saved, defaultSystemConfig.value)
       selectedPresetId.value = ''
+      savedSystemConfigSnapshot.value = JSON.stringify(localSystemConfig.value)
       showAlert('系统配置已重置，连接参数在下次登录时生效', 'primary')
     }
     else {
@@ -1480,6 +1506,229 @@ async function handleResetSystemConfig() {
     systemConfigSaving.value = false
   }
 }
+const isSystemConfigDirty = computed(() =>
+  Boolean(savedSystemConfigSnapshot.value)
+  && JSON.stringify(localSystemConfig.value) !== savedSystemConfigSnapshot.value,
+)
+const isLoginSettingsDirty = computed(() =>
+  Boolean(savedLoginSettingsSnapshot.value)
+  && JSON.stringify(localLoginSettings.value) !== savedLoginSettingsSnapshot.value,
+)
+const isOfflineDirty = computed(() =>
+  Boolean(savedOfflineSnapshot.value)
+  && JSON.stringify(localOffline.value) !== savedOfflineSnapshot.value,
+)
+const isPasswordFormDirty = computed(() => Boolean(passwordForm.value.old || passwordForm.value.new || passwordForm.value.confirm))
+const hasUnsavedSettings = computed(() =>
+  showModal.value
+  || (Boolean(savedStrategySnapshot.value) && JSON.stringify(localStrategySettings.value) !== savedStrategySnapshot.value)
+  || (Boolean(savedAutomationSnapshot.value) && JSON.stringify(localAutomationSettings.value) !== savedAutomationSnapshot.value)
+  || isSystemConfigDirty.value
+  || isLoginSettingsDirty.value
+  || isOfflineDirty.value
+  || isPasswordFormDirty.value,
+)
+useUnsavedEditGuard(hasUnsavedSettings)
+
+// ==================== 版本更新 ====================
+interface IncomingCommitItem {
+  hash: string
+  shortHash: string
+  subject: string
+  author: string
+  timestampMs: number
+}
+
+interface PanelUpdateJob {
+  id: string
+  pid?: number
+  status: 'running' | 'succeeded' | 'failed'
+  phase: string
+  detail?: string
+  startedAt: number
+  updatedAt: number
+  finishedAt?: number
+  exitCode?: number | null
+  error?: string
+  fromCommit?: string
+  targetCommit?: string
+  recentLines: string[]
+}
+
+interface SystemUpdateState {
+  mode: 'source' | 'docker' | 'binary' | 'unknown'
+  gitSupported: boolean
+  unsupportedReason: string
+  applySupported: boolean
+  applyUnsupportedReason: string
+  branch: string
+  detached: boolean
+  commit: string
+  shortCommit: string
+  commitSubject: string
+  startupCommit: string
+  needsApply: boolean
+  upstream: string
+  remote: string
+  remoteBranch: string
+  behindCount: number
+  aheadCount: number
+  dirtyFiles: string[]
+  incomingCommits: IncomingCommitItem[]
+  canCheck: boolean
+  canPull: boolean
+  canApply: boolean
+  deployBusy: boolean
+  lastCheckedAt: number | null
+  lastCheckError: string
+  lastPulledAt: number | null
+  job: PanelUpdateJob | null
+}
+
+const updateStatus = ref<SystemUpdateState | null>(null)
+const updateLoading = ref(false)
+const updateChecking = ref(false)
+const updatePulling = ref(false)
+const updateApplying = ref(false)
+const updateActionError = ref('')
+const updateRequestConfig = { skipErrorToast: true, timeout: 90_000 }
+let updateViewActive = true
+let updatePollTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearUpdatePollTimer() {
+  if (updatePollTimer) {
+    clearTimeout(updatePollTimer)
+    updatePollTimer = null
+  }
+}
+
+function scheduleUpdatePollIfBusy() {
+  clearUpdatePollTimer()
+  if (!updateViewActive)
+    return
+  const status = updateStatus.value
+  if (status?.job?.status === 'running' || status?.deployBusy) {
+    updatePollTimer = setTimeout(() => {
+      void loadUpdateStatus({ silent: true })
+    }, 2000)
+  }
+}
+
+async function loadUpdateStatus(options: { silent?: boolean } = {}) {
+  if (!options.silent) {
+    updateActionError.value = ''
+    updateLoading.value = true
+  }
+  try {
+    const { data } = await api.get('/api/system/update/status', updateRequestConfig)
+    if (data?.ok && data.data) {
+      updateStatus.value = data.data
+      scheduleUpdatePollIfBusy()
+    }
+  }
+  catch (e: any) {
+    if (!options.silent)
+      updateActionError.value = getApiErrorMessage(e, '获取更新状态失败')
+    if (updateStatus.value?.job?.status === 'running')
+      scheduleUpdatePollIfBusy()
+  }
+  finally {
+    if (!options.silent)
+      updateLoading.value = false
+  }
+}
+
+async function handleCheckSystemUpdates() {
+  updateChecking.value = true
+  updateActionError.value = ''
+  try {
+    const { data } = await api.post('/api/system/update/check', {}, updateRequestConfig)
+    if (data?.ok && data.data) {
+      updateStatus.value = data.data
+      scheduleUpdatePollIfBusy()
+      if (data.data.behindCount > 0)
+        toast.info(`发现 ${data.data.behindCount} 个可拉取更新`)
+      else
+        toast.success('当前分支已是最新')
+    }
+    else {
+      updateActionError.value = getApiErrorMessage(data, '检查更新失败')
+    }
+  }
+  catch (e: any) {
+    updateActionError.value = getApiErrorMessage(e, '检查更新失败')
+  }
+  finally {
+    updateChecking.value = false
+  }
+}
+
+async function handlePullSystemUpdates() {
+  updatePulling.value = true
+  updateActionError.value = ''
+  try {
+    const { data } = await api.post('/api/system/update/pull', {}, updateRequestConfig)
+    if (data?.ok && data.data?.status) {
+      updateStatus.value = data.data.status
+      scheduleUpdatePollIfBusy()
+      if (data.data.pulled)
+        toast.success(`代码已更新到 ${data.data.toCommit}`)
+      else
+        toast.info('当前没有可拉取的提交')
+    }
+    else {
+      updateActionError.value = getApiErrorMessage(data, '拉取更新失败')
+    }
+  }
+  catch (e: any) {
+    updateActionError.value = getApiErrorMessage(e, '拉取更新失败')
+  }
+  finally {
+    updatePulling.value = false
+  }
+}
+
+async function handleApplySystemUpdate(pullFirst: boolean) {
+  updateApplying.value = true
+  updateActionError.value = ''
+  try {
+    const { data } = await api.post('/api/system/update/apply', { pullFirst }, updateRequestConfig)
+    if (data?.ok && data.data?.status) {
+      updateStatus.value = data.data.status
+      scheduleUpdatePollIfBusy()
+      toast.info('已在后台开始更新，构建期间可继续操作')
+    }
+    else {
+      updateActionError.value = getApiErrorMessage(data, '启动在线更新失败')
+    }
+  }
+  catch (e: any) {
+    updateActionError.value = getApiErrorMessage(e, '启动在线更新失败')
+  }
+  finally {
+    updateApplying.value = false
+  }
+}
+
+function formatUpdateTimestamp(ms: number | null | undefined): string {
+  if (!ms)
+    return '未检查'
+  const date = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getMonth() + 1}-${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+watch(() => statusStore.realtimeReconnectCount, (count) => {
+  if (count <= 0)
+    return
+  void loadUpdateStatus({ silent: true })
+  void appUpdateStore.checkVersionNow(true)
+})
+
+onBeforeUnmount(() => {
+  updateViewActive = false
+  clearUpdatePollTimer()
+})
 </script>
 
 <template>
@@ -2164,6 +2413,176 @@ async function handleResetSystemConfig() {
 
               <section class="farm-card rounded-lg p-4">
                 <div class="mb-4 flex items-start gap-3">
+                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
+                    <span class="i-carbon-renew text-xl" />
+                  </div>
+                  <div>
+                    <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
+                      版本更新
+                    </h4>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      检查当前分支，拉取并应用更新
+                    </p>
+                  </div>
+                </div>
+
+                <div v-if="updateLoading && !updateStatus" class="py-6 text-center text-gray-500">
+                  <span class="i-svg-spinners-90-ring-with-bg inline-block text-2xl" />
+                </div>
+                <div v-else-if="updateStatus" class="flex flex-col gap-3">
+                  <div class="update-meta-grid">
+                    <div class="update-meta-item">
+                      <span class="update-meta-label">当前分支</span>
+                      <span class="update-meta-value font-mono">
+                        {{ updateStatus.detached ? '游离 HEAD' : (updateStatus.branch || '-') }}
+                      </span>
+                    </div>
+                    <div class="update-meta-item">
+                      <span class="update-meta-label">当前提交</span>
+                      <span class="update-meta-value font-mono" :title="updateStatus.commitSubject">
+                        {{ updateStatus.shortCommit || '-' }}
+                      </span>
+                    </div>
+                    <div class="update-meta-item">
+                      <span class="update-meta-label">跟踪分支</span>
+                      <span class="update-meta-value font-mono">
+                        {{ updateStatus.upstream || '未关联' }}
+                      </span>
+                    </div>
+                    <div class="update-meta-item">
+                      <span class="update-meta-label">最近检查</span>
+                      <span class="update-meta-value">
+                        {{ formatUpdateTimestamp(updateStatus.lastCheckedAt) }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div v-if="!updateStatus.gitSupported" class="update-notice update-notice--muted">
+                    {{ updateStatus.unsupportedReason }}
+                  </div>
+
+                  <template v-else>
+                    <div v-if="updateStatus.commitSubject" class="text-xs text-gray-500 dark:text-gray-400">
+                      最新本地提交：{{ updateStatus.commitSubject }}
+                    </div>
+
+                    <div v-if="updateStatus.dirtyFiles.length" class="update-notice update-notice--warn">
+                      检测到未提交的本地修改（{{ updateStatus.dirtyFiles.slice(0, 3).join('，') }}{{ updateStatus.dirtyFiles.length > 3 ? ' 等' : '' }}），已禁用自动拉取以避免覆盖。
+                    </div>
+
+                    <div v-if="updateStatus.aheadCount > 0" class="update-notice update-notice--warn">
+                      当前分支领先远程 {{ updateStatus.aheadCount }} 个提交，无法快进拉取（--ff-only）。
+                    </div>
+
+                    <div v-if="updateStatus.needsApply && updateStatus.behindCount === 0" class="update-notice update-notice--info">
+                      工作区代码已更新（运行基线 {{ updateStatus.startupCommit.slice(0, 7) }} → {{ updateStatus.shortCommit }}），应用更新并重启后端后生效。
+                    </div>
+
+                    <div v-if="updateStatus.behindCount > 0" class="update-commits">
+                      <div class="update-commits__header">
+                        可拉取更新（落后 {{ updateStatus.behindCount }} 个提交）
+                      </div>
+                      <ul class="update-commits__list">
+                        <li v-for="item in updateStatus.incomingCommits" :key="item.hash" class="update-commits__row">
+                          <code class="update-commits__sha">{{ item.shortHash }}</code>
+                          <span class="update-commits__subject">{{ item.subject }}</span>
+                          <span class="update-commits__author">{{ item.author }}</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div v-if="!updateStatus.applySupported && updateStatus.applyUnsupportedReason" class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ updateStatus.applyUnsupportedReason }}
+                    </div>
+                  </template>
+
+                  <div
+                    v-if="updateStatus.job"
+                    class="update-job-card"
+                    :class="{
+                      'update-job-card--error': updateStatus.job.status === 'failed',
+                      'update-job-card--ok': updateStatus.job.status === 'succeeded',
+                    }"
+                  >
+                    <div class="update-job-card__title">
+                      <span
+                        v-if="updateStatus.job.status === 'running'"
+                        class="i-svg-spinners-90-ring-with-bg shrink-0 text-base text-emerald-600"
+                      />
+                      <span
+                        v-else-if="updateStatus.job.status === 'succeeded'"
+                        class="i-carbon-checkmark-filled shrink-0 text-base text-emerald-600"
+                      />
+                      <span
+                        v-else
+                        class="i-carbon-warning-filled shrink-0 text-base text-red-500"
+                      />
+                      <span>
+                        {{ updateStatus.job.phase || '更新任务' }}{{ updateStatus.job.detail ? ` · ${updateStatus.job.detail}` : '' }}
+                      </span>
+                    </div>
+                    <div v-if="updateStatus.job.error" class="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {{ updateStatus.job.error }}
+                    </div>
+                    <pre v-if="updateStatus.job.recentLines?.length" class="update-job-log">{{ updateStatus.job.recentLines.slice(-6).join('\n') }}</pre>
+                  </div>
+
+                  <div v-if="updateActionError || updateStatus.lastCheckError" class="text-xs text-red-600 dark:text-red-400">
+                    {{ updateActionError || updateStatus.lastCheckError }}
+                  </div>
+
+                  <div class="flex flex-wrap justify-end gap-2 border-t pt-3 dark:border-gray-700">
+                    <BaseButton
+                      variant="secondary"
+                      size="sm"
+                      :loading="updateChecking"
+                      :disabled="!updateStatus.canCheck || updatePulling || updateApplying || updateStatus.deployBusy"
+                      @click="handleCheckSystemUpdates"
+                    >
+                      检查更新
+                    </BaseButton>
+                    <BaseButton
+                      v-if="updateStatus.canPull"
+                      variant="secondary"
+                      size="sm"
+                      :loading="updatePulling"
+                      :disabled="updateChecking || updateApplying || updateStatus.deployBusy"
+                      @click="handlePullSystemUpdates"
+                    >
+                      仅拉取代码
+                    </BaseButton>
+                    <BaseButton
+                      v-if="updateStatus.applySupported && updateStatus.behindCount > 0"
+                      variant="primary"
+                      size="sm"
+                      :loading="updateApplying"
+                      :disabled="!updateStatus.canApply || updateChecking || updatePulling"
+                      @click="handleApplySystemUpdate(true)"
+                    >
+                      拉取并更新
+                    </BaseButton>
+                    <BaseButton
+                      v-else-if="updateStatus.applySupported && updateStatus.needsApply"
+                      variant="primary"
+                      size="sm"
+                      :loading="updateApplying"
+                      :disabled="!updateStatus.canApply || updateChecking || updatePulling"
+                      @click="handleApplySystemUpdate(false)"
+                    >
+                      应用更新
+                    </BaseButton>
+                  </div>
+                </div>
+                <div v-else-if="updateActionError" class="flex flex-wrap items-center gap-2">
+                  <span class="text-xs text-red-600 dark:text-red-400">{{ updateActionError }}</span>
+                  <BaseButton size="sm" variant="secondary" @click="loadUpdateStatus()">
+                    重新加载
+                  </BaseButton>
+                </div>
+              </section>
+
+              <section class="farm-card rounded-lg p-4">
+                <div class="mb-4 flex items-start gap-3">
                   <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400">
                     <span class="i-carbon-password text-xl" />
                   </div>
@@ -2333,3 +2752,155 @@ async function handleResetSystemConfig() {
     />
   </div>
 </template>
+
+<style scoped>
+.update-meta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.update-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-soft);
+}
+
+.update-meta-label {
+  color: var(--ui-muted);
+  font-size: 11px;
+}
+
+.update-meta-value {
+  overflow: hidden;
+  color: var(--ui-ink);
+  font-size: 13px;
+  font-weight: var(--fw-600);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-notice {
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.update-notice--muted {
+  background: var(--ui-surface-soft);
+  color: var(--ui-muted);
+}
+
+.update-notice--warn {
+  border-color: color-mix(in srgb, var(--ui-warning) 35%, var(--ui-border));
+  background: var(--ui-warning-soft);
+  color: var(--ui-ink);
+}
+
+.update-notice--info {
+  border-color: color-mix(in srgb, var(--ui-primary) 35%, var(--ui-border));
+  background: var(--ui-primary-soft);
+  color: var(--ui-ink);
+}
+
+.update-commits {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-soft);
+  overflow: hidden;
+}
+
+.update-commits__header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-border);
+  color: var(--ui-ink);
+  font-size: 12px;
+  font-weight: var(--fw-600);
+}
+
+.update-commits__list {
+  margin: 0;
+  padding: 6px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.update-commits__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.update-commits__sha {
+  flex-shrink: 0;
+  color: var(--ui-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.update-commits__subject {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-commits__author {
+  flex-shrink: 0;
+  color: var(--ui-muted);
+  font-size: 11px;
+}
+
+.update-job-card {
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-surface-soft);
+}
+
+.update-job-card--error {
+  border-color: color-mix(in srgb, var(--ui-danger) 40%, var(--ui-border));
+}
+
+.update-job-card--ok {
+  border-color: color-mix(in srgb, var(--ui-primary) 40%, var(--ui-border));
+}
+
+.update-job-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-ink);
+  font-size: 13px;
+  font-weight: var(--fw-600);
+}
+
+.update-job-log {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-ink) 6%, transparent);
+  color: var(--ui-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+@media (min-width: 640px) {
+  .update-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>

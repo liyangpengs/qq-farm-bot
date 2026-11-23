@@ -17,6 +17,34 @@ const VERBOSE_OUTPUT = process.argv.includes('--verbose')
     || process.argv.includes('-v')
     || process.env.FARM_DEPLOY_VERBOSE === '1';
 
+const UPDATE_JOB_FILE = process.env.FARM_UPDATE_JOB_FILE ? path.resolve(process.env.FARM_UPDATE_JOB_FILE) : '';
+delete process.env.FARM_UPDATE_JOB_FILE;
+const updateJobRecentLines = [];
+
+function writeUpdateJobPatch(patch = {}, logLine = '') {
+    if (!UPDATE_JOB_FILE) return;
+    try {
+        if (logLine) {
+            for (const part of String(logLine).split(/\r?\n/)) {
+                const line = part.trim();
+                if (!line) continue;
+                updateJobRecentLines.push(line);
+                if (updateJobRecentLines.length > 30) updateJobRecentLines.shift();
+            }
+        }
+        const existing = readJsonSafe(UPDATE_JOB_FILE) || {};
+        const next = {
+            ...existing,
+            ...patch,
+            updatedAt: Date.now(),
+            recentLines: updateJobRecentLines.length > 0 ? [...updateJobRecentLines] : (existing.recentLines || []),
+        };
+        writeJsonAtomic(UPDATE_JOB_FILE, next);
+    } catch {}
+}
+
+if (UPDATE_JOB_FILE) writeUpdateJobPatch({ pid: process.pid });
+
 let workspaceInstall;
 let contractBuild;
 let coreBuild;
@@ -438,6 +466,7 @@ async function withProgress(label, run) {
         const cleaned = String(next || '').trim();
         if (!cleaned || cleaned === detail) return;
         detail = cleaned;
+        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `[发布] ${label} · ${detail}（已用时 ${elapsed()} 秒）`);
         if (VERBOSE_OUTPUT) return;
         if (isTty) {
             renderTty();
@@ -446,6 +475,8 @@ async function withProgress(label, run) {
         lastLoggedAt = performance.now();
         console.error(`[发布] ${label} · ${detail}（已用时 ${elapsed()} 秒）`);
     };
+
+    writeUpdateJobPatch({ status: 'running', phase: label, detail: '' }, `[发布] ${label}…`);
 
     let timer;
     if (VERBOSE_OUTPUT) {
@@ -470,6 +501,7 @@ async function withProgress(label, run) {
     try {
         const result = await run({ updateDetail });
         clearInterval(timer);
+        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `[发布] 已完成「${label}」，用时 ${elapsed()} 秒`);
         if (isTty) {
             process.stderr.write(`\r\x1b[2K[发布] ✓ ${label} (${elapsed()}s)\n`);
         } else {
@@ -478,6 +510,7 @@ async function withProgress(label, run) {
         return result;
     } catch (err) {
         clearInterval(timer);
+        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `[发布] 「${label}」失败，用时 ${elapsed()} 秒`);
         if (isTty) {
             process.stderr.write(`\r\x1b[2K[发布] ✗ ${label} 失败 (${elapsed()}s)\n`);
         } else {
@@ -757,6 +790,9 @@ function buildRoleEnv(cfg, role, releaseInfo) {
     };
     if (role === 'backend') {
         base.FARM_SHARE_FILE = cfg.shareFilePath;
+        base.FARM_REPO_ROOT = cfg.repoRoot;
+        base.FARM_RELEASES_DIR = cfg.releasesDir;
+        base.FARM_CONTROL_MANAGED = '1';
     }
     return base;
 }
@@ -1374,35 +1410,39 @@ async function main() {
     }
 
     const { positional, flags } = parseFlags(argv.slice(1));
+    let exitCode = 0;
     if (flags.help || flags.h) {
         console.log('Usage: service-control.mjs <start|status|update|stop|rollback|host-healthcheck> [options] [--verbose]');
-        process.exit(0);
+    } else {
+        const cfg = getControlConfig(process.env);
+        switch (subcommand) {
+            case 'start':
+                exitCode = await cmdStart(cfg, flags);
+                break;
+            case 'status':
+                exitCode = await cmdStatus(cfg, flags);
+                break;
+            case 'update':
+                exitCode = await cmdUpdate(cfg, positional, flags);
+                break;
+            case 'stop':
+                exitCode = await cmdStop(cfg, positional);
+                break;
+            case 'rollback':
+                exitCode = await cmdRollback(cfg, positional, flags);
+                break;
+            case 'host-healthcheck':
+                exitCode = await cmdHostHealthcheck(cfg);
+                break;
+            default:
+                console.error(`Unknown subcommand: ${subcommand}`);
+                exitCode = 1;
+        }
     }
-
-    const cfg = getControlConfig(process.env);
-    let exitCode = 0;
-    switch (subcommand) {
-        case 'start':
-            exitCode = await cmdStart(cfg, flags);
-            break;
-        case 'status':
-            exitCode = await cmdStatus(cfg, flags);
-            break;
-        case 'update':
-            exitCode = await cmdUpdate(cfg, positional, flags);
-            break;
-        case 'stop':
-            exitCode = await cmdStop(cfg, positional);
-            break;
-        case 'rollback':
-            exitCode = await cmdRollback(cfg, positional, flags);
-            break;
-        case 'host-healthcheck':
-            exitCode = await cmdHostHealthcheck(cfg);
-            break;
-        default:
-            console.error(`Unknown subcommand: ${subcommand}`);
-            exitCode = 1;
+    if (exitCode === 0) {
+        writeUpdateJobPatch({ status: 'succeeded', phase: '已完成', detail: '', finishedAt: Date.now(), exitCode: 0, error: '' });
+    } else {
+        writeUpdateJobPatch({ status: 'failed', finishedAt: Date.now(), exitCode, error: `操作退出码 ${exitCode}` });
     }
     process.exit(exitCode);
 }
@@ -1412,6 +1452,10 @@ function exitWithError(err) {
         console.error(err.commandOutput);
         err._outputPrinted = true;
     }
+    writeUpdateJobPatch(
+        { status: 'failed', finishedAt: Date.now(), exitCode: 1, error: String(err?.message || err) },
+        err?.commandOutput ? String(err.commandOutput).split(/\r?\n/).slice(-8).join('\n') : '',
+    );
     console.error(`[service-control] ${err?.message || err}`);
     process.exit(1);
 }

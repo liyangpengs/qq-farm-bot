@@ -1,6 +1,7 @@
 import type { Application } from 'express';
 import type { Server } from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
+import type { PersistentTokenSet } from './session-tokens';
 export {};
 
 /**
@@ -8,8 +9,10 @@ export {};
  * Creates and holds all shared state for the admin server.
  */
 
+const { createPersistentTokenSet } = require('./session-tokens');
+
 export interface AdminContext {
-    tokens: Set<string>;
+    tokens: Set<string> | PersistentTokenSet;
     app: Application | null;
     server: Server | null;
     io: SocketIOServer | null;
@@ -17,7 +20,7 @@ export interface AdminContext {
 }
 
 function createAdminContext(dataProvider: any): AdminContext {
-    const tokens = new Set<string>();
+    const tokens = createPersistentTokenSet();
     return {
         tokens,
         app: null,

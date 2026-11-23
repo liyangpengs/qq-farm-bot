@@ -2,22 +2,25 @@ import { useStorage } from '@vueuse/core'
 import axios from 'axios'
 import NProgress from 'nprogress'
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAppUpdateStore } from '@/stores/app-update'
 import { allMenuRoutes } from './menu'
 import 'nprogress/nprogress.css'
 
 NProgress.configure({ showSpinner: false })
 
+type TokenCheckResult = 'valid' | 'unauthorized' | 'unavailable'
+
 const adminToken = useStorage('admin_token', '')
 let validatedToken = ''
-let validatingPromise: Promise<boolean> | null = null
+let validatingPromise: Promise<TokenCheckResult> | null = null
 
-async function ensureTokenValid() {
+async function ensureTokenValid(): Promise<TokenCheckResult> {
   const token = String(adminToken.value || '').trim()
   if (!token)
-    return false
+    return 'unauthorized'
 
   if (validatedToken && validatedToken === token)
-    return true
+    return 'valid'
 
   if (validatingPromise)
     return validatingPromise
@@ -25,12 +28,21 @@ async function ensureTokenValid() {
   validatingPromise = axios.get('/api/auth/validate', {
     headers: { 'x-admin-token': token },
     timeout: 6000,
-  }).then((res) => {
+  }).then((res): TokenCheckResult => {
     const ok = !!(res.data && res.data.ok)
-    if (ok)
+    if (ok) {
       validatedToken = token
-    return ok
-  }).catch(() => false).finally(() => {
+      useAppUpdateStore().notifyBackendReachable()
+      return 'valid'
+    }
+    return 'unauthorized'
+  }).catch((err: any): TokenCheckResult => {
+    const status = Number(err?.response?.status || 0)
+    if (status === 401 || status === 403)
+      return 'unauthorized'
+    useAppUpdateStore().notifyBackendUnavailable()
+    return 'unavailable'
+  }).finally(() => {
     validatingPromise = null
   })
 
@@ -71,11 +83,13 @@ router.beforeEach(async (to, _from) => {
       validatedToken = ''
       return true
     }
-    const valid = await ensureTokenValid()
-    if (valid)
+    const result = await ensureTokenValid()
+    if (result === 'valid')
       return { name: 'dashboard' }
-    adminToken.value = ''
-    validatedToken = ''
+    if (result === 'unauthorized') {
+      adminToken.value = ''
+      validatedToken = ''
+    }
     return true
   }
 
@@ -84,8 +98,8 @@ router.beforeEach(async (to, _from) => {
     return { name: 'login' }
   }
 
-  const valid = await ensureTokenValid()
-  if (!valid) {
+  const result = await ensureTokenValid()
+  if (result === 'unauthorized') {
     adminToken.value = ''
     validatedToken = ''
     return { name: 'login' }
