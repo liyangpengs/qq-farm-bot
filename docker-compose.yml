@@ -1,6 +1,6 @@
 services:
   qq-farm-bot:
-    build:
+    build: &app-build
       context: .
       dockerfile: core/Dockerfile
       args:
@@ -12,13 +12,19 @@ services:
     restart: unless-stopped
     ports:
       - "${PORT:-3007}:3007"
+    depends_on:
+      session-host:
+        condition: service_healthy
     volumes:
+      - qq-farm-runtime:/app/runtime
       - qq-farm-data:/app/core/data
       - qq-farm-logs:/app/core/data/logs
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       - NODE_ENV=production
       - ADMIN_PORT=3007
+      - FARM_RUNTIME_DIR=/app/runtime
+      - FARM_SESSION_SOCKET=/app/runtime/session-host.sock
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3007/api/game-version"]
       interval: 30s
@@ -31,7 +37,27 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  session-host:
+    image: qq-farm-bot:latest
+    build: *app-build
+    command: ["node", "dist/session/host.js"]
+    restart: unless-stopped
+    volumes:
+      - qq-farm-runtime:/app/runtime
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - FARM_HOST_DATA_DIR=/app/runtime/session-host-data
+      - FARM_RUNTIME_DIR=/app/runtime
+      - FARM_SESSION_SOCKET=/app/runtime/session-host.sock
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('./dist/session/ipc').SessionClient.open('control').then(c => c.close()).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 5
+
 volumes:
+  qq-farm-runtime:
+    name: qq-farm-runtime
   qq-farm-data:
     name: qq-farm-data
   qq-farm-logs:

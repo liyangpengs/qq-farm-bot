@@ -24,6 +24,7 @@ FROM pnpm-base AS workspace-deps
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY core/package.json ./core/
 COPY web/package.json ./web/
+COPY packages/session-contract/package.json ./packages/session-contract/
 
 RUN --mount=type=cache,id=qq-farm-pnpm-store,target=/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile
@@ -37,6 +38,8 @@ RUN pnpm -C web build
 
 FROM workspace-deps AS core-builder
 
+COPY packages/session-contract ./packages/session-contract
+RUN pnpm build:contract
 COPY core ./core
 RUN pnpm -C core build:ts
 
@@ -47,6 +50,7 @@ FROM pnpm-base AS prod-deps
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY core/package.json ./core/
 COPY web/package.json ./web/
+COPY packages/session-contract/package.json ./packages/session-contract/
 
 RUN --mount=type=cache,id=qq-farm-pnpm-store,target=/pnpm/store,sharing=locked \
     pnpm -C core install --prod --frozen-lockfile
@@ -70,6 +74,9 @@ COPY --from=prod-deps /app/core/node_modules ./node_modules/
 COPY --from=prod-deps /app/package.json ../package.json
 COPY --from=prod-deps /app/core/package.json ./package.json
 
+COPY --from=core-builder /app/packages/session-contract/package.json ../packages/session-contract/package.json
+COPY --from=core-builder /app/packages/session-contract/dist ../packages/session-contract/dist
+COPY --from=core-builder /app/core/src/activity-data ./src/activity-data
 COPY --from=core-builder /app/core/client.js ./client.js
 COPY --from=core-builder /app/core/dist ./dist
 COPY --from=core-builder /app/core/src/gameConfig ./src/gameConfig
