@@ -145,12 +145,15 @@ bash status.sh
 
 源码部署通过 `bash start.sh` 启动后，可以在「设置 → 系统设置 → 版本更新」检查当前分支，选择「仅拉取代码」或「拉取并更新」。构建期间可以继续使用面板。新版就绪后页面会在当前位置刷新，有未保存的设置时会先提示。
 
+「历史版本与回滚」列出本机的发布备份。QQ、微信客户端版本一致且后端支持当前会话宿主时，可以在线回滚。有配对记录的备份会一起恢复前端，旧备份可单独回退后端。批量清理会保留正在使用的版本和旧页面仍需加载的静态资源。
+
 | 操作 | 命令 | 对在线账号的影响 |
 | --- | --- | --- |
 | 拉取代码并在线更新 | `git pull --ff-only` 后运行 `bash update.sh all`（直接运行 `bash update.sh` 等效） | 先构建候选版本，再替换后端并切换前端。宿主保持连接，后端接回原会话 |
 | 单独更新前端 | `bash update.sh web` | 切换页面入口，并继续提供上一版的静态资源 |
 | 单独更新后端 | `bash update.sh backend` | 管理面板与业务操作短暂停顿，宿主继续发送心跳 |
 | 查看会话状态 | `bash status.sh --json` | 可对照更新前后的 `sessionId`、`heartbeatReplies` 和 `backendInstanceId` |
+| 配套回退前后端 | `bash rollback.sh all` | 切换到上一后端及其配套前端，会话宿主继续维持游戏连接 |
 | 回退后端或前端 | `bash rollback.sh backend` 或 `bash rollback.sh web` | 使用上一版发布包。后端候选启动或接管失败时，也会自动尝试恢复旧版 |
 | 暂停和恢复后端 | `bash stop.sh backend`，然后 `bash start.sh` | 已在线的账号由宿主保活，后端启动后继续使用原会话 |
 | 停止全部服务 | `bash stop.sh all` | 关闭游戏连接。下次启动后需重新登录 |

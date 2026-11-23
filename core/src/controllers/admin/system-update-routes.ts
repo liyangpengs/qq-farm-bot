@@ -56,6 +56,27 @@ function mountSystemUpdateRoutes(app: Application, ctx: AdminContext): void {
             sendUpdateError(res, err);
         }
     });
+
+    app.post('/api/system/update/rollback', authRequired, async (req: Request, res: Response) => {
+        try {
+            const data = await systemUpdate.rollbackSystemRelease(req.body?.releaseId);
+            res.json({ ok: true, data });
+        } catch (err: any) {
+            sendUpdateError(res, err);
+        }
+    });
+
+    app.post('/api/system/update/releases/delete', authRequired, async (req: Request, res: Response) => {
+        try {
+            const data = await systemUpdate.deleteSystemReleases({
+                releaseIds: req.body?.releaseIds,
+                cleanOrphans: req.body?.cleanOrphans,
+            });
+            res.json({ ok: true, data });
+        } catch (err: any) {
+            sendUpdateError(res, err);
+        }
+    });
 }
 
 module.exports = { mountSystemUpdateRoutes };

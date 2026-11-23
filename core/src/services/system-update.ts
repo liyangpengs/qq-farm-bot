@@ -1,4 +1,4 @@
-export {};
+import type { ReleasesSummary, RollbackReleaseItem } from './release-manager';
 
 const { execFile, spawn } = require('node:child_process');
 const crypto = require('node:crypto');
@@ -7,6 +7,7 @@ const path = require('node:path');
 const { isProcessAlive, readLockMetadata } = require('@qq-farm-bot/session-contract');
 const { getRuntimePaths, isPackaged } = require('../config/runtime-paths');
 const { writeJsonFileAtomic } = require('./json-db');
+const releaseManager = require('./release-manager');
 
 export interface IncomingCommitInfo {
     hash: string;
@@ -60,11 +61,14 @@ export interface SystemUpdateStatus {
     lastCheckError: string;
     lastPulledAt: number | null;
     job: PanelUpdateJobState | null;
+    releases: RollbackReleaseItem[];
+    releasesSummary: ReleasesSummary;
 }
 
 export interface SystemUpdateServiceOptions {
     repoRoot?: string | null;
     runtimeDir?: string;
+    releasesDir?: string;
     isPackaged?: boolean;
     isDocker?: boolean;
     invocationId?: string;
@@ -407,11 +411,28 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         }
     };
 
+    const getReleasesDirForEnv = (envInfo: Awaited<ReturnType<typeof detectEnv>>): string => {
+        if (envInfo.mode === 'docker' || envInfo.mode === 'binary') return '';
+        return releaseManager.resolveReleasesDir(envInfo.repoRoot || options.repoRoot || null, options.releasesDir);
+    };
+
     const getStatus = async (): Promise<SystemUpdateStatus> => {
         await ensureStartupCommit();
         const envInfo = await detectEnv();
         const job = readJobState(envInfo.paths.runtimeDir);
         const deployBusy = job?.status === 'running' || isDeployLockAlive(envInfo.paths.runtimeDir);
+        const releasesDir = getReleasesDirForEnv(envInfo);
+        const releasesData = releasesDir
+            ? await releaseManager.listReleases({
+                repoRoot: envInfo.repoRoot,
+                runtimeDir: envInfo.paths.runtimeDir,
+                releasesDir,
+                appRoot: envInfo.paths.appRoot,
+                applySupported: envInfo.applySupported,
+                deployBusy,
+                execGit,
+            })
+            : { releases: [], summary: releaseManager.createEmptySummary() };
 
         if (!envInfo.gitSupported || !envInfo.repoRoot) {
             return {
@@ -442,6 +463,8 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
                 lastCheckError,
                 lastPulledAt,
                 job,
+                releases: releasesData.releases,
+                releasesSummary: releasesData.summary,
             };
         }
 
@@ -492,6 +515,8 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
             lastCheckError,
             lastPulledAt,
             job,
+            releases: releasesData.releases,
+            releasesSummary: releasesData.summary,
         };
     };
 
@@ -562,6 +587,78 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
     const checkForUpdates = () => withOpMutex(runCheckUnlocked);
     const pullUpdates = () => withOpMutex(runPullUnlocked);
 
+    const launchDetachedControlJob = async (params: {
+        envInfo: Awaited<ReturnType<typeof detectEnv>>;
+        args: string[];
+        jobIdPrefix: string;
+        phase: string;
+        recentLine: string;
+        fromCommit: string;
+        targetCommit: string;
+    }): Promise<PanelUpdateJobState> => {
+        const runtimeDir = params.envInfo.paths.runtimeDir;
+        fs.mkdirSync(runtimeDir, { recursive: true });
+        const jobFile = getJobFilePath(runtimeDir);
+        const logFile = getJobLogPath(runtimeDir);
+        const startedAt = now();
+        const initialJob: PanelUpdateJobState = {
+            id: `${params.jobIdPrefix}_${crypto.randomUUID().slice(0, 8)}`,
+            status: 'running',
+            phase: params.phase,
+            detail: '',
+            startedAt,
+            updatedAt: startedAt,
+            fromCommit: params.fromCommit,
+            targetCommit: params.targetCommit,
+            recentLines: [params.recentLine],
+        };
+        const controlScript = path.join(params.envInfo.repoRoot!, 'tools', 'service-control.mjs');
+        const outFd = fs.openSync(logFile, 'w');
+        try {
+            writeJsonFileAtomic(jobFile, initialJob);
+            const childEnv: NodeJS.ProcessEnv = {
+                ...process.env,
+                NODE_ENV: process.env.NODE_ENV || 'production',
+                FARM_DATA_DIR: params.envInfo.paths.dataDir,
+                FARM_RUNTIME_DIR: runtimeDir,
+                FARM_HOST_DATA_DIR: params.envInfo.paths.hostDataDir,
+                FARM_HOST_LOG_DIR: params.envInfo.paths.hostLogDir,
+                FARM_BACKEND_LOG_DIR: params.envInfo.paths.backendLogDir,
+                FARM_SESSION_SOCKET: params.envInfo.paths.sessionSocketConfigured,
+                FARM_UPDATE_JOB_FILE: jobFile,
+            };
+            const resolvedReleasesDir = getReleasesDirForEnv(params.envInfo);
+            if (resolvedReleasesDir) {
+                childEnv.FARM_RELEASES_DIR = resolvedReleasesDir;
+            }
+            const child = spawnRunner(process.execPath, [controlScript, ...params.args], {
+                cwd: params.envInfo.repoRoot!,
+                env: childEnv,
+                detached: true,
+                stdio: ['ignore', outFd, outFd],
+                windowsHide: true,
+            });
+            await new Promise<void>((resolve, reject) => {
+                child.once('error', reject);
+                child.once('spawn', resolve);
+            });
+            initialJob.pid = child.pid;
+            child.unref();
+        } catch (err: any) {
+            const failedJob: PanelUpdateJobState = {
+                ...initialJob,
+                status: 'failed',
+                finishedAt: now(),
+                error: err?.message || '无法启动操作进程',
+            };
+            writeJsonFileAtomic(jobFile, failedJob);
+            throw createUpdateError(`启动后台任务失败：${err?.message || err}`, 500, 'SPAWN_UPDATE_FAILED');
+        } finally {
+            fs.closeSync(outFd);
+        }
+        return initialJob;
+    };
+
     const applyUpdate = (applyOptions: { pullFirst?: boolean } = {}) => withOpMutex(async () => {
         await ensureStartupCommit();
         const envInfo = await detectEnv();
@@ -590,68 +687,96 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
             throw createUpdateError('当前代码已是最新版本且已在运行中，无需重复更新', 400, 'NOTHING_TO_APPLY');
         }
 
-        const runtimeDir = envInfo.paths.runtimeDir;
-        fs.mkdirSync(runtimeDir, { recursive: true });
-        const jobFile = getJobFilePath(runtimeDir);
-        const logFile = getJobLogPath(runtimeDir);
-        const startedAt = now();
-        const initialJob: PanelUpdateJobState = {
-            id: `upd_${crypto.randomUUID().slice(0, 8)}`,
-            status: 'running',
+        const initialJob = await launchDetachedControlJob({
+            envInfo,
+            args: ['update', 'all'],
+            jobIdPrefix: 'upd',
             phase: '正在后台启动更新流程',
-            detail: '',
-            startedAt,
-            updatedAt: startedAt,
+            recentLine: '[发布] 正在启动后台更新进程…',
             fromCommit: startupCommit ? startupCommit.slice(0, 7) : statusNow.shortCommit,
             targetCommit: statusNow.shortCommit,
-            recentLines: ['[发布] 正在启动后台更新进程…'],
-        };
-        const controlScript = path.join(envInfo.repoRoot, 'tools', 'service-control.mjs');
-        const outFd = fs.openSync(logFile, 'w');
-        try {
-            writeJsonFileAtomic(jobFile, initialJob);
-            const childEnv: NodeJS.ProcessEnv = {
-                ...process.env,
-                NODE_ENV: process.env.NODE_ENV || 'production',
-                FARM_DATA_DIR: envInfo.paths.dataDir,
-                FARM_RUNTIME_DIR: runtimeDir,
-                FARM_HOST_DATA_DIR: envInfo.paths.hostDataDir,
-                FARM_HOST_LOG_DIR: envInfo.paths.hostLogDir,
-                FARM_BACKEND_LOG_DIR: envInfo.paths.backendLogDir,
-                FARM_SESSION_SOCKET: envInfo.paths.sessionSocketConfigured,
-                FARM_UPDATE_JOB_FILE: jobFile,
-            };
-            if (process.env.FARM_RELEASES_DIR) {
-                childEnv.FARM_RELEASES_DIR = process.env.FARM_RELEASES_DIR;
-            }
-            const child = spawnRunner(process.execPath, [controlScript, 'update', 'all'], {
-                cwd: envInfo.repoRoot,
-                env: childEnv,
-                detached: true,
-                stdio: ['ignore', outFd, outFd],
-                windowsHide: true,
-            });
-            await new Promise<void>((resolve, reject) => {
-                child.once('error', reject);
-                child.once('spawn', resolve);
-            });
-            initialJob.pid = child.pid;
-            child.unref();
-        } catch (err: any) {
-            const failedJob: PanelUpdateJobState = {
-                ...initialJob,
-                status: 'failed',
-                finishedAt: now(),
-                error: err?.message || '无法启动更新进程',
-            };
-            writeJsonFileAtomic(jobFile, failedJob);
-            throw createUpdateError(`启动更新进程失败：${err?.message || err}`, 500, 'SPAWN_UPDATE_FAILED');
-        } finally {
-            fs.closeSync(outFd);
-        }
+        });
 
         return {
             job: initialJob,
+            status: await getStatus(),
+        };
+    });
+
+    const rollbackRelease = (releaseId: unknown) => withOpMutex(async () => {
+        await ensureStartupCommit();
+        const envInfo = await detectEnv();
+        if (!envInfo.gitSupported || !envInfo.repoRoot) {
+            throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持回滚', 400, 'UNSUPPORTED_ENVIRONMENT');
+        }
+        if (!envInfo.applySupported) {
+            throw createUpdateError(envInfo.applyUnsupportedReason || '当前运行方式不支持网页内版本回滚', 400, 'APPLY_UNSUPPORTED');
+        }
+        const targetId = typeof releaseId === 'string' ? releaseId.trim() : '';
+        if (!/^backend-[\w.-]+$/.test(targetId)) {
+            throw createUpdateError('无效的历史版本标识', 400, 'INVALID_RELEASE_ID');
+        }
+
+        const statusNow = await getStatus();
+        if (statusNow.deployBusy) {
+            throw createUpdateError('已有部署或更新任务正在运行，请稍候查看进度', 409, 'UPDATE_BUSY');
+        }
+        const target = statusNow.releases.find(item => item.releaseId === targetId);
+        if (!target) {
+            throw createUpdateError('未找到指定的历史版本备份', 404, 'RELEASE_NOT_FOUND');
+        }
+        if (target.isActive) {
+            throw createUpdateError('目标版本已在运行中，无需回滚', 400, 'ALREADY_ACTIVE_RELEASE');
+        }
+        if (!target.compat.compatible) {
+            throw createUpdateError(`该版本与当前在线环境不兼容，无法回滚：${target.compat.reasons.join('；')}`, 409, 'INCOMPATIBLE_RELEASE');
+        }
+
+        const args = target.pairedWebReleaseId
+            ? ['rollback', 'all', '--release', target.releaseId, '--web-release', target.pairedWebReleaseId]
+            : ['rollback', 'backend', '--release', target.releaseId];
+
+        const initialJob = await launchDetachedControlJob({
+            envInfo,
+            args,
+            jobIdPrefix: 'rbk',
+            phase: '正在后台启动回滚流程',
+            recentLine: '[发布] 正在启动后台回滚进程…',
+            fromCommit: startupCommit ? startupCommit.slice(0, 7) : statusNow.shortCommit,
+            targetCommit: target.shortCommit || target.releaseId,
+        });
+
+        return {
+            job: initialJob,
+            status: { ...statusNow, job: initialJob, deployBusy: true, canPull: false, canApply: false },
+        };
+    });
+
+    const deleteReleases = (payload: { releaseIds?: unknown; cleanOrphans?: unknown } = {}) => withOpMutex(async () => {
+        await ensureStartupCommit();
+        const envInfo = await detectEnv();
+        if (envInfo.mode === 'docker' || envInfo.mode === 'binary') {
+            throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持清理历史发布目录', 400, 'UNSUPPORTED_ENVIRONMENT');
+        }
+        const currentJob = readJobState(envInfo.paths.runtimeDir);
+        if (currentJob?.status === 'running' || isDeployLockAlive(envInfo.paths.runtimeDir)) {
+            throw createUpdateError('当前已有部署或更新任务正在运行，请稍候完成后再试', 409, 'UPDATE_BUSY');
+        }
+        const releasesDir = getReleasesDirForEnv(envInfo);
+        if (!releasesDir) {
+            throw createUpdateError('未配置历史发布目录（releases）', 400, 'RELEASES_DIR_UNAVAILABLE');
+        }
+
+        const result = await releaseManager.deleteReleases({
+            runtimeDir: envInfo.paths.runtimeDir,
+            releasesDir,
+            appRoot: envInfo.paths.appRoot,
+            releaseIds: payload.releaseIds,
+            cleanOrphans: payload.cleanOrphans === true,
+        });
+
+        return {
+            ...result,
             status: await getStatus(),
         };
     });
@@ -661,6 +786,8 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         checkForUpdates,
         pullUpdates,
         applyUpdate,
+        rollbackRelease,
+        deleteReleases,
     };
 }
 
@@ -672,4 +799,6 @@ module.exports = {
     checkSystemUpdates: () => defaultSystemUpdateService.checkForUpdates(),
     pullSystemUpdates: () => defaultSystemUpdateService.pullUpdates(),
     applySystemUpdate: (options?: { pullFirst?: boolean }) => defaultSystemUpdateService.applyUpdate(options),
+    rollbackSystemRelease: (releaseId: unknown) => defaultSystemUpdateService.rollbackRelease(releaseId),
+    deleteSystemReleases: (payload?: { releaseIds?: unknown; cleanOrphans?: unknown }) => defaultSystemUpdateService.deleteReleases(payload),
 };

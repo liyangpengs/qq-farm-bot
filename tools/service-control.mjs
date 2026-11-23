@@ -12,11 +12,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const require = createRequire(import.meta.url);
+const { RELEASE_META_FILENAME, compareReleaseVersions, readReleaseMeta, readReleaseVersions } = require('../core/src/services/release-compat.js');
 
 const VERBOSE_OUTPUT = process.argv.includes('--verbose')
     || process.argv.includes('-v')
     || process.env.FARM_DEPLOY_VERBOSE === '1';
 
+const RELEASE_HISTORY_LIMIT = Math.max(3, Number.parseInt(process.env.FARM_MAX_RELEASES, 10) || 10);
 const UPDATE_JOB_FILE = process.env.FARM_UPDATE_JOB_FILE ? path.resolve(process.env.FARM_UPDATE_JOB_FILE) : '';
 delete process.env.FARM_UPDATE_JOB_FILE;
 const updateJobRecentLines = [];
@@ -195,11 +197,24 @@ function recordActiveRelease(cfg, kind, releaseId) {
         slot.previous = slot.active;
     }
     slot.active = releaseId;
-    slot.history = [releaseId, ...(slot.history || []).filter(id => id !== releaseId)].slice(0, 10);
+    slot.history = [releaseId, ...(slot.history || []).filter(id => id !== releaseId)].slice(0, RELEASE_HISTORY_LIMIT);
     slot.updatedAt = Date.now();
     state[kind] = slot;
     writeJsonAtomic(cfg.activeReleasesPath, state);
     return state;
+}
+
+function writeBackendReleaseMeta(backendRel, pairedWebReleaseId) {
+    const git = spawnSync('git', ['log', '-1', '--format=%H%n%h%n%s'], { cwd: REPO_ROOT, encoding: 'utf8', windowsHide: true });
+    const [commit = '', shortCommit = '', commitSubject = ''] = git.status === 0 ? git.stdout.trim().split(/\r?\n/) : [];
+    writeJsonAtomic(path.join(backendRel.dir, RELEASE_META_FILENAME), {
+        releaseId: backendRel.releaseId,
+        createdAt: Date.now(),
+        commit,
+        shortCommit,
+        commitSubject,
+        pairedWebReleaseId,
+    });
 }
 
 function createReleaseId(prefix = '') {
@@ -972,7 +987,7 @@ async function stopHostProcess(cfg) {
     return { stopped: true, forced: true };
 }
 
-function pruneOldReleases(releasesDir, slotState, keepCount = 3) {
+function pruneOldReleases(releasesDir, slotState, keepCount = RELEASE_HISTORY_LIMIT) {
     if (!fs.existsSync(releasesDir)) return;
     const pinned = new Set([slotState?.active, slotState?.previous].filter(Boolean));
     for (const id of (slotState?.history || []).slice(0, keepCount)) pinned.add(id);
@@ -1008,7 +1023,7 @@ function parseFlags(args) {
         }
         const key = arg.slice(2);
         const next = args[i + 1];
-        if (['release', 'stage-host-from', 'stage-backend-from', 'stage-web-from'].includes(key) && next && !next.startsWith('-')) {
+        if (['release', 'web-release', 'stage-host-from', 'stage-backend-from', 'stage-web-from'].includes(key) && next && !next.startsWith('-')) {
             flags[key] = next;
             i += 1;
         } else {
@@ -1104,6 +1119,7 @@ async function cmdStart(cfg, flags) {
                     stageFrom: flags['stage-host-from'],
                 });
                 releases = recordActiveRelease(cfg, 'host', hostRel.releaseId);
+                pruneOldReleases(cfg.hostReleasesDir, releases.host, 2);
             }
             const hostLogFile = path.join(cfg.hostLogDir, 'service.log');
             const hostPid = spawnDetachedService({
@@ -1147,6 +1163,7 @@ async function cmdStart(cfg, flags) {
                 skipBuild: Boolean(flags['skip-build']),
                 stageFrom: flags['stage-backend-from'],
             });
+            writeBackendReleaseMeta(backendRel, webRel.releaseId);
             releases = recordActiveRelease(cfg, 'backend', backendRel.releaseId);
         }
 
@@ -1307,6 +1324,7 @@ async function cmdUpdate(cfg, positional, flags) {
             skipBuild: Boolean(flags['skip-build']),
             stageFrom: flags['stage-backend-from'],
         });
+        writeBackendReleaseMeta(candidateBackend, stagedWeb?.releaseId || '');
         const beforeSwap = await probeHost(cfg);
         if (beforeSwap.state !== 'ready' || beforeSwap.hostInstanceId !== host.hostInstanceId) {
             throw new Error('Session host changed while staging the update');
@@ -1352,38 +1370,56 @@ async function cmdStop(cfg, positional) {
     return 0;
 }
 
+function getRollbackWebRelease(cfg, releaseId) {
+    if (typeof releaseId !== 'string' || !/^web-[\w.-]+$/.test(releaseId)) {
+        throw new Error('缺少对应的前端版本。可单独回滚后端，或使用 --web-release 指定前端版本。');
+    }
+    const dir = path.join(cfg.webReleasesDir, releaseId);
+    if (!fs.existsSync(path.join(dir, 'index.html'))) throw new Error(`Target web release missing: ${releaseId}`);
+    const { webRoot } = resolveWebRootInfo(cfg.runtimeDir, path.join(REPO_ROOT, 'web', 'dist'), cfg.env);
+    return { releaseId, dir, previousDir: webRoot };
+}
+
 async function cmdRollback(cfg, positional, flags) {
     const target = (positional[0] || 'backend').toLowerCase();
-    if (!['backend', 'web'].includes(target)) {
-        throw new Error(`Unsupported rollback target: ${target}. Use backend or web.`);
+    if (!['all', 'backend', 'web'].includes(target)) {
+        throw new Error(`Unsupported rollback target: ${target}. Use all, backend, or web.`);
     }
     return withDeployLock(cfg, async () => {
         const releases = readActiveReleases(cfg);
-        const slot = releases[target] || {};
+        const slot = target === 'web' ? (releases.web || {}) : (releases.backend || {});
         const targetId = typeof flags.release === 'string' && flags.release ? flags.release : slot.previous;
         if (!targetId) {
-            throw new Error(`No previous ${target} release recorded to roll back to (pass --release <id>).`);
+            throw new Error(`No previous ${target === 'all' ? 'backend' : target} release recorded to roll back to (pass --release <id>).`);
         }
         if (target === 'web') {
-            const dir = path.join(cfg.webReleasesDir, targetId);
-            if (!fs.existsSync(path.join(dir, 'index.html'))) {
-                throw new Error(`Target web release missing: ${dir}`);
-            }
-            const webInfo = resolveWebRootInfo(cfg.runtimeDir, path.join(REPO_ROOT, 'web', 'dist'), cfg.env);
-            switchWebRelease(cfg, {
-                releaseId: targetId,
-                dir,
-                previousDir: webInfo.webRoot && fs.existsSync(webInfo.webRoot) ? webInfo.webRoot : null,
-            });
+            switchWebRelease(cfg, getRollbackWebRelease(cfg, targetId));
             console.log(`Rolled back web to ${targetId}.`);
             return 0;
+        }
+        if (typeof targetId !== 'string' || !/^backend-[\w.-]+$/.test(targetId)) {
+            throw new Error('无效的后端发布目录名称');
         }
         const host = await probeHost(cfg);
         if (host.state !== 'ready') throw new Error(`session-host is ${host.state}; cannot attach rolled-back backend.`);
         const rel = resolveReleaseDir(cfg.backendReleasesDir, targetId);
         if (!rel) throw new Error(`Target backend release missing: ${targetId}`);
+
+        const activeId = readLockMetadata(cfg.backendLockPath)?.releaseId || releases.backend?.active;
+        const currentDir = activeId ? resolveReleaseDir(cfg.backendReleasesDir, activeId)?.dir : path.join(REPO_ROOT, 'core');
+        const compat = compareReleaseVersions(readReleaseVersions(rel.dir), readReleaseVersions(currentDir), host.ipcVersion);
+        if (!compat.compatible) throw new Error(`拒绝回滚至不兼容版本：${compat.reasons.join('；')}`);
+
+        const web = target === 'all'
+            ? getRollbackWebRelease(cfg, flags['web-release'] || readReleaseMeta(rel.dir)?.pairedWebReleaseId)
+            : null;
         await runCommand(process.execPath, ['--check', path.join(rel.dir, 'client.js')]);
         const ready = await swapBackendToRelease(cfg, rel, host);
+        if (web) {
+            switchWebRelease(cfg, web);
+            console.log(`已回滚前后端：后端 ${targetId} (pid=${ready.pid})，前端 ${web.releaseId}，会话宿主 ${host.hostInstanceId} 保持在线。`);
+            return 0;
+        }
         console.log(`Rolled back backend to ${targetId} (pid=${ready.pid}, hostInstanceId=${host.hostInstanceId} preserved).`);
         return 0;
     });

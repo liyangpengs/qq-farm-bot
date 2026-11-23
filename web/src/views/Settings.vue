@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ReleasesSummary, RollbackReleaseItem } from '@/components/settings/ReleaseRollbackPanel.vue'
 import { NButton } from 'naive-ui/es/button'
 import { NTab } from 'naive-ui/es/tabs'
 import { NTimePicker } from 'naive-ui/es/time-picker'
@@ -11,6 +12,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import PageTabs from '@/components/PageTabs.vue'
 import AutomationSettingsForm from '@/components/settings/AutomationSettingsForm.vue'
 import BagSeedPriorityItem from '@/components/settings/BagSeedPriorityItem.vue'
+import ReleaseRollbackPanel from '@/components/settings/ReleaseRollbackPanel.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
@@ -1583,6 +1585,19 @@ interface SystemUpdateState {
   lastCheckError: string
   lastPulledAt: number | null
   job: PanelUpdateJob | null
+  releases: RollbackReleaseItem[]
+  releasesSummary: ReleasesSummary
+}
+
+const emptyReleasesSummary: ReleasesSummary = {
+  totalCount: 0,
+  compatibleCount: 0,
+  outdatedCount: 0,
+  totalSizeBytes: 0,
+  outdatedSizeBytes: 0,
+  orphanHostCount: 0,
+  orphanWebCount: 0,
+  orphanSizeBytes: 0,
 }
 
 const updateStatus = ref<SystemUpdateState | null>(null)
@@ -1594,6 +1609,11 @@ const updateActionError = ref('')
 const updateRequestConfig = { skipErrorToast: true, timeout: 90_000 }
 let updateViewActive = true
 let updatePollTimer: ReturnType<typeof setTimeout> | null = null
+
+function handleReleaseStatusUpdated(nextStatus: SystemUpdateState) {
+  updateStatus.value = nextStatus
+  scheduleUpdatePollIfBusy()
+}
 
 function clearUpdatePollTimer() {
   if (updatePollTimer) {
@@ -2212,151 +2232,151 @@ onBeforeUnmount(() => {
           </h3>
 
           <div class="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-            <section class="farm-card rounded-lg p-4">
-              <div class="mb-4 flex items-start gap-3">
-                <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
-                  <span class="i-carbon-settings-adjust text-xl" />
-                </div>
-                <div>
-                  <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
-                    运行环境
-                  </h4>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    服务器连接、时区与客户端设备参数
-                  </p>
-                </div>
-              </div>
-
-              <div v-if="systemConfigLoading" class="py-8 text-center text-gray-500">
-                <span class="i-svg-spinners-90-ring-with-bg inline-block text-2xl" />
-              </div>
-              <div v-else class="space-y-3">
-                <div v-if="devicePresets.length" class="border border-gray-200 rounded-lg bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-900/30">
-                  <label class="mb-2 block text-sm text-gray-700 font-medium dark:text-gray-300">设备预设</label>
-                  <div class="flex flex-wrap gap-2">
-                    <NButton
-                      v-for="preset in devicePresets"
-                      :key="preset.id"
-                      size="small"
-                      :type="selectedPresetId === preset.id ? 'primary' : 'default'"
-                      :secondary="selectedPresetId !== preset.id"
-                      :title="preset.description"
-                      @click="applyDevicePreset(preset.id)"
-                    >
-                      {{ preset.name }}
-                    </NButton>
+            <div class="min-w-0 space-y-4">
+              <section class="farm-card rounded-lg p-4">
+                <div class="mb-4 flex items-start gap-3">
+                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
+                    <span class="i-carbon-settings-adjust text-xl" />
                   </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <BaseInput
-                    v-model="localSystemConfig.serverUrl"
-                    label="服务器地址"
-                    type="text"
-                    placeholder="wss://..."
-                  />
                   <div>
-                    <BaseSelect
-                      v-model="localSystemConfig.timeZone"
-                      label="系统时区"
-                      :options="timeZoneOptions"
-                    />
-                    <p class="mt-1 text-xs text-gray-500 leading-relaxed dark:text-gray-400">
-                      礼包、任务、安静时段和日志均以此时区为准。
+                    <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
+                      运行环境
+                    </h4>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      服务器连接、时区与客户端设备参数
                     </p>
                   </div>
                 </div>
 
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div class="border border-gray-200 rounded-lg bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-900/30">
-                    <label class="mb-2 block text-sm text-gray-700 font-medium dark:text-gray-300">平台</label>
+                <div v-if="systemConfigLoading" class="py-8 text-center text-gray-500">
+                  <span class="i-svg-spinners-90-ring-with-bg inline-block text-2xl" />
+                </div>
+                <div v-else class="space-y-3">
+                  <div v-if="devicePresets.length" class="border border-gray-200 rounded-lg bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+                    <label class="mb-2 block text-sm text-gray-700 font-medium dark:text-gray-300">设备预设</label>
                     <div class="flex flex-wrap gap-2">
                       <NButton
-                        v-for="option in platformOptions"
-                        :key="option.value"
+                        v-for="preset in devicePresets"
+                        :key="preset.id"
                         size="small"
-                        :type="localSystemConfig.platform === option.value ? 'primary' : 'default'"
-                        :secondary="localSystemConfig.platform !== option.value"
-                        @click="localSystemConfig.platform = option.value"
+                        :type="selectedPresetId === preset.id ? 'primary' : 'default'"
+                        :secondary="selectedPresetId !== preset.id"
+                        :title="preset.description"
+                        @click="applyDevicePreset(preset.id)"
                       >
-                        {{ option.label }}
+                        {{ preset.name }}
                       </NButton>
                     </div>
                   </div>
-                  <div class="border border-gray-200 rounded-lg bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-900/30">
-                    <label class="mb-2 block text-sm text-gray-700 font-medium dark:text-gray-300">系统</label>
-                    <div class="flex flex-wrap gap-2">
-                      <NButton
-                        v-for="option in osOptions"
-                        :key="option.value"
-                        size="small"
-                        :type="localSystemConfig.deviceInfo.os === option.value ? 'primary' : 'default'"
-                        :secondary="localSystemConfig.deviceInfo.os !== option.value"
-                        @click="localSystemConfig.deviceInfo.os = option.value; localSystemConfig.os = option.value"
-                      >
-                        {{ option.label }}
-                      </NButton>
+
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <BaseInput
+                      v-model="localSystemConfig.serverUrl"
+                      label="服务器地址"
+                      type="text"
+                      placeholder="wss://..."
+                    />
+                    <div>
+                      <BaseSelect
+                        v-model="localSystemConfig.timeZone"
+                        label="系统时区"
+                        :options="timeZoneOptions"
+                      />
+                      <p class="mt-1 text-xs text-gray-500 leading-relaxed dark:text-gray-400">
+                        礼包、任务、安静时段和日志均以此时区为准。
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <BaseInput
-                    v-model="localSystemConfig.deviceInfo.clientVersion"
-                    label="QQ 客户端版本"
-                    type="text"
-                    :placeholder="defaultSystemConfig.deviceInfo.clientVersion || '从服务器加载中...'"
-                  />
-                  <BaseInput
-                    v-model="localSystemConfig.wxClientVersion"
-                    label="微信客户端版本"
-                    type="text"
-                    :placeholder="defaultSystemConfig.wxClientVersion || '从服务器加载中...'"
-                  />
-                  <BaseInput
-                    v-model="localSystemConfig.deviceInfo.sysSoftware"
-                    label="系统版本"
-                    type="text"
-                    placeholder="Windows 10"
-                  />
-                  <BaseInput
-                    v-model="localSystemConfig.deviceInfo.deviceId"
-                    label="设备标识"
-                    type="text"
-                    placeholder="DESKTOP-PC<WPC>"
-                  />
-                  <BaseInput
-                    v-model="localSystemConfig.deviceInfo.memory"
-                    label="内存 (MB)"
-                    type="text"
-                    placeholder="16384"
-                  />
-                  <BaseInput
-                    v-model="localSystemConfig.deviceInfo.network"
-                    label="网络"
-                    type="text"
-                    placeholder="wifi"
-                  />
-                  <BaseInput
-                    v-model="localSystemConfig.deviceInfo.userAgent"
-                    label="User-Agent"
-                    type="text"
-                    placeholder="Mozilla/5.0 ..."
-                  />
-                </div>
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div class="border border-gray-200 rounded-lg bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+                      <label class="mb-2 block text-sm text-gray-700 font-medium dark:text-gray-300">平台</label>
+                      <div class="flex flex-wrap gap-2">
+                        <NButton
+                          v-for="option in platformOptions"
+                          :key="option.value"
+                          size="small"
+                          :type="localSystemConfig.platform === option.value ? 'primary' : 'default'"
+                          :secondary="localSystemConfig.platform !== option.value"
+                          @click="localSystemConfig.platform = option.value"
+                        >
+                          {{ option.label }}
+                        </NButton>
+                      </div>
+                    </div>
+                    <div class="border border-gray-200 rounded-lg bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+                      <label class="mb-2 block text-sm text-gray-700 font-medium dark:text-gray-300">系统</label>
+                      <div class="flex flex-wrap gap-2">
+                        <NButton
+                          v-for="option in osOptions"
+                          :key="option.value"
+                          size="small"
+                          :type="localSystemConfig.deviceInfo.os === option.value ? 'primary' : 'default'"
+                          :secondary="localSystemConfig.deviceInfo.os !== option.value"
+                          @click="localSystemConfig.deviceInfo.os = option.value; localSystemConfig.os = option.value"
+                        >
+                          {{ option.label }}
+                        </NButton>
+                      </div>
+                    </div>
+                  </div>
 
-                <div class="flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
-                  <BaseButton variant="secondary" size="sm" :loading="systemConfigSaving" @click="handleResetSystemConfig">
-                    重置
-                  </BaseButton>
-                  <BaseButton variant="primary" size="sm" :loading="systemConfigSaving" @click="handleSaveSystemConfig">
-                    保存运行环境
-                  </BaseButton>
-                </div>
-              </div>
-            </section>
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <BaseInput
+                      v-model="localSystemConfig.deviceInfo.clientVersion"
+                      label="QQ 客户端版本"
+                      type="text"
+                      :placeholder="defaultSystemConfig.deviceInfo.clientVersion || '从服务器加载中...'"
+                    />
+                    <BaseInput
+                      v-model="localSystemConfig.wxClientVersion"
+                      label="微信客户端版本"
+                      type="text"
+                      :placeholder="defaultSystemConfig.wxClientVersion || '从服务器加载中...'"
+                    />
+                    <BaseInput
+                      v-model="localSystemConfig.deviceInfo.sysSoftware"
+                      label="系统版本"
+                      type="text"
+                      placeholder="Windows 10"
+                    />
+                    <BaseInput
+                      v-model="localSystemConfig.deviceInfo.deviceId"
+                      label="设备标识"
+                      type="text"
+                      placeholder="DESKTOP-PC<WPC>"
+                    />
+                    <BaseInput
+                      v-model="localSystemConfig.deviceInfo.memory"
+                      label="内存 (MB)"
+                      type="text"
+                      placeholder="16384"
+                    />
+                    <BaseInput
+                      v-model="localSystemConfig.deviceInfo.network"
+                      label="网络"
+                      type="text"
+                      placeholder="wifi"
+                    />
+                    <BaseInput
+                      v-model="localSystemConfig.deviceInfo.userAgent"
+                      label="User-Agent"
+                      type="text"
+                      placeholder="Mozilla/5.0 ..."
+                    />
+                  </div>
 
-            <div class="min-w-0 space-y-4">
+                  <div class="flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
+                    <BaseButton variant="secondary" size="sm" :loading="systemConfigSaving" @click="handleResetSystemConfig">
+                      重置
+                    </BaseButton>
+                    <BaseButton variant="primary" size="sm" :loading="systemConfigSaving" @click="handleSaveSystemConfig">
+                      保存运行环境
+                    </BaseButton>
+                  </div>
+                </div>
+              </section>
+
               <section class="farm-card rounded-lg p-4">
                 <div class="mb-4 flex items-start gap-3">
                   <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-900/25 dark:text-violet-400">
@@ -2410,26 +2430,184 @@ onBeforeUnmount(() => {
                   </BaseButton>
                 </div>
               </section>
+            </div>
 
+            <div class="min-w-0 space-y-4">
               <section class="farm-card rounded-lg p-4">
                 <div class="mb-4 flex items-start gap-3">
-                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
-                    <span class="i-carbon-renew text-xl" />
+                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/25 dark:text-green-400">
+                    <span class="i-carbon-notification text-xl" />
                   </div>
                   <div>
                     <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
-                      版本更新
+                      下线提醒
                     </h4>
                     <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      检查当前分支，拉取并应用更新
+                      配置账号离线后的通知与清理
                     </p>
                   </div>
                 </div>
 
-                <div v-if="updateLoading && !updateStatus" class="py-6 text-center text-gray-500">
-                  <span class="i-svg-spinners-90-ring-with-bg inline-block text-2xl" />
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div class="min-w-0 flex flex-col gap-1.5">
+                    <div class="min-h-6 flex items-center justify-between gap-2">
+                      <span class="text-sm text-gray-700 font-medium dark:text-gray-300">推送渠道</span>
+                      <BaseButton
+                        variant="text"
+                        size="sm"
+                        :disabled="!currentChannelDocUrl"
+                        @click="openChannelDocs"
+                      >
+                        官方文档
+                      </BaseButton>
+                    </div>
+                    <BaseSelect
+                      v-model="localOffline.channel"
+                      :options="channelOptions"
+                    />
+                  </div>
+
+                  <BaseInput
+                    v-if="offlineChannelUsesEndpoint"
+                    v-model="localOffline.endpoint"
+                    :label="offlineEndpointLabel"
+                    type="text"
+                    :placeholder="offlineEndpointPlaceholder"
+                  />
+
+                  <BaseInput
+                    v-if="!isDingTalkChannel"
+                    v-model="localOffline.token"
+                    :label="offlineTokenLabel"
+                    type="text"
+                    :placeholder="offlineTokenPlaceholder"
+                  />
+
+                  <template v-else>
+                    <BaseInput
+                      v-model="localOffline.secret"
+                      label="加签密钥（可选）"
+                      type="password"
+                      placeholder="仅在机器人开启加签时填写 SEC..."
+                    />
+                    <p class="text-xs text-gray-500 leading-relaxed sm:col-span-2 dark:text-gray-400">
+                      从群机器人的设置页复制完整 Webhook；只有开启“加签”时才需要填写加签密钥。
+                    </p>
+                  </template>
+
+                  <BaseInput
+                    v-model="localOffline.title"
+                    label="标题"
+                    type="text"
+                    placeholder="提醒标题"
+                  />
+                  <BaseInput
+                    v-model.number="localOffline.offlineDeleteSec"
+                    label="离线删除账号 (秒)"
+                    type="number"
+                    min="0"
+                    placeholder="0 表示不删除"
+                  />
+                  <BaseInput
+                    v-model="localOffline.msg"
+                    label="内容"
+                    type="text"
+                    placeholder="提醒内容"
+                    class="sm:col-span-2"
+                  />
                 </div>
-                <div v-else-if="updateStatus" class="flex flex-col gap-3">
+
+                <div class="mt-3 flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
+                  <BaseButton
+                    variant="secondary"
+                    size="sm"
+                    :loading="offlineTesting"
+                    :disabled="offlineSaving"
+                    @click="handleTestOffline"
+                  >
+                    测试通知
+                  </BaseButton>
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    :loading="offlineSaving"
+                    :disabled="offlineTesting"
+                    @click="handleSaveOffline"
+                  >
+                    保存下线提醒设置
+                  </BaseButton>
+                </div>
+              </section>
+
+              <section class="farm-card rounded-lg p-4">
+                <div class="mb-4 flex items-start gap-3">
+                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400">
+                    <span class="i-carbon-password text-xl" />
+                  </div>
+                  <div>
+                    <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
+                      修改管理员密码
+                    </h4>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      更新后台管理登录凭据
+                    </p>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <BaseInput
+                    v-model="passwordForm.old"
+                    label="当前密码"
+                    type="password"
+                    placeholder="当前管理员密码"
+                  />
+                  <BaseInput
+                    v-model="passwordForm.new"
+                    label="新密码"
+                    type="password"
+                    placeholder="至少 6 位"
+                  />
+                  <BaseInput
+                    v-model="passwordForm.confirm"
+                    label="确认新密码"
+                    type="password"
+                    placeholder="再次输入新密码"
+                  />
+                </div>
+
+                <div class="mt-3 flex items-center justify-end border-t pt-3 dark:border-gray-700">
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    :loading="passwordSaving"
+                    @click="handleChangePassword"
+                  >
+                    修改管理员密码
+                  </BaseButton>
+                </div>
+              </section>
+            </div>
+
+            <section class="system-update-card min-w-0 farm-card rounded-lg p-4 xl:col-span-2">
+              <div class="mb-4 flex items-start gap-3">
+                <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400">
+                  <span class="i-carbon-renew text-xl" />
+                </div>
+                <div>
+                  <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
+                    版本更新
+                  </h4>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    检查分支更新、拉取代码与回滚历史版本
+                  </p>
+                </div>
+              </div>
+
+              <div v-if="updateLoading && !updateStatus" class="py-6 text-center text-gray-500">
+                <span class="i-svg-spinners-90-ring-with-bg inline-block text-2xl" />
+              </div>
+              <div v-else-if="updateStatus" class="update-workspace">
+                <div class="min-w-0 flex flex-col gap-3">
                   <div class="update-meta-grid">
                     <div class="update-meta-item">
                       <span class="update-meta-label">当前分支</span>
@@ -2573,168 +2751,26 @@ onBeforeUnmount(() => {
                     </BaseButton>
                   </div>
                 </div>
-                <div v-else-if="updateActionError" class="flex flex-wrap items-center gap-2">
-                  <span class="text-xs text-red-600 dark:text-red-400">{{ updateActionError }}</span>
-                  <BaseButton size="sm" variant="secondary" @click="loadUpdateStatus()">
-                    重新加载
-                  </BaseButton>
-                </div>
-              </section>
-
-              <section class="farm-card rounded-lg p-4">
-                <div class="mb-4 flex items-start gap-3">
-                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400">
-                    <span class="i-carbon-password text-xl" />
-                  </div>
-                  <div>
-                    <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
-                      修改管理员密码
-                    </h4>
-                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      更新后台管理登录凭据
-                    </p>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <BaseInput
-                    v-model="passwordForm.old"
-                    label="当前密码"
-                    type="password"
-                    placeholder="当前管理员密码"
-                  />
-                  <BaseInput
-                    v-model="passwordForm.new"
-                    label="新密码"
-                    type="password"
-                    placeholder="至少 6 位"
-                  />
-                  <BaseInput
-                    v-model="passwordForm.confirm"
-                    label="确认新密码"
-                    type="password"
-                    placeholder="再次输入新密码"
+                <div class="update-workspace__releases">
+                  <ReleaseRollbackPanel
+                    :releases="updateStatus.releases || []"
+                    :summary="updateStatus.releasesSummary || emptyReleasesSummary"
+                    :mode="updateStatus.mode"
+                    :apply-supported="updateStatus.applySupported"
+                    :apply-unsupported-reason="updateStatus.applyUnsupportedReason"
+                    :deploy-busy="updateStatus.deployBusy"
+                    :disabled="updateChecking || updatePulling || updateApplying"
+                    @status-updated="handleReleaseStatusUpdated"
                   />
                 </div>
-
-                <div class="mt-3 flex items-center justify-end border-t pt-3 dark:border-gray-700">
-                  <BaseButton
-                    variant="primary"
-                    size="sm"
-                    :loading="passwordSaving"
-                    @click="handleChangePassword"
-                  >
-                    修改管理员密码
-                  </BaseButton>
-                </div>
-              </section>
-
-              <section class="farm-card rounded-lg p-4">
-                <div class="mb-4 flex items-start gap-3">
-                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/25 dark:text-green-400">
-                    <span class="i-carbon-notification text-xl" />
-                  </div>
-                  <div>
-                    <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
-                      下线提醒
-                    </h4>
-                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      配置账号离线后的通知与清理
-                    </p>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div class="min-w-0 flex flex-col gap-1.5">
-                    <div class="min-h-6 flex items-center justify-between gap-2">
-                      <span class="text-sm text-gray-700 font-medium dark:text-gray-300">推送渠道</span>
-                      <BaseButton
-                        variant="text"
-                        size="sm"
-                        :disabled="!currentChannelDocUrl"
-                        @click="openChannelDocs"
-                      >
-                        官方文档
-                      </BaseButton>
-                    </div>
-                    <BaseSelect
-                      v-model="localOffline.channel"
-                      :options="channelOptions"
-                    />
-                  </div>
-
-                  <BaseInput
-                    v-if="offlineChannelUsesEndpoint"
-                    v-model="localOffline.endpoint"
-                    :label="offlineEndpointLabel"
-                    type="text"
-                    :placeholder="offlineEndpointPlaceholder"
-                  />
-
-                  <BaseInput
-                    v-if="!isDingTalkChannel"
-                    v-model="localOffline.token"
-                    :label="offlineTokenLabel"
-                    type="text"
-                    :placeholder="offlineTokenPlaceholder"
-                  />
-
-                  <template v-else>
-                    <BaseInput
-                      v-model="localOffline.secret"
-                      label="加签密钥（可选）"
-                      type="password"
-                      placeholder="仅在机器人开启加签时填写 SEC..."
-                    />
-                    <p class="text-xs text-gray-500 leading-relaxed sm:col-span-2 dark:text-gray-400">
-                      从群机器人的设置页复制完整 Webhook；只有开启“加签”时才需要填写加签密钥。
-                    </p>
-                  </template>
-
-                  <BaseInput
-                    v-model="localOffline.title"
-                    label="标题"
-                    type="text"
-                    placeholder="提醒标题"
-                  />
-                  <BaseInput
-                    v-model.number="localOffline.offlineDeleteSec"
-                    label="离线删除账号 (秒)"
-                    type="number"
-                    min="0"
-                    placeholder="0 表示不删除"
-                  />
-                  <BaseInput
-                    v-model="localOffline.msg"
-                    label="内容"
-                    type="text"
-                    placeholder="提醒内容"
-                    class="sm:col-span-2"
-                  />
-                </div>
-
-                <div class="mt-3 flex justify-end gap-2 border-t pt-3 dark:border-gray-700">
-                  <BaseButton
-                    variant="secondary"
-                    size="sm"
-                    :loading="offlineTesting"
-                    :disabled="offlineSaving"
-                    @click="handleTestOffline"
-                  >
-                    测试通知
-                  </BaseButton>
-                  <BaseButton
-                    variant="primary"
-                    size="sm"
-                    :loading="offlineSaving"
-                    :disabled="offlineTesting"
-                    @click="handleSaveOffline"
-                  >
-                    保存下线提醒设置
-                  </BaseButton>
-                </div>
-              </section>
-            </div>
+              </div>
+              <div v-else-if="updateActionError" class="flex flex-wrap items-center gap-2">
+                <span class="text-xs text-red-600 dark:text-red-400">{{ updateActionError }}</span>
+                <BaseButton size="sm" variant="secondary" @click="loadUpdateStatus()">
+                  重新加载
+                </BaseButton>
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -2754,6 +2790,37 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.system-update-card {
+  container-type: inline-size;
+}
+
+.update-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.update-workspace__releases {
+  min-width: 0;
+  padding-block-start: 18px;
+  border-block-start: 1px solid var(--ui-border);
+}
+
+@container (min-width: 860px) {
+  .update-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: start;
+    gap: 24px;
+  }
+
+  .update-workspace__releases {
+    padding-block-start: 0;
+    padding-inline-start: 24px;
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--ui-border);
+  }
+}
+
 .update-meta-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
