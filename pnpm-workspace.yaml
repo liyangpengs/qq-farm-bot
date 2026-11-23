@@ -1,6 +1,7 @@
 packages:
   - core
   - web
+  - packages/session-contract
 
 overrides:
   '@babel/traverse': 7.26.10

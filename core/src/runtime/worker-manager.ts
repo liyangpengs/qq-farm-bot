@@ -1,6 +1,11 @@
 export {};
 const { createScheduler } = require('../services/scheduler');
 
+const { BackendChildTracker } = require('@qq-farm-bot/session-contract');
+const { accountSessionKey, findAccountSession, listHostedSessions, stopHostedAccount } = require('../session/ipc');
+const { getRuntimePaths } = require('../config/runtime-paths');
+const path = require('node:path');
+
 const DEFAULT_API_CALL_TIMEOUT_MS = 10000;
 // 好友现场天气需要逐个 Enter/Leave，单批最多 5 位好友；
 // 好友列表只读缓存或拉一次名单，给的余量少一些。
@@ -61,6 +66,10 @@ function createWorkerManager(options: WorkerManagerOptions) {
     const managerScheduler = createScheduler('worker_manager');
     const useThreadRuntime = runtimeMode === 'thread' && !(processRef as any).pkg && typeof WorkerThread === 'function';
 
+    const managed = Boolean(processRef.env.FARM_SESSION_SOCKET);
+    const tracker = managed && !useThreadRuntime ? new BackendChildTracker(path.join(getRuntimePaths().runtimeDir, 'backend-children.json')) : null;
+    let shuttingDown = false;
+
     function createThreadWorker(account: any): any {
         const workerOptions: any = {
             workerData: {
@@ -101,7 +110,8 @@ function createWorkerManager(options: WorkerManagerOptions) {
         return createForkWorker(account);
     }
 
-    function startWorker(account: any): boolean {
+    function startWorker(account: any, sessionId?: string): boolean {
+        if (shuttingDown) return false;
         if (!account || !account.id) return false;
         if (workers[account.id]) return false;
 
@@ -110,6 +120,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
         let child: any = null;
         try {
             child = createWorkerProcess(account);
+            tracker?.register(child.pid, 'account', String(account.id));
         } catch (err: any) {
             const reason = err && err.message ? err.message : String(err || 'unknown error');
             log('错误', `账号 ${account.name} 启动失败: ${reason}`, { accountId: String(account.id), accountName: account.name });
@@ -119,6 +130,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
 
         workers[account.id] = {
             process: child,
+            accountKey: accountSessionKey(account),
             status: null,
             logs: [],
             requests: new Map(),
@@ -137,7 +149,8 @@ function createWorkerManager(options: WorkerManagerOptions) {
         child.send({
             type: 'start',
             config: {
-                code: account.code,
+                code: sessionId ? undefined : account.code,
+                accountId: String(account.id), accountKey: accountSessionKey(account), sessionId,
                 platform: account.platform,
                 systemTimeZone: initialConfigSnapshot.systemTimeZone,
                 systemServerUrl: initialConfigSnapshot.systemServerUrl,
@@ -157,6 +170,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
         });
 
         child.on('exit', (code: number, signal: string) => {
+            tracker?.unregister(child.pid);
             const current = workers[account.id];
             if (!current || current.process !== child) return;
             const displayName = current.name || account.name;
@@ -202,7 +216,41 @@ function createWorkerManager(options: WorkerManagerOptions) {
         });
     }
 
-    function restartWorker(account: any): void {
+    // 先停止本实例的业务工作进程。只有面板显式停止账号才关闭游戏连接。
+    function endWorker(worker: any, type: 'stop' | 'detach'): Promise<void> {
+        worker.stopping = true;
+        const child = worker.process;
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => { child.kill(); }, 2500);
+            const onExit = () => { clearTimeout(timer); resolve(); };
+            child.once('exit', onExit);
+            if (child.exitCode != null || child.signalCode) { onExit(); return; }
+            try { child.send({ type }); }
+            catch (err) { if (child.connected !== false) { clearTimeout(timer); child.off('exit', onExit); reject(err); } }
+        });
+    }
+
+    async function startAccountWorker(account: any) {
+        if (!managed || workers[account.id]) return startWorker(account);
+        const session = findAccountSession(await listHostedSessions(), account);
+        return startWorker(account, session?.sessionId);
+    }
+
+    async function stopAccountWorker(account: any) {
+        if (!managed) { stopWorker(account.id); return; }
+        const worker = workers[account.id];
+        const key = worker?.accountKey || accountSessionKey(account);
+        if (worker) await endWorker(worker, 'stop');
+        await stopHostedAccount(String(account.id), key);
+    }
+
+    async function detachAllWorkers() {
+        shuttingDown = true;
+        await Promise.all(Object.values(workers).map(worker => endWorker(worker, 'detach')));
+    }
+
+    function restartWorker(account: any): void | Promise<void> {
+        if (managed && account) return stopAccountWorker(account).then(() => { startWorker(account); });
         if (!account) return;
         const accountId = account.id;
         const worker = workers[accountId];
@@ -524,7 +572,7 @@ function createWorkerManager(options: WorkerManagerOptions) {
         startWorker,
         stopWorker,
         restartWorker,
-        callWorkerApi,
+        callWorkerApi, startAccountWorker, stopAccountWorker, detachAllWorkers,
     };
 }
 

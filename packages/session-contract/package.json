@@ -1,0 +1,24 @@
+{
+  "name": "@qq-farm-bot/session-contract",
+  "version": "1.0.0",
+  "description": "Shared IPC protocol, runtime paths, and process locks for qq-farm-bot session-host and backend",
+  "license": "ISC",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "~5.9.3"
+  }
+}
