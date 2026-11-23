@@ -21,7 +21,7 @@ const { disabled, request } = useRanchActions()
 
 const friends = ref<any[]>([])
 const listLoaded = ref(false)
-const expandedGids = ref<Record<string, boolean>>({})
+const expandedGid = ref<string | null>(null)
 const detailsByGid = ref<Record<string, any>>({})
 const errorsByGid = ref<Record<string, string>>({})
 const loadingGid = ref('')
@@ -148,7 +148,7 @@ const visibleEntries = computed(() => visible.value.map((friend) => {
     friend,
     gid,
     statusId: blacklisted || friend.canMidwife || friend.canSteal || friend.canHelp ? `ranch-friend-status-${gid}` : undefined,
-    expanded: !blacklisted && Boolean(expandedGids.value[gid]),
+    expanded: !blacklisted && expandedGid.value === gid,
     blacklisted,
     detail,
     error: errorsByGid.value[gid] || '',
@@ -159,14 +159,13 @@ const visibleEntries = computed(() => visible.value.map((friend) => {
   }
 }))
 
-const expandedCount = computed(() => Object.keys(expandedGids.value).length)
 const grassDialogDetail = computed(() => grassDialogGid.value ? detailOf(grassDialogGid.value) : null)
 const grassDialogMachine = computed(() => grassDialogDetail.value?.feedMachine ?? null)
 const grassDialogAvailable = computed(() => grassAvailableOf(grassDialogDetail.value))
 const grassDialogLimit = computed(() => grassLimitOf(grassDialogDetail.value))
 
 function resetExpandedState() {
-  expandedGids.value = {}
+  expandedGid.value = null
   detailsByGid.value = {}
   errorsByGid.value = {}
   loadingGid.value = ''
@@ -280,11 +279,8 @@ async function fetchFriendDetail(id: string, gid: string) {
 }
 
 function collapseFriend(gid: string) {
-  if (expandedGids.value[gid]) {
-    const nextExpanded = { ...expandedGids.value }
-    delete nextExpanded[gid]
-    expandedGids.value = nextExpanded
-  }
+  if (expandedGid.value === gid)
+    expandedGid.value = null
   if (grassDialogGid.value === gid)
     grassDialogGid.value = ''
 }
@@ -294,16 +290,19 @@ async function toggle(friend: any, event: Event) {
   const id = String(currentAccountId.value || '')
   if (!id || !gid || disabled.value || blacklistedSet.value.has(Number(gid)))
     return
-  if (expandedGids.value[gid]) {
+  if (expandedGid.value === gid) {
     collapseFriend(gid)
     return
   }
-  const scrollEl = (event.currentTarget as HTMLElement).closest<HTMLElement>('.page-scroll')
-  const savedTop = scrollEl?.scrollTop
-  expandedGids.value = { ...expandedGids.value, [gid]: true }
+  const trigger = event.currentTarget as HTMLElement
+  const scrollEl = trigger.closest('.page-scroll')
+  const triggerTop = trigger.getBoundingClientRect().top
+  expandedGid.value = gid
+  grassDialogGid.value = ''
   await nextTick()
-  if (scrollEl && savedTop !== undefined && scrollEl.scrollTop !== savedTop)
-    scrollEl.scrollTop = savedTop
+  // 收起上方的好友后，当前点击的好友仍尽量留在原来的位置。
+  if (scrollEl)
+    scrollEl.scrollTop += trigger.getBoundingClientRect().top - triggerTop
   await fetchFriendDetail(id, gid)
 }
 
@@ -312,11 +311,6 @@ async function refreshFriend(gid: string) {
   if (!id || !gid || disabled.value)
     return
   await fetchFriendDetail(id, gid)
-}
-
-function collapseAll() {
-  expandedGids.value = {}
-  grassDialogGid.value = ''
 }
 
 function openGrassDialog(gid: string) {
@@ -354,9 +348,6 @@ async function reloadList() {
           <span class="i-carbon-search" aria-hidden="true" />
           <input v-model="query" type="search" placeholder="搜索好友" aria-label="搜索好友">
         </label>
-        <NButton v-if="!showBlacklist && expandedCount > 1" size="small" quaternary @click="collapseAll">
-          全部收起
-        </NButton>
         <NButton secondary size="small" :disabled="!currentAccountId" :title="showBlacklist ? '返回好友列表' : '牧场黑名单'" :aria-label="showBlacklist ? '返回好友列表' : '牧场黑名单'" @click="toggleBlacklistView">
           <template #icon>
             <span class="i-carbon-subtract-alt" />
@@ -798,7 +789,6 @@ async function reloadList() {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-
 
 .f-tag--steal {
   color: var(--ui-primary);

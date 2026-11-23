@@ -7,6 +7,7 @@ const { getRuntimeConfig } = require('../../config/config');
 const { getSchedulerRegistrySnapshot } = require('../../services/scheduler');
 const { createModuleLogger } = require('../../services/logger');
 const adminStore = require('../../models/admin-store');
+const { getActiveWebBuildId } = require('./web-version');
 
 const {
     getClientIp,
@@ -60,7 +61,10 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
             return res.status(400).json({ ok: false, error: '请提供原密码和新密码' });
         }
         const result = adminStore.changePassword(String(oldPassword), String(newPassword));
-        if (result.ok) ctx.tokens.clear();
+        if (result.ok) {
+            ctx.tokens.clear();
+            ctx.io?.disconnectSockets(true);
+        }
         return res.json(result);
     });
 
@@ -70,7 +74,7 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
     });
 
     app.get('/api/ping', (_req: Request, res: Response) => {
-        res.json({ ok: true, data: { ok: true, uptime: process.uptime(), version } });
+        res.json({ ok: true, data: { ok: true, uptime: process.uptime(), version, webBuildId: getActiveWebBuildId() } });
     });
 
     app.get('/api/game-version', async (_req: Request, res: Response) => {
