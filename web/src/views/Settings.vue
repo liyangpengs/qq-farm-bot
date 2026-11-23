@@ -1730,6 +1730,26 @@ async function handleApplySystemUpdate(pullFirst: boolean) {
   }
 }
 
+/** 标题行的一句话状态，按任务、待更新、本地异常、最新的优先级取一项。 */
+const updateHeadline = computed<{ label: string, tone: 'busy' | 'pending' | 'warn' | 'ok' | 'muted' }>(() => {
+  const status = updateStatus.value
+  if (!status)
+    return { label: '', tone: 'muted' }
+  if (status.job?.status === 'running' || status.deployBusy)
+    return { label: '更新中', tone: 'busy' }
+  if (!status.gitSupported)
+    return { label: '不支持在线更新', tone: 'muted' }
+  if (status.behindCount > 0)
+    return { label: `${status.behindCount} 个可更新`, tone: 'pending' }
+  if (status.needsApply)
+    return { label: '待应用', tone: 'pending' }
+  if (status.dirtyFiles.length || status.aheadCount > 0)
+    return { label: '本地有改动', tone: 'warn' }
+  if (!status.lastCheckedAt)
+    return { label: '未检查', tone: 'muted' }
+  return { label: '已是最新', tone: 'ok' }
+})
+
 function formatUpdateTimestamp(ms: number | null | undefined): string {
   if (!ms)
     return '未检查'
@@ -2607,43 +2627,89 @@ onBeforeUnmount(() => {
                 <span class="i-svg-spinners-90-ring-with-bg inline-block text-2xl" />
               </div>
               <div v-else-if="updateStatus" class="update-workspace">
-                <div class="min-w-0 flex flex-col gap-3">
-                  <div class="update-meta-grid">
-                    <div class="update-meta-item">
-                      <span class="update-meta-label">当前分支</span>
-                      <span class="update-meta-value font-mono">
-                        {{ updateStatus.detached ? '游离 HEAD' : (updateStatus.branch || '-') }}
+                <section class="update-pane update-pane--status" aria-labelledby="update-status-title">
+                  <header class="update-pane__head">
+                    <div class="update-pane__heading">
+                      <h5 id="update-status-title" class="update-pane__title">
+                        当前版本
+                      </h5>
+                      <span class="update-state" :class="`update-state--${updateHeadline.tone}`">
+                        <span v-if="updateHeadline.tone === 'busy'" class="i-svg-spinners-90-ring-with-bg" aria-hidden="true" />
+                        {{ updateHeadline.label }}
                       </span>
                     </div>
-                    <div class="update-meta-item">
-                      <span class="update-meta-label">当前提交</span>
-                      <span class="update-meta-value font-mono" :title="updateStatus.commitSubject">
-                        {{ updateStatus.shortCommit || '-' }}
-                      </span>
+                    <div class="update-pane__actions">
+                      <BaseButton
+                        variant="secondary"
+                        size="sm"
+                        :loading="updateChecking"
+                        :disabled="!updateStatus.canCheck || updatePulling || updateApplying || updateStatus.deployBusy"
+                        @click="handleCheckSystemUpdates"
+                      >
+                        <span class="i-carbon-renew mr-1" aria-hidden="true" />检查更新
+                      </BaseButton>
+                      <BaseButton
+                        v-if="updateStatus.canPull"
+                        variant="secondary"
+                        size="sm"
+                        :loading="updatePulling"
+                        :disabled="updateChecking || updateApplying || updateStatus.deployBusy"
+                        @click="handlePullSystemUpdates"
+                      >
+                        仅拉取代码
+                      </BaseButton>
+                      <BaseButton
+                        v-if="updateStatus.applySupported && updateStatus.behindCount > 0"
+                        variant="primary"
+                        size="sm"
+                        :loading="updateApplying"
+                        :disabled="!updateStatus.canApply || updateChecking || updatePulling"
+                        @click="handleApplySystemUpdate(true)"
+                      >
+                        拉取并更新
+                      </BaseButton>
+                      <BaseButton
+                        v-else-if="updateStatus.applySupported && updateStatus.needsApply"
+                        variant="primary"
+                        size="sm"
+                        :loading="updateApplying"
+                        :disabled="!updateStatus.canApply || updateChecking || updatePulling"
+                        @click="handleApplySystemUpdate(false)"
+                      >
+                        应用更新
+                      </BaseButton>
                     </div>
-                    <div class="update-meta-item">
-                      <span class="update-meta-label">跟踪分支</span>
-                      <span class="update-meta-value font-mono">
-                        {{ updateStatus.upstream || '未关联' }}
-                      </span>
+                  </header>
+
+                  <dl class="update-facts">
+                    <div class="update-fact">
+                      <dt>分支</dt>
+                      <dd class="update-fact__value font-mono">
+                        <span>{{ updateStatus.detached ? '游离 HEAD' : (updateStatus.branch || '-') }}</span>
+                        <span class="update-fact__muted" aria-label="跟踪">→</span>
+                        <span :class="{ 'update-fact__muted': !updateStatus.upstream }">{{ updateStatus.upstream || '未关联远程' }}</span>
+                      </dd>
                     </div>
-                    <div class="update-meta-item">
-                      <span class="update-meta-label">最近检查</span>
-                      <span class="update-meta-value">
+                    <div class="update-fact">
+                      <dt>提交</dt>
+                      <dd class="update-fact__value" :title="updateStatus.commitSubject || undefined">
+                        <code class="update-fact__sha">{{ updateStatus.shortCommit || '-' }}</code>
+                        <span v-if="updateStatus.commitSubject" class="update-fact__subject">{{ updateStatus.commitSubject }}</span>
+                      </dd>
+                    </div>
+                    <div class="update-fact">
+                      <dt>最近检查</dt>
+                      <dd class="update-fact__value">
                         {{ formatUpdateTimestamp(updateStatus.lastCheckedAt) }}
-                      </span>
+                      </dd>
                     </div>
-                  </div>
+                  </dl>
 
                   <div v-if="!updateStatus.gitSupported" class="update-notice update-notice--muted">
                     {{ updateStatus.unsupportedReason }}
                   </div>
 
                   <template v-else>
-                    <div v-if="updateStatus.commitSubject" class="text-xs text-gray-500 dark:text-gray-400">
-                      最新本地提交：{{ updateStatus.commitSubject }}
-                    </div>
-
                     <div v-if="updateStatus.dirtyFiles.length" class="update-notice update-notice--warn">
                       检测到未提交的本地修改（{{ updateStatus.dirtyFiles.slice(0, 3).join('，') }}{{ updateStatus.dirtyFiles.length > 3 ? ' 等' : '' }}），已禁用自动拉取以避免覆盖。
                     </div>
@@ -2656,113 +2722,68 @@ onBeforeUnmount(() => {
                       工作区代码已更新（运行基线 {{ updateStatus.startupCommit.slice(0, 7) }} → {{ updateStatus.shortCommit }}），应用更新并重启后端后生效。
                     </div>
 
-                    <div v-if="updateStatus.behindCount > 0" class="update-commits">
-                      <div class="update-commits__header">
-                        可拉取更新（落后 {{ updateStatus.behindCount }} 个提交）
+                    <div v-if="updateStatus.behindCount > 0" class="update-block">
+                      <div class="update-block__title">
+                        可拉取更新<span class="update-block__count">{{ updateStatus.behindCount }}</span>
                       </div>
-                      <ul class="update-commits__list">
+                      <ul class="update-commits">
                         <li v-for="item in updateStatus.incomingCommits" :key="item.hash" class="update-commits__row">
                           <code class="update-commits__sha">{{ item.shortHash }}</code>
-                          <span class="update-commits__subject">{{ item.subject }}</span>
+                          <span class="update-commits__subject" :title="item.subject">{{ item.subject }}</span>
                           <span class="update-commits__author">{{ item.author }}</span>
                         </li>
                       </ul>
                     </div>
 
-                    <div v-if="!updateStatus.applySupported && updateStatus.applyUnsupportedReason" class="text-xs text-gray-500 dark:text-gray-400">
+                    <div v-if="!updateStatus.applySupported && updateStatus.applyUnsupportedReason" class="update-notice update-notice--muted">
                       {{ updateStatus.applyUnsupportedReason }}
                     </div>
                   </template>
 
                   <div
                     v-if="updateStatus.job"
-                    class="update-job-card"
-                    :class="{
-                      'update-job-card--error': updateStatus.job.status === 'failed',
-                      'update-job-card--ok': updateStatus.job.status === 'succeeded',
-                    }"
+                    class="update-block update-job"
+                    :class="`update-job--${updateStatus.job.status}`"
+                    role="status"
                   >
-                    <div class="update-job-card__title">
+                    <div class="update-block__title">
                       <span
                         v-if="updateStatus.job.status === 'running'"
-                        class="i-svg-spinners-90-ring-with-bg shrink-0 text-base text-emerald-600"
+                        class="update-job__icon i-svg-spinners-90-ring-with-bg"
+                        aria-hidden="true"
                       />
                       <span
                         v-else-if="updateStatus.job.status === 'succeeded'"
-                        class="i-carbon-checkmark-filled shrink-0 text-base text-emerald-600"
+                        class="update-job__icon i-carbon-checkmark-filled"
+                        aria-hidden="true"
                       />
-                      <span
-                        v-else
-                        class="i-carbon-warning-filled shrink-0 text-base text-red-500"
-                      />
-                      <span>
+                      <span v-else class="update-job__icon i-carbon-warning-filled" aria-hidden="true" />
+                      <span class="min-w-0 truncate">
                         {{ updateStatus.job.phase || '更新任务' }}{{ updateStatus.job.detail ? ` · ${updateStatus.job.detail}` : '' }}
                       </span>
                     </div>
-                    <div v-if="updateStatus.job.error" class="mt-1 text-xs text-red-600 dark:text-red-400">
+                    <div v-if="updateStatus.job.error" class="update-job__error">
                       {{ updateStatus.job.error }}
                     </div>
-                    <pre v-if="updateStatus.job.recentLines?.length" class="update-job-log">{{ updateStatus.job.recentLines.slice(-6).join('\n') }}</pre>
+                    <pre v-if="updateStatus.job.recentLines?.length" class="update-job__log">{{ updateStatus.job.recentLines.slice(-6).join('\n') }}</pre>
                   </div>
 
-                  <div v-if="updateActionError || updateStatus.lastCheckError" class="text-xs text-red-600 dark:text-red-400">
+                  <div v-if="updateActionError || updateStatus.lastCheckError" role="alert" class="update-error">
                     {{ updateActionError || updateStatus.lastCheckError }}
                   </div>
+                </section>
 
-                  <div class="flex flex-wrap justify-end gap-2 border-t pt-3 dark:border-gray-700">
-                    <BaseButton
-                      variant="secondary"
-                      size="sm"
-                      :loading="updateChecking"
-                      :disabled="!updateStatus.canCheck || updatePulling || updateApplying || updateStatus.deployBusy"
-                      @click="handleCheckSystemUpdates"
-                    >
-                      检查更新
-                    </BaseButton>
-                    <BaseButton
-                      v-if="updateStatus.canPull"
-                      variant="secondary"
-                      size="sm"
-                      :loading="updatePulling"
-                      :disabled="updateChecking || updateApplying || updateStatus.deployBusy"
-                      @click="handlePullSystemUpdates"
-                    >
-                      仅拉取代码
-                    </BaseButton>
-                    <BaseButton
-                      v-if="updateStatus.applySupported && updateStatus.behindCount > 0"
-                      variant="primary"
-                      size="sm"
-                      :loading="updateApplying"
-                      :disabled="!updateStatus.canApply || updateChecking || updatePulling"
-                      @click="handleApplySystemUpdate(true)"
-                    >
-                      拉取并更新
-                    </BaseButton>
-                    <BaseButton
-                      v-else-if="updateStatus.applySupported && updateStatus.needsApply"
-                      variant="primary"
-                      size="sm"
-                      :loading="updateApplying"
-                      :disabled="!updateStatus.canApply || updateChecking || updatePulling"
-                      @click="handleApplySystemUpdate(false)"
-                    >
-                      应用更新
-                    </BaseButton>
-                  </div>
-                </div>
-                <div class="update-workspace__releases">
-                  <ReleaseRollbackPanel
-                    :releases="updateStatus.releases || []"
-                    :summary="updateStatus.releasesSummary || emptyReleasesSummary"
-                    :mode="updateStatus.mode"
-                    :apply-supported="updateStatus.applySupported"
-                    :apply-unsupported-reason="updateStatus.applyUnsupportedReason"
-                    :deploy-busy="updateStatus.deployBusy"
-                    :disabled="updateChecking || updatePulling || updateApplying"
-                    @status-updated="handleReleaseStatusUpdated"
-                  />
-                </div>
+                <ReleaseRollbackPanel
+                  class="update-pane update-pane--releases"
+                  :releases="updateStatus.releases || []"
+                  :summary="updateStatus.releasesSummary || emptyReleasesSummary"
+                  :mode="updateStatus.mode"
+                  :apply-supported="updateStatus.applySupported"
+                  :apply-unsupported-reason="updateStatus.applyUnsupportedReason"
+                  :deploy-busy="updateStatus.deployBusy"
+                  :disabled="updateChecking || updatePulling || updateApplying"
+                  @status-updated="handleReleaseStatusUpdated"
+                />
               </div>
               <div v-else-if="updateActionError" class="flex flex-wrap items-center gap-2">
                 <span class="text-xs text-red-600 dark:text-red-400">{{ updateActionError }}</span>
@@ -2794,69 +2815,155 @@ onBeforeUnmount(() => {
   container-type: inline-size;
 }
 
+/* ==================== 版本更新 ==================== */
 .update-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
+  gap: 18px;
 }
 
-.update-workspace__releases {
-  min-width: 0;
-  padding-block-start: 18px;
-  border-block-start: 1px solid var(--ui-border);
-}
-
-@container (min-width: 860px) {
-  .update-workspace {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    align-items: start;
-    gap: 24px;
-  }
-
-  .update-workspace__releases {
-    padding-block-start: 0;
-    padding-inline-start: 24px;
-    border-block-start: 0;
-    border-inline-start: 1px solid var(--ui-border);
-  }
-}
-
-.update-meta-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-}
-
-.update-meta-item {
+/* 两栏同一结构：标题行（标题 + 状态，右侧操作）+ 内容，网格行内等高拉伸。 */
+.update-pane {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px;
+  gap: 12px;
+}
+
+.update-pane--releases {
+  padding-top: 18px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.update-pane__head {
+  display: flex;
+  min-height: 32px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.update-pane__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-pane__title {
+  color: var(--ui-ink);
+  font-size: 14px;
+  font-weight: var(--fw-600);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.update-pane__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.update-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: var(--fw-600);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.update-state--ok {
+  background: color-mix(in srgb, var(--ui-primary) 13%, transparent);
+  color: var(--ui-primary);
+}
+
+.update-state--pending,
+.update-state--busy {
+  background: var(--ui-blue-soft);
+  color: var(--ui-blue);
+}
+
+.update-state--warn {
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
+}
+
+.update-state--muted {
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface-soft);
+  color: var(--ui-muted);
+}
+
+.update-facts {
+  margin: 0;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   background: var(--ui-surface-soft);
 }
 
-.update-meta-label {
-  color: var(--ui-muted);
-  font-size: 11px;
+.update-fact {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 12px;
 }
 
-.update-meta-value {
+.update-fact + .update-fact {
+  border-top: 1px solid var(--ui-border);
+}
+
+.update-fact dt {
+  color: var(--ui-muted);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.update-fact__value {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
   overflow: hidden;
   color: var(--ui-ink);
   font-size: 13px;
-  font-weight: var(--fw-600);
-  text-overflow: ellipsis;
+  font-weight: var(--fw-500);
+  line-height: 20px;
   white-space: nowrap;
 }
 
+.update-fact__muted {
+  color: var(--ui-subtle);
+}
+
+.update-fact__sha {
+  flex-shrink: 0;
+  color: var(--ui-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: var(--fw-600);
+}
+
+.update-fact__subject {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .update-notice {
-  padding: 10px 12px;
+  padding: 9px 12px;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .update-notice--muted {
@@ -2871,33 +2978,49 @@ onBeforeUnmount(() => {
 }
 
 .update-notice--info {
-  border-color: color-mix(in srgb, var(--ui-primary) 35%, var(--ui-border));
-  background: var(--ui-primary-soft);
+  border-color: color-mix(in srgb, var(--ui-blue) 30%, var(--ui-border));
+  background: var(--ui-blue-soft);
   color: var(--ui-ink);
 }
 
-.update-commits {
+/* 可拉取提交与任务日志共用同一种块：标题行 + 内容。 */
+.update-block {
+  overflow: hidden;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-control);
   background: var(--ui-surface-soft);
-  overflow: hidden;
 }
 
-.update-commits__header {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--ui-border);
-  color: var(--ui-ink);
-  font-size: 12px;
-  font-weight: var(--fw-600);
-}
-
-.update-commits__list {
-  margin: 0;
-  padding: 6px 12px;
-  list-style: none;
+.update-block__title {
   display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  color: var(--ui-ink);
+  font-size: 13px;
+  font-weight: var(--fw-600);
+  line-height: 20px;
+}
+
+.update-block__count {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ui-blue-soft);
+  color: var(--ui-blue);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.update-commits {
+  display: flex;
+  max-height: 172px;
   flex-direction: column;
   gap: 6px;
+  margin: 0;
+  padding: 0 12px 10px;
+  overflow-y: auto;
+  list-style: none;
 }
 
 .update-commits__row {
@@ -2905,7 +3028,7 @@ onBeforeUnmount(() => {
   align-items: baseline;
   gap: 8px;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .update-commits__sha {
@@ -2915,8 +3038,8 @@ onBeforeUnmount(() => {
 }
 
 .update-commits__subject {
-  flex: 1;
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   color: var(--ui-ink);
   text-overflow: ellipsis;
@@ -2929,45 +3052,76 @@ onBeforeUnmount(() => {
   font-size: 11px;
 }
 
-.update-job-card {
-  padding: 10px 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-control);
-  background: var(--ui-surface-soft);
+.update-job--running {
+  border-color: color-mix(in srgb, var(--ui-blue) 35%, var(--ui-border));
 }
 
-.update-job-card--error {
+.update-job--succeeded {
+  border-color: color-mix(in srgb, var(--ui-primary) 35%, var(--ui-border));
+}
+
+.update-job--failed {
   border-color: color-mix(in srgb, var(--ui-danger) 40%, var(--ui-border));
 }
 
-.update-job-card--ok {
-  border-color: color-mix(in srgb, var(--ui-primary) 40%, var(--ui-border));
+.update-job__icon {
+  flex-shrink: 0;
+  font-size: 16px;
 }
 
-.update-job-card__title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ui-ink);
-  font-size: 13px;
-  font-weight: var(--fw-600);
+.update-job--running .update-job__icon {
+  color: var(--ui-blue);
 }
 
-.update-job-log {
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--ui-ink) 6%, transparent);
+.update-job--succeeded .update-job__icon {
+  color: var(--ui-primary);
+}
+
+.update-job--failed .update-job__icon {
+  color: var(--ui-danger);
+}
+
+.update-job__error {
+  padding: 0 12px 9px;
+  color: var(--ui-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.update-job__log {
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--ui-border);
+  background: color-mix(in srgb, var(--ui-ink) 4%, transparent);
   color: var(--ui-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-@media (min-width: 640px) {
-  .update-meta-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.update-error {
+  color: var(--ui-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@container (min-width: 860px) {
+  .update-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 0;
+  }
+
+  .update-pane--status {
+    padding-right: 24px;
+  }
+
+  .update-pane--releases {
+    padding-top: 0;
+    padding-left: 24px;
+    border-top: none;
+    border-left: 1px solid var(--ui-border);
   }
 }
 </style>
