@@ -21,6 +21,7 @@
     "test": "pnpm run build:ts && node --test tests/*.test.js"
   },
   "dependencies": {
+    "@qq-farm-bot/session-contract": "workspace:*",
     "axios": "^1.6.0",
     "express": "^4.21.0",
     "long": "^5.3.2",
@@ -56,5 +57,14 @@
       "src/utils/tsdk.wasm",
       "src/utils/tsdk-wx.wasm"
     ]
-  }
+  },
+  "files": [
+    "client.js",
+    "dist",
+    "src/gameConfig",
+    "src/proto",
+    "src/activity-data",
+    "src/utils/tsdk.wasm",
+    "src/utils/tsdk-wx.wasm"
+  ]
 }

@@ -4,6 +4,11 @@ setlocal EnableExtensions EnableDelayedExpansion
 set "ROOT=%~dp0"
 set "KEEP_DATA=0"
 set "FAILED=0"
+if defined FARM_RUNTIME_DIR (
+    set "RT_DIR=%FARM_RUNTIME_DIR%"
+) else (
+    set "RT_DIR=%ROOT%runtime"
+)
 
 for %%A in (%*) do (
     if /I "%%~A"=="--keep-data" set "KEEP_DATA=1"
@@ -20,17 +25,39 @@ echo Cleaning generated files for packaging...
 echo Project root: %ROOT%
 echo.
 
-if exist "%ROOT%app_dev.pid" (
-    echo [FAIL] app_dev.pid exists. Stop the service and remove the stale PID file before cleaning on Windows.
-    popd >nul
-    exit /b 1
+for %%M in (
+    "%ROOT%app_dev.pid"
+    "%RT_DIR%\session-host.lock"
+    "%RT_DIR%\backend-writer.lock"
+    "%RT_DIR%\deploy-operation.lock"
+    "%RT_DIR%\session-host.pid"
+    "%RT_DIR%\backend.pid"
+) do (
+    if exist "%%~M" (
+        echo [FAIL] Active runtime lock or PID marker exists: %%~M
+        echo Stop services explicitly before cleaning so live sessions and data are protected.
+        popd >nul
+        exit /b 1
+    )
+)
+
+if exist "%RT_DIR%\backend-children.json" (
+    node -e "process.exit(require('./packages/session-contract/dist').listAliveBackendChildren(process.argv[1]).length ? 1 : 0)" "%RT_DIR%\backend-children.json"
+    if errorlevel 1 (
+        echo [FAIL] Could not confirm that all registered backend workers have stopped.
+        popd >nul
+        exit /b 1
+    )
 )
 
 call :remove_dir "%ROOT%node_modules"
 call :remove_dir "%ROOT%core\node_modules"
+call :remove_dir "%ROOT%packages\session-contract\node_modules"
 call :remove_dir "%ROOT%web\node_modules"
 call :remove_dir "%ROOT%core\dist"
+call :remove_dir "%ROOT%packages\session-contract\dist"
 call :remove_dir "%ROOT%web\dist"
+call :remove_dir "%ROOT%releases"
 call :remove_dir "%ROOT%coverage"
 call :remove_dir "%ROOT%.nyc_output"
 call :remove_dir "%ROOT%core\coverage"

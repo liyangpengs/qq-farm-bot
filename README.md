@@ -137,21 +137,25 @@ pnpm dev:core
 git clone https://github.com/liyangpengs/qq-farm-bot.git
 cd qq-farm-bot
 corepack enable
-bash ./start.sh
-
-# 拉取代码后如需忽略缓存并完整重建
-bash ./start.sh --rebuild
-
-# 查看日志
-tail -f app_dev.log
-
-# 停止服务
-bash ./stop.sh
+bash start.sh
+bash status.sh
 ```
 
-`start.sh` 会在依赖缺失或依赖清单变化时执行 `pnpm install --frozen-lockfile`，并按文件更新时间分别判断 Web、Core 是否需要重建。源码和依赖均未变化时会直接复用现有产物；`--rebuild` 可强制完整重建。脚本随后以生产模式后台运行 `node core/client.js`，日志写入 `app_dev.log`，进程号记录在 `app_dev.pid`。`stop.sh` 会校验 PID 对应的工作目录和启动命令，再停止整个服务进程组。
+首次启动会安装构建依赖并打包前端、后端和会话宿主。默认只显示当前步骤、进度和耗时。需要查看编译器的完整输出时，在命令后加 `--verbose` 或 `-v`。再次启动可复用现有发布包。如果从旧版单进程脚本迁移，请先在旧版本运行一次原有的 `bash stop.sh`，升级后启动服务并登录账号。从这次登录开始，会话由独立宿主管理。
 
-前端类型检查已与生产构建拆分，需要单独检查时执行 `pnpm typecheck:web`。
+| 操作 | 命令 | 对在线账号的影响 |
+| --- | --- | --- |
+| 拉取代码并在线更新 | `git pull --ff-only` 后运行 `bash update.sh all`（直接运行 `bash update.sh` 等效） | 先构建候选版本，再替换后端并切换前端。宿主保持连接，后端接回原会话 |
+| 单独更新前端 | `bash update.sh web` | 切换页面入口，并继续提供上一版的静态资源 |
+| 单独更新后端 | `bash update.sh backend` | 管理面板与业务操作短暂停顿，宿主继续发送心跳 |
+| 查看会话状态 | `bash status.sh --json` | 可对照更新前后的 `sessionId`、`heartbeatReplies` 和 `backendInstanceId` |
+| 回退后端或前端 | `bash rollback.sh backend` 或 `bash rollback.sh web` | 使用上一版发布包。后端候选启动或接管失败时，也会自动尝试恢复旧版 |
+| 暂停和恢复后端 | `bash stop.sh backend`，然后 `bash start.sh` | 已在线的账号由宿主保活，后端启动后继续使用原会话 |
+| 停止全部服务 | `bash stop.sh all` | 关闭游戏连接。下次启动后需重新登录 |
+
+直接运行 `bash stop.sh` 只显示用法。`bash stop.sh host` 会关闭会话宿主及所有游戏连接。
+
+运行数据默认位于 `core/data/`，后端日志为 `core/data/logs/service.log`，宿主日志为 `core/data/session-host/logs/service.log`。发布包保存在 `releases/`，当前版本和进程锁位于 `runtime/`。面板内主动停止账号会关闭该账号的游戏连接。宿主退出或游戏服务器结束会话后，需要按正常流程重新登录。
 
 ### Docker Compose
 
@@ -160,8 +164,9 @@ git clone https://github.com/liyangpengs/qq-farm-bot.git
 cd qq-farm-bot
 docker compose up -d --build
 
-# 仅重启现有容器，不触发镜像构建
-docker compose restart qq-farm-bot
+# 更新前端与后端，并保留正在运行的会话宿主
+docker compose build qq-farm-bot
+docker compose up -d --no-deps qq-farm-bot
 
 # 查看状态和日志
 docker compose ps
@@ -180,6 +185,8 @@ docker compose down
 PORT=3008
 TZ=Asia/Shanghai
 ```
+
+Compose 分别运行 `session-host` 和 `qq-farm-bot`，通过 `qq-farm-runtime` 卷共享本地套接字。需要更换宿主镜像时，请安排账号重新登录。
 
 Docker 数据保存在 `qq-farm-data` 和 `qq-farm-logs` 命名卷中。执行 `docker compose down` 不会删除这些卷；不要使用 `docker compose down -v`，除非确认要删除运行数据。
 
@@ -302,6 +309,7 @@ qq-farm-bot/
 │   │   ├── controllers/   # Web API 与鉴权路由
 │   │   ├── core/          # 单账号 Worker 与任务调度
 │   │   ├── runtime/       # 多账号运行时和状态同步
+│   │   ├── session/       # 会话宿主、连接接管与本地通信
 │   │   ├── services/      # 农场、好友、图鉴、活动、商城、微信登录等业务
 │   │   ├── proto/         # Protocol Buffers 定义
 │   │   ├── gameConfig/    # 作物、道具、等级、图鉴与属性加成等游戏配置
@@ -313,7 +321,8 @@ qq-farm-bot/
 │   ├── src/views/         # 各功能页面
 │   └── dist/              # 前端构建产物
 ├── docs/                  # 项目专题文档
-├── tools/                 # 配置下载、图片下载与协议分析工具
+├── packages/session-contract/ # 本地通信、运行路径与进程锁
+├── tools/                 # 发布控制、配置下载、图片下载与协议分析工具
 ├── docker-compose.yml
 ├── pnpm-workspace.yaml
 └── package.json

@@ -34,7 +34,7 @@ const {
 } = require('../services/warehouse');
 const { checkAndClaimDogSkillGifts } = require('../services/dog-skill-gifts');
 const { isGatewayHealthyForBusiness, isGatewayIdleForLowPriority, nextBusinessBackoffMs } = require('../utils/low-priority-gate');
-const { connect, cleanup, getWs, getUserState, networkEvents, getGatewayLoad } = require('../utils/network');
+const { connect, cleanup, configureHostedSession, activateHostedSession, detachHostedSession, getWs, getUserState, networkEvents, getGatewayLoad } = require('../utils/network');
 const { loadProto } = require('../utils/proto');
 const { runWithRequestClass } = require('../utils/request-context');
 const { setLogHook, log, logWarn, toNum, getSystemDateKey, formatSystemDateTime24 } = require('../utils/utils');
@@ -54,7 +54,7 @@ if (parentPort && workerData && workerData.accountId && !process.env.FARM_ACCOUN
 
 function sendToMaster(payload: Record<string, any>): void {
     if (process.send) {
-        process.send(payload);
+        if (process.connected) process.send(payload);
         return;
     }
     if (parentPort) {
@@ -499,14 +499,18 @@ async function runStartupSequence(canContinue: () => boolean = () => loginReady)
 
         if (!loginReady || !canContinue()) return;
         // 登录串行部分跑完，才挂上主循环和后续周期性定时器，避免启动期任务叠跑。
-        startFarmCheckLoop({ externalScheduler: true });
-        startFriendCheckLoop({ externalScheduler: true });
-        startUnifiedScheduler();
-        startDailyRoutineTimer(false);
-        startMysteryShopTimer();
+        startBusinessLoops();
     } catch (e: any) {
         log('系统', `登录启动序列执行失败: ${e.message}`, { module: 'system', event: '启动序列', result: 'error' });
     }
+}
+
+function startBusinessLoops(): void {
+    startFarmCheckLoop({ externalScheduler: true });
+    startFriendCheckLoop({ externalScheduler: true });
+    startUnifiedScheduler();
+    startDailyRoutineTimer(false);
+    startMysteryShopTimer();
 }
 
 function runMysteryShopTick(): Promise<void> {
@@ -616,8 +620,8 @@ onMasterMessage(async (msg: any) => {
     try {
         if (msg.type === 'start') {
             await startBot(msg.config);
-        } else if (msg.type === 'stop') {
-            await stopBot();
+        } else if (msg.type === 'stop' || msg.type === 'detach') {
+            await stopBot(msg.type === 'detach');
         } else if (msg.type === 'api_call') {
             handleApiCall(msg);
         } else if (msg.type === 'config_sync') {
@@ -782,7 +786,15 @@ async function startBot(config: any): Promise<void> {
         const latest = getUserState();
         const accountId = process.env.FARM_ACCOUNT_ID || '';
         initStatsWithPersistence(accountId, Number(latest.gold || 0), Number(latest.exp || 0), Number(latest.coupon || 0));
+        if (!canContinueLogin()) return;
+        if (config.sessionId) {
+            startBusinessLoops();
+            syncStatus();
+            await activateHostedSession();
+            return;
+        }
         resetSessionGains();
+        await activateHostedSession();
 
         // 登录成功后启动各模块
         await runExclusiveAutomationTask('invite_codes', processInviteCodes);
@@ -798,6 +810,7 @@ async function startBot(config: any): Promise<void> {
         await runExclusiveAutomationTask('startup_sequence', () => runStartupSequence(canContinueLogin));
     };
 
+    configureHostedSession(config);
     connect(code, onLoginSuccess);
 
     // 启动定时状态同步
@@ -832,7 +845,7 @@ function detachRuntimeListeners(): void {
     }
 }
 
-function quiesceBot(reason: string): void {
+function quiesceBot(reason: string, detach = false): void | Promise<void> {
     shutdownStarted = true;
     runtimeGeneration += 1;
     isRunning = false;
@@ -844,14 +857,19 @@ function quiesceBot(reason: string): void {
     cleanupTaskSystem();
     workerScheduler.clearAll();
     detachRuntimeListeners();
-    cleanup(reason);
+    const done = detach ? detachHostedSession() : cleanup(reason);
     syncStatus(true);
+    return done;
 }
 
-async function stopBot(): Promise<void> {
+if (process.send) process.once('disconnect', () => { void stopBot(true); });
+
+async function stopBot(detach = false): Promise<void> {
     if (!shutdownStarted) {
         saveStats();
-        quiesceBot('主动停止');
+        try { await quiesceBot(detach ? '后端更新' : '主动停止', detach); }
+        finally { exitWorker(0); }
+        return;
     }
     exitWorker(0);
 }
@@ -866,7 +884,7 @@ function handleTerminalDisconnect(payload: any): void {
         source, disconnectCode: code, reason, phase, diagnostics: payload?.diagnostics || null,
     });
     saveStats();
-    quiesceBot(`连接断开: ${source}`);
+    void Promise.resolve(quiesceBot(`连接断开: ${source}`, true)).catch((err: Error) => logWarn('连接', err.message));
     sendToMaster({
         type: 'account_disconnected',
         source,
@@ -887,7 +905,7 @@ function onKickout(payload: any): void {
     const diagnostics = payload?.diagnostics || null;
     log('系统', `检测到踢下线，准备自动停止账号。原因: ${reason} (${reasonCode})`, { reasonCode, diagnostics });
     saveStats();
-    quiesceBot(`踢下线: ${reason}`);
+    void Promise.resolve(quiesceBot(`踢下线: ${reason}`)).catch((err: Error) => logWarn('连接', err.message));
     sendToMaster({ type: 'account_kicked', reason, reasonCode, diagnostics });
     setTimeout(exitWorker, 300, 0);
 }
