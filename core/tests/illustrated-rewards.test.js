@@ -13,7 +13,13 @@ function harness() {
     mock('utils/proto', { types }); mock('utils/utils', { toNum: Number });
     mock('config/gameConfig', { getItemById: id => ({ name: `物品${id}` }), getItemImageById: () => '', getPlantBySeedId: () => null, getPlantByFruitId: () => null, getPlantNameBySeedId: () => '', getIllustratedTypeByParam: () => '', getIllustratedSortByParam: () => 1, getIllustratedBuffsByLevel: () => [], getIllustratedBuffs: () => [], getAllSeeds: () => [] });
     mock('services/farm', { getAvailableSeeds: async () => [] });
-    mock('utils/network', { sendMsgAsync: async (_service, method, body) => {
+    const hooks = {};
+    mock('utils/network', { sendMsgAsync: async (_service, method, body, options) => {
+        if (method === 'ClaimAllRewardsV2') {
+            hooks.beforeSend?.();
+            const blocked = options?.beforeSend?.();
+            if (blocked) throw blocked;
+        }
         const req = types[`${method}Request`].decode(body); requests.push({ method, type: req.type, body });
         let reply;
         if (method === 'ClaimAllRewardsV2') { writes++; levels[1].claimed = true; levels[1].can_claim = false; reply = { total_rewards: [{ id: 1002, count: 200 }], claimed_level_ids: [29], current_level: 29 }; }
@@ -24,7 +30,7 @@ function harness() {
         return { body: types[`${method}Reply`].encode(types[`${method}Reply`].fromObject(reply)).finish() };
     } });
     const id = require.resolve('../dist/services/illustrated'); delete require.cache[id];
-    return { service: require(id), levels, requests, failRefresh: () => { failRefresh = true; }, writes: () => writes };
+    return { service: require(id), levels, requests, hooks, failRefresh: () => { failRefresh = true; }, writes: () => writes };
 }
 test('illustrated rewards distinguish claimed, claimable and unmet levels', async () => {
     const h = harness();
@@ -52,4 +58,25 @@ test('illustrated claim success survives a subsequent refresh failure', async ()
     assert.equal(result.refreshRequired, true);
     assert.equal(result.rewards[0].count, 200);
     assert.equal(h.writes(), 1);
+});
+
+test('automatic claims check the switch at the actual send point and persist before sending', async () => {
+    const h = harness();
+    let enabled = true;
+    let recorded = false;
+    h.hooks.beforeSend = () => { enabled = false; };
+    await assert.rejects(h.service.claimIllustratedRewards(1, {
+        canContinue: () => enabled, beforeSend: () => { recorded = true; },
+    }), /自动领奖已关闭/);
+    assert.equal(h.writes(), 0);
+    assert.equal(recorded, false);
+    h.hooks.beforeSend = () => {};
+    enabled = true;
+    await h.service.claimIllustratedRewards(1, {
+        canContinue: () => enabled,
+        beforeSend: levels => { assert.deepEqual(levels, [29]); assert.equal(h.writes(), 0); recorded = true; },
+    });
+    assert.equal(recorded, true);
+    assert.equal(h.writes(), 1);
+    assert.equal(await h.service.claimIllustratedRewards(1, { skipUnavailable: true }), null);
 });

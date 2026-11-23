@@ -19,6 +19,7 @@ export interface AutomationConfig extends RanchAutomationConfig {
   farm: boolean;
   farm_harvest_tiangong: boolean;
   farm_push: boolean;
+  farm_illustrated: boolean;
   land_upgrade: boolean;
   friend: boolean;
   friend_auto_accept: boolean;

@@ -210,6 +210,9 @@ const ranchFeedStages = [
               <BaseSwitch v-model="settings.automation.task" class="automation-setting-item" label="自动做任务" />
             </div>
             <div class="automation-setting-item">
+              <BaseSwitch v-model="settings.automation.farm_illustrated" label="自动领取图鉴奖励" />
+            </div>
+            <div class="automation-setting-item">
               <BaseSwitch v-model="settings.automation.sell" class="automation-setting-item" label="自动卖果实" />
             </div>
             <div class="automation-setting-item">

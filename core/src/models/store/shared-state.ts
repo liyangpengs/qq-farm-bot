@@ -55,6 +55,7 @@ const DEFAULT_ACCOUNT_CONFIG: AccountConfig = {
         farm: true,
         farm_harvest_tiangong: true,
         farm_push: true,
+        farm_illustrated: true,
         land_upgrade: true,
         friend: true,
         friend_auto_accept: true,
