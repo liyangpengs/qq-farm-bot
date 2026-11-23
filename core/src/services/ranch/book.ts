@@ -131,6 +131,13 @@ async function claimBook(plan: any): Promise<{ rewards: any[]; completed: number
         if (!reply.claimed_ids.includes(level.id) || signature(reply.rewards) !== signature(level.rewards)) throw error('RANCH_RESULT_UNKNOWN', '巨大图鉴奖励回包未能确认，请刷新核对');
         rewards.push(...reply.rewards);
     }
+    const after = await rpc('weightBook').catch((cause: Error) => {
+        throw error('RANCH_RESULT_UNKNOWN', `巨大图鉴奖励已提交，未能回读状态：${cause.message}`);
+    });
+    const claimed = new Set(after.levels.filter((level: any) => level.claimed).map((level: any) => level.id));
+    if (!plan.ids.every((id: number) => claimed.has(id))) {
+        throw error('RANCH_RESULT_UNKNOWN', '巨大图鉴等级尚未确认已领取，请刷新核对');
+    }
     return { rewards, completed: plan.count };
 }
 
