@@ -1,4 +1,4 @@
-export {};
+import type { PushNotification } from '../config/notification-types';
 
 const { getAutomation } = require('../models/store');
 const { log, logWarn } = require('../utils/utils');
@@ -177,7 +177,7 @@ async function checkMysteryShopTick(options: {
     getShop?: () => Promise<any>;
     buy?: (npcId: number) => Promise<any>;
     state?: MysteryShopAutoState;
-} = {}): Promise<{ skipped?: boolean; reason?: string; bought?: boolean; push?: { title: string; content: string } | null }> {
+} = {}): Promise<{ skipped?: boolean; reason?: string; bought?: boolean; push?: { title: string; content: string } | null; notifications?: PushNotification[] }> {
     const automation = (options.getAutomation || getAutomation)() || {};
     const state = options.state || defaultState;
     if (!isMysteryShopWatchEnabled(automation)) {
@@ -240,7 +240,12 @@ async function checkMysteryShopTick(options: {
         return { bought };
     }
     commitMysteryShopNotify(state, String(decision.visitKey), flags);
-    return { bought, push: buildMysteryShopPush(shop, flags) };
+    const push = buildMysteryShopPush(shop, flags)!;
+    const notifications: PushNotification[] = [{ type: flags.purchase ? 'mysteryPurchase' : 'mysteryArrival', ...push }];
+    if (flags.purchase && flags.arrival) {
+        notifications.push({ type: 'mysteryArrival', ...buildMysteryShopPush(shop, { arrival: true, purchase: false })! });
+    }
+    return { bought, push, notifications };
 }
 
 module.exports = {

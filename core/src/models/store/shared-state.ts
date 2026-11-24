@@ -1,4 +1,6 @@
 import type { AccountConfig, AutomationConfig, BagSeedFallbackStrategy, FertilizerLandType, FertilizerMode, GlobalConfig, IntervalConfig, LoginSettings, OfflineReminder, PlantingStrategy, QuietHoursConfig } from '../../types/config';
+import { normalizeNotificationTypes } from '../../config/notification-types';
+import { PUSHOO_CHANNELS } from '../../config/push-channels';
 export {};
 
 const { DEFAULT_TIME_ZONE, normalizeTimeZone, resolveClientVersion } = require('../../config/config');
@@ -15,13 +17,6 @@ const KNOWN_FRIEND_GIDS_DIR: string = getDataFile('known_friend_gids');
 
 const ALLOWED_PLANTING_STRATEGIES: PlantingStrategy[] = ['preferred', 'level', 'max_exp', 'max_fert_exp', 'max_profit', 'max_fert_profit', 'bag_priority'];
 const ALLOWED_BAG_SEED_FALLBACK_STRATEGIES: BagSeedFallbackStrategy[] = ALLOWED_PLANTING_STRATEGIES.filter((s): s is BagSeedFallbackStrategy => s !== 'bag_priority');
-const PUSHOO_CHANNELS: Set<string> = new Set([
-    'webhook', 'qmsg', 'serverchan', 'pushplus', 'pushplushxtrip',
-    'dingtalk', 'wecom', 'bark', 'gocqhttp', 'onebot', 'atri',
-    'pushdeer', 'igot', 'telegram', 'feishu', 'ifttt', 'wecombot',
-    'discord', 'wxpusher', 'meow',
-]);
-
 const DEFAULT_FERTILIZER_LAND_TYPES: FertilizerLandType[] = ['purple-gold', 'gold', 'black', 'red', 'normal'];
 const FERTILIZER_MODES = new Set<FertilizerMode>(['both', 'normal', 'organic', 'smart', 'none', 'normal_ripen', 'organic_ripen']);
 const ALL_FERTILIZER_LAND_TYPES: FertilizerLandType[] = ['blue-crystal', ...DEFAULT_FERTILIZER_LAND_TYPES];
@@ -33,6 +28,8 @@ let systemConfigMigrated: boolean = false;
 let accountFallbackConfig: AccountConfig;
 
 const DEFAULT_OFFLINE_REMINDER: OfflineReminder = {
+    notificationTypes: normalizeNotificationTypes(),
+    channels: [],
     channel: 'webhook',
     endpoint: '',
     token: '',

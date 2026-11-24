@@ -462,7 +462,7 @@ const ranchFeedStages = [
               </div>
             </div>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              自动购买会先按标价币种筛选，再检查余额是否足够；提醒使用「用户设置 → 下线提醒」的推送渠道。
+              自动购买会先按标价币种筛选，再检查余额是否足够。提醒使用「系统设置 → 通知设置」中启用的类型和渠道。
             </p>
           </div>
           <p v-else class="mt-3 text-xs text-gray-500 dark:text-gray-400">

@@ -521,8 +521,8 @@ function runMysteryShopTick(): Promise<void> {
     } = require('../services/mystery-shop-auto');
     if (!isMysteryShopWatchEnabled(getAutomation())) return Promise.resolve();
     return checkMysteryShopTick().then((result: any) => {
-        if (result?.push?.title && result?.push?.content) {
-            sendToMaster({ type: 'push_notify', title: result.push.title, content: result.push.content });
+        if (result.notifications?.length) {
+            sendToMaster({ type: 'push_notify', candidates: result.notifications });
         }
     });
 }
