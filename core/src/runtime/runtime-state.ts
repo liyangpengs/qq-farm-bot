@@ -187,12 +187,13 @@ function createRuntimeState(options: RuntimeStateOptions) {
             if (tag && String(l.tag || '') !== tag) return false;
             if (moduleName) {
                 const logModule = String((l.meta || {}).module || '');
-                if (moduleName === 'system') {
-                    const isSystemTag = String(l.tag || '') === '系统' || String(l.tag || '') === '错误';
-                    if (logModule !== 'system' && !isSystemTag) return false;
-                } else if (logModule !== moduleName) {
-                    return false;
-                }
+                const modules = moduleName.split(',').map(s => s.trim()).filter(Boolean);
+                const matched = modules.some((m) => {
+                    if (m === 'system')
+                        return logModule === 'system' || String(l.tag || '') === '系统' || String(l.tag || '') === '错误';
+                    return logModule === m;
+                });
+                if (!matched) return false;
             }
             if (eventName && String((l.meta || {}).event || '') !== eventName) return false;
             if (isWarn !== undefined && isWarn !== null && String(isWarn) !== '') {
