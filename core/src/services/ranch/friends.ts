@@ -147,9 +147,15 @@ function interactionPlan(action: string, input: any, ranches: any[], host: strin
     if (action === 'cleanFriend') {
         const pens = ranches.filter(ranch => cleanableHazards(ranch).length);
         const payload = { host_gid: host, ranch_inst_ids: pens.map(ranch => quantity(ranch.ranch_inst_id)) };
-        const hazards = pens.flatMap(ranch => cleanableHazards(ranch).map((hazard: any) => `${quantity(ranch.ranch_inst_id)}:${quantity(hazard.hazard_id)}`));
+        // 污物分两类：hazard_type 1 是蚊子，其余是污物。清理是按栏舍整清，所以这里统计的就是实际清掉的数量。
+        const hazardRows = pens.flatMap(ranch => cleanableHazards(ranch).map((hazard: any) => ({
+            key: `${quantity(ranch.ranch_inst_id)}:${quantity(hazard.hazard_id)}`,
+            mosquito: hazard.hazard_type === 1,
+        })));
+        const hazards = hazardRows.map(row => row.key);
+        const hazardCounts = { mosquito: hazardRows.filter(row => row.mosquito).length, dirt: hazardRows.filter(row => !row.mosquito).length };
         return { action, route: 'clean', label: '清理好友牧场', payload, count: hazards.length, target: `ranch:cleanFriend:${host}`,
-            signature: JSON.stringify({ action, payload, hazards }) };
+            hazardCounts, signature: JSON.stringify({ action, payload, hazards }) };
     }
     const ranchId = positiveId(input.ranchId, '牧场设施');
     const ranch = ranches.find(row => quantity(row.ranch_inst_id) === ranchId);
@@ -243,6 +249,8 @@ async function commitInteraction(plan: any, ranch?: any): Promise<any> {
         const completedNotice = production ? `好友的 ${completed} 只动物已开始生产` : `${plan.label}完成`;
         return { action: plan.action, status: completed ? 'confirmed' : 'skipped', snapshot: null, costs: [], rewards: items, completed,
             remainingTimes: remaining, triggered: reply.triggered === true, refreshRequired: true,
+            // 清理好友牧场：把蚊子/污物拆分带出去，供日志与推送展示
+            hazardCounts: plan.action === 'cleanFriend' && plan.hazardCounts ? plan.hazardCounts : undefined,
             notice: `${completed ? completedNotice : emptyNotice}${reply.triggered ? '，触发巨大变异' : ''}${items.length ? `，获得 ${items.map((item: any) => `${item.name} ×${item.count}`).join('、')}` : ''}` };
     });
 }

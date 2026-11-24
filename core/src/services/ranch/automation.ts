@@ -553,6 +553,11 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                                     ownRecheckUsed = false;
                                     log('牧场', `${nickname || friend.name}：${outcome.notice}`, {
                                         module: 'ranch', event: `ranch_${outcome.action}`, result: confirmed ? 'ok' : 'skipped',
+                                        // 供 QQ 机器人推送补好友头像/名字（偷取、清理、助产、抚摸、放蚊子共用）
+                                        friendGid: friend.gid, friendName: nickname || friend.name,
+                                        // 清理好友牧场：蚊子/污物拆分，推送里显示成 🦟×n 💩×n
+                                        hazardMosquito: outcome.hazardCounts ? outcome.hazardCounts.mosquito : undefined,
+                                        hazardDirt: outcome.hazardCounts ? outcome.hazardCounts.dirt : undefined,
                                     });
                                 }, pendingFriend.progress);
                                 Object.assign(times, result.times);

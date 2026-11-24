@@ -123,6 +123,35 @@ export interface OfflineReminder {
   offlineDeleteSec: number;
 }
 
+/** QQ 机器人单聊推送（重要日志）配置 */
+export interface QqBotPushUser {
+  openid: string;
+  nickname: string;
+  avatar: string;
+  lastSeenAt: number;
+}
+
+export interface QqBotPushConfig {
+  /** 推送渠道里的总开关：关闭时卡片隐藏、服务不启动（默认关闭） */
+  channelEnabled: boolean;
+  enabled: boolean;
+  appId: string;
+  appSecret: string;
+  openid: string;
+  eventKeys: string[];
+  batchWindowSec: number;
+  dailyLimit: number;
+  minuteLimit: number;
+  includeIcons: boolean;
+  includeAvatars: boolean;
+  showAccount: boolean;
+  offlineNotify: boolean;
+  reloginEnabled: boolean;
+  /** 账号ID -> 接收用户 openid 列表；未配置的账号用默认 openid */
+  accountRoutes?: Record<string, string[]>;
+  discoveredUsers?: QqBotPushUser[];
+}
+
 export interface UIConfig {
   theme: 'light' | 'dark';
 }
@@ -162,5 +191,6 @@ export interface GlobalConfig {
   ui: UIConfig;
   loginSettings: LoginSettings;
   offlineReminder: OfflineReminder;
+  qqBotPush: QqBotPushConfig;
   systemConfig: SystemConfig | null;
 }

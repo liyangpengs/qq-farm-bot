@@ -7,6 +7,7 @@ const { updateRuntimeConfig } = require('../config/config');
 const { sendPushooMessage } = require('../services/push');
 const { createDataProvider } = require('./data-provider');
 const { createReloginReminderService } = require('./relogin-reminder');
+const { createQqBotPushService } = require('../services/qq-bot-push');
 const { createRuntimeState } = require('./runtime-state');
 const { createWorkerManager } = require('./worker-manager');
 
@@ -68,6 +69,33 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         sendConfiguredPush,
     } = reloginReminder;
 
+    // QQ 机器人单聊推送（重要日志）：独立于 pushoo 渠道，掉线提醒与事件动态都走这里
+    const qqBotPush = createQqBotPushService({
+        store,
+        log,
+        // 扫码重新登录后：用新 code 更新账号并重启上线。
+        // dataProvider 在下方才创建，这里靠闭包延迟引用。
+        getAccount: (accountId: string) => {
+            const accounts = store.getAccounts();
+            return (accounts.accounts || []).find((a: any) => String(a.id) === String(accountId)) || null;
+        },
+        reloginAccount: async (accountId: string, patch: any) => {
+            try {
+                store.addOrUpdateAccount({ id: String(accountId), ...(patch || {}) });
+                return !!(dataProvider && await dataProvider.restartAccount(accountId));
+            } catch (e: any) {
+                log('QQ机器人', `扫码后更新账号失败: ${e.message}`);
+                return false;
+            }
+        },
+    });
+
+    // 下线提醒同时下发给 pushoo 渠道与 QQ 机器人
+    function triggerOfflineReminderWithQqBot(payload: any): void {
+        triggerOfflineReminder(payload);
+        try { qqBotPush.sendOfflineNotification(payload); } catch {}
+    }
+
     const { startWorker, stopWorker, restartWorker, callWorkerApi, startAccountWorker, stopAccountWorker, detachAllWorkers } = createWorkerManager({
         fork,
         WorkerThread: Worker,
@@ -82,7 +110,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         normalizeStatusForPanel,
         buildConfigSnapshotForAccount,
         getOfflineAutoDeleteMs,
-        triggerOfflineReminder,
+        triggerOfflineReminder: triggerOfflineReminderWithQqBot,
         sendConfiguredPush,
         addOrUpdateAccount: store.addOrUpdateAccount,
         deleteAccount: store.deleteAccount,
@@ -93,6 +121,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         onWorkerLog: (entry: any, accountId: string, accountName?: string) => {
             runtimeEvents.emit('worker_log', { entry, accountId, accountName });
             if (onLog) onLog(entry, accountId, accountName);
+            try { qqBotPush.enqueueLog(entry, accountName, accountId); } catch {}
         },
     });
     const dataProvider = createDataProvider({
@@ -169,6 +198,8 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
             startAdminServer(dataProvider);
         }
 
+        try { qqBotPush.start(); } catch {}
+
         if (processRef.env.FARM_SESSION_SOCKET) {
             const sessions = await listHostedSessions();
             for (const account of store.getAccounts().accounts) {
@@ -184,6 +215,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         for (const accountId of Object.keys(workers)) {
             stopWorker(accountId);
         }
+        try { qqBotPush.stop(); } catch {}
     }
 
     return {
@@ -191,6 +223,7 @@ function createRuntimeEngine(options: RuntimeEngineOptions = {}) {
         runtimeEvents,
         workers,
         dataProvider,
+        qqBotPush,
         start,
         startAllAccounts,
         stopAllAccounts,

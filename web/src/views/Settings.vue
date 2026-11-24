@@ -13,6 +13,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import PageTabs from '@/components/PageTabs.vue'
 import AutomationSettingsForm from '@/components/settings/AutomationSettingsForm.vue'
 import BagSeedPriorityItem from '@/components/settings/BagSeedPriorityItem.vue'
+import QQBotPushSettings from '@/components/settings/QQBotPushSettings.vue'
 import PushChannelsManager from '@/components/settings/PushChannelsManager.vue'
 import ReleaseRollbackPanel from '@/components/settings/ReleaseRollbackPanel.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -23,6 +24,7 @@ import { useUnsavedEditGuard } from '@/composables/useUnsavedEditGuard'
 import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/account'
 import { useAppUpdateStore } from '@/stores/app-update'
 import { getPushChannelLabel, normalizeOfflineConfig, useSettingStore } from '@/stores/setting'
+import { useQqBotPushStore } from '@/stores/qqBotPush'
 import { useStatusStore } from '@/stores/status'
 import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
@@ -43,6 +45,7 @@ const accountStore = useAccountStore()
 const userStore = useUserStore()
 const settingStore = useSettingStore()
 const statusStore = useStatusStore()
+const qqBotStore = useQqBotPushStore()
 const appUpdateStore = useAppUpdateStore()
 const toast = useToastStore()
 
@@ -159,7 +162,7 @@ onMounted(async () => {
     await loadStrategyData(currentAccountId.value)
   else
     await settingStore.fetchSettings('')
-  await Promise.all([loadSystemConfig(), loadDevicePresets(), loadUpdateStatus()])
+  await Promise.all([loadSystemConfig(), loadDevicePresets(), loadUpdateStatus(), qqBotStore.ensureLoaded().catch(() => {})])
 })
 
 function openSettings(account: any) {
@@ -2467,6 +2470,24 @@ onBeforeUnmount(() => {
                     保存通知设置
                   </BaseButton>
                 </div>
+              </section>
+
+              <section v-if="qqBotStore.config.channelEnabled" class="farm-card rounded-lg p-4">
+                <div class="mb-4 flex items-start gap-3">
+                  <div class="h-9 w-9 flex shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-900/25 dark:text-sky-400">
+                    <span class="i-carbon-chat-bot text-xl" />
+                  </div>
+                  <div>
+                    <h4 class="text-base text-gray-900 font-bold dark:text-gray-100">
+                      QQ 机器人推送
+                    </h4>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      通过 QQ 机器人单聊推送重要农场动态；与上面的推送渠道独立，可同时开启。
+                    </p>
+                  </div>
+                </div>
+
+                <QQBotPushSettings />
               </section>
 
               <section class="farm-card rounded-lg p-4">

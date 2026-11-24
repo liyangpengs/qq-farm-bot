@@ -1,6 +1,7 @@
-import type { GlobalConfig, LoginSettings, OfflineReminder, SystemConfig, UIConfig } from '../../types/config';
+import type { GlobalConfig, LoginSettings, OfflineReminder, QqBotPushConfig, SystemConfig, UIConfig } from '../../types/config';
 import { normalizeNotificationTypes } from '../../config/notification-types';
 import { isPushChannelConfigured, readPushChannels, singlePushChannel } from '../../config/push-channels';
+import { normalizeQqBotPushConfig } from '../../config/qq-bot-push';
 export {};
 
 const { DEFAULT_CLIENT_VERSION, DEFAULT_WX_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone, resolveClientVersionUpdatedAt } = require('../../config/config');
@@ -67,6 +68,16 @@ function setUITheme(theme: unknown): UIConfig {
 
 function getOfflineReminder(): OfflineReminder {
     return normalizeOfflineReminder(globalConfig.offlineReminder);
+}
+
+function getQqBotPush(): QqBotPushConfig {
+    return normalizeQqBotPushConfig(globalConfig.qqBotPush);
+}
+
+function setQqBotPush(cfg: Partial<QqBotPushConfig> | undefined): QqBotPushConfig {
+    const next = normalizeQqBotPushConfig({ ...getQqBotPush(), ...(cfg || {}) });
+    saveGlobalConfig({ qqBotPush: next });
+    return getQqBotPush();
 }
 
 function normalizeLoginSettings(input: unknown): LoginSettings {
@@ -193,8 +204,9 @@ function setSystemConfig(config: Partial<SystemConfig> | undefined): SystemConfi
 // Initialize on load
 const { loadGlobalConfig } = sharedState;
 loadGlobalConfig();
-// Apply offlineReminder normalization after load
+// Apply offlineReminder / qqBotPush normalization after load
 globalConfig.offlineReminder = normalizeOfflineReminder(globalConfig.offlineReminder);
+globalConfig.qqBotPush = normalizeQqBotPushConfig(globalConfig.qqBotPush);
 globalConfig.loginSettings = normalizeLoginSettings(globalConfig.loginSettings);
 if (sharedState.systemConfigMigrated && !process.env.FARM_ACCOUNT_ID) {
     saveGlobalConfig();
@@ -209,6 +221,8 @@ module.exports = {
     setLoginSettings,
     getOfflineReminder,
     setOfflineReminder,
+    getQqBotPush,
+    setQqBotPush,
     getSystemConfig,
     setSystemConfig,
 };

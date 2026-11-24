@@ -3,7 +3,7 @@ import type { OfflineChannelConfig, OfflineConfig, PushChannelChange } from '@/s
 import { NCard } from 'naive-ui/es/card'
 import { NModal } from 'naive-ui/es/modal'
 import { NSwitch } from 'naive-ui/es/switch'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -15,6 +15,7 @@ import {
   PUSH_CHANNEL_OPTIONS,
   validateDingTalkWebhook,
 } from '@/stores/setting'
+import { useQqBotPushStore } from '@/stores/qqBotPush'
 import { useToastStore } from '@/stores/toast'
 
 interface ChannelListItem {
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToastStore()
+const qqBotStore = useQqBotPushStore()
 
 const listOpen = ref(false)
 const searchQuery = ref('')
@@ -90,6 +92,39 @@ const sortedChannelItems = computed<ChannelListItem[]>(() => {
     return rank(a) - rank(b)
   })
 })
+
+// ===== QQ 机器人推送：作为独立渠道出现在列表里，默认关闭，开启后才显示设置卡片 =====
+const qqBotEnabled = computed(() => qqBotStore.config.channelEnabled === true)
+const qqBotToggling = ref(false)
+const showQqBotRow = computed(() => {
+  const kw = searchQuery.value.trim().toLowerCase()
+  if (!kw)
+    return true
+  return 'qq 机器人推送'.includes(kw) || 'qqbot'.includes(kw) || 'QQ'.toLowerCase().includes(kw)
+})
+
+onMounted(() => { qqBotStore.ensureLoaded().catch(() => {}) })
+
+async function handleToggleQqBot(value?: boolean) {
+  if (qqBotToggling.value)
+    return
+  const next = Boolean(value)
+  qqBotToggling.value = true
+  try {
+    const ok = await qqBotStore.setChannelEnabled(next)
+    if (!ok) {
+      toast.error('保存 QQ 机器人推送开关失败')
+      return
+    }
+    toast.success(next ? '已启用 QQ 机器人推送，请到下方卡片填写 AppID / AppSecret' : '已停用 QQ 机器人推送')
+    if (next)
+      listOpen.value = false
+  } catch (e: any) {
+    toast.error(getApiErrorMessage(e, '保存 QQ 机器人推送开关失败'))
+  } finally {
+    qqBotToggling.value = false
+  }
+}
 
 const editingLabel = computed(() => editingChannel.value ? getPushChannelLabel(editingChannel.value) : '')
 const editingDocUrl = computed(() => editingChannel.value ? getPushChannelDocUrl(editingChannel.value) : '')
@@ -368,6 +403,35 @@ function handleClearChannel() {
         />
 
         <div class="push-modal-list">
+          <div v-if="showQqBotRow" class="push-channel-row">
+            <button
+              type="button"
+              class="push-channel-row__main"
+              @click="handleToggleQqBot(!qqBotEnabled)"
+            >
+              <span class="push-channel-row__name">QQ 机器人推送</span>
+              <span
+                class="push-channel-row__state"
+                :class="qqBotEnabled
+                  ? 'push-channel-row__state--on'
+                  : 'push-channel-row__state--empty'"
+              >
+                {{ qqBotEnabled ? '已启用' : '未启用' }}
+              </span>
+            </button>
+            <div class="flex shrink-0 items-center gap-2">
+              <div class="inline-flex items-center">
+                <NSwitch
+                  :value="qqBotEnabled"
+                  :disabled="saving || qqBotToggling"
+                  aria-label="启用 QQ 机器人推送"
+                  size="small"
+                  @update:value="val => handleToggleQqBot(val)"
+                />
+              </div>
+            </div>
+          </div>
+
           <div
             v-for="item in sortedChannelItems"
             :key="item.value"

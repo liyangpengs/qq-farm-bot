@@ -1,6 +1,7 @@
-import type { AccountConfig, AutomationConfig, BagSeedFallbackStrategy, FertilizerLandType, FertilizerMode, GlobalConfig, IntervalConfig, LoginSettings, OfflineReminder, PlantingStrategy, QuietHoursConfig } from '../../types/config';
+import type { AccountConfig, AutomationConfig, BagSeedFallbackStrategy, FertilizerLandType, FertilizerMode, GlobalConfig, IntervalConfig, LoginSettings, OfflineReminder, PlantingStrategy, QqBotPushConfig, QuietHoursConfig } from '../../types/config';
 import { normalizeNotificationTypes } from '../../config/notification-types';
 import { PUSHOO_CHANNELS } from '../../config/push-channels';
+import { defaultQqBotPushConfig } from '../../config/qq-bot-push';
 export {};
 
 const { DEFAULT_TIME_ZONE, normalizeTimeZone, resolveClientVersion } = require('../../config/config');
@@ -45,6 +46,8 @@ const DEFAULT_LOGIN_SETTINGS: LoginSettings = {
     napCatEndpoint: '',
     napCatSignature: '',
 };
+
+const DEFAULT_QQ_BOT_PUSH: QqBotPushConfig = defaultQqBotPushConfig();
 
 const DEFAULT_ACCOUNT_CONFIG: AccountConfig = {
     automation: {
@@ -531,6 +534,7 @@ const globalConfig: GlobalConfig = {
     },
     loginSettings: { ...DEFAULT_LOGIN_SETTINGS },
     offlineReminder: { ...DEFAULT_OFFLINE_REMINDER },
+    qqBotPush: { ...DEFAULT_QQ_BOT_PUSH, eventKeys: [...DEFAULT_QQ_BOT_PUSH.eventKeys] },
     systemConfig: null,
 };
 
@@ -562,9 +566,12 @@ function loadGlobalConfig(): void {
             const theme = String(globalConfig.ui.theme || '').toLowerCase();
             globalConfig.ui.theme = theme === 'light' ? 'light' : 'dark';
 
-            // offlineReminder normalization done in global-config
+            // offlineReminder / qqBotPush normalization done in global-config
             if (data.offlineReminder && typeof data.offlineReminder === 'object') {
                 globalConfig.offlineReminder = data.offlineReminder;
+            }
+            if (data.qqBotPush && typeof data.qqBotPush === 'object') {
+                globalConfig.qqBotPush = data.qqBotPush;
             }
 
             if (data.loginSettings && typeof data.loginSettings === 'object') {
@@ -647,6 +654,7 @@ module.exports = {
     DEFAULT_KNOWN_FRIEND_GID_SYNC_COOLDOWN_SEC,
     DEFAULT_FRIENDS_LIST_CACHE_TTL_SEC,
     DEFAULT_OFFLINE_REMINDER,
+    DEFAULT_QQ_BOT_PUSH,
     DEFAULT_LOGIN_SETTINGS,
     DEFAULT_ACCOUNT_CONFIG,
     ALLOWED_AUTOMATION_KEYS,

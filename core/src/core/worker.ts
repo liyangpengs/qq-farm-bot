@@ -5,7 +5,7 @@ export {};
 const { parentPort, workerData } = require('node:worker_threads');
 
 const { CONFIG, updateRuntimeConfig } = require('../config/config');
-const { getLevelExpProgress, loadConfigs } = require('../config/gameConfig');
+const { getLevelExpProgress, loadConfigs, getItemImageById, getAllPlants, getAllItems, getSeedImageBySeedId } = require('../config/gameConfig');
 const { getAutomation, getPreferredSeed, getConfigSnapshot, applyConfigSnapshot } = require('../models/store');
 const { checkAndClaimEmails, configureEmailClaim, getEmailDailyState } = require('../services/email');
 const { checkFarm, startFarmCheckLoop, stopFarmCheckLoop, refreshFarmCheckLoop, getLandsDetail, getAvailableSeeds, purchaseSeed, runFarmOperation, runFertilizerByConfig, fertilizeOwnLand } = require('../services/farm');
@@ -81,6 +81,79 @@ function exitWorker(code: number = 0): void {
     process.exit(code);
 }
 
+// 名字 -> 游戏物品图路径 的查表（懒加载，只在首次用到时构建）
+let nameIconMap: Map<string, string> | null = null;
+function buildNameIconMap(): Map<string, string> {
+    if (nameIconMap) return nameIconMap;
+    const map = new Map<string, string>();
+    try {
+        for (const p of getAllPlants() as any[]) {
+            const seedId = toNum(p?.seed_id || 0);
+            const image = seedId > 0 ? getSeedImageBySeedId(seedId) : '';
+            const name = String(p?.name || '').trim();
+            if (name && image && !map.has(name)) map.set(name, image);
+        }
+    } catch {}
+    try {
+        for (const item of getAllItems() as any[]) {
+            const image = getItemImageById(toNum(item?.id || 0));
+            const name = String(item?.name || '').trim();
+            if (name && image && !map.has(name)) map.set(name, image);
+        }
+    } catch {}
+    nameIconMap = map;
+    return map;
+}
+
+// 根据名字/物品ID解析事件图标路径
+function resolveEventIconPath(meta: any): string {
+    // 1) 有 itemId 直接查
+    const itemId = toNum(meta.itemId || 0);
+    if (itemId) {
+        try {
+            const p = getItemImageById(itemId);
+            if (p) return p;
+        } catch {}
+    }
+    // 2) 按名字查表（收获作物/出售等只有名字的事件）
+    const name = String(meta.itemName || meta.plantName || meta.name || '').trim();
+    if (name) {
+        const p = buildNameIconMap().get(name);
+        if (p) return p;
+    }
+    return '';
+}
+
+// 为 QQ 机器人推送补充真实资源：好友头像 + 事件图标（游戏物品图）
+function enrichPushMeta(meta: any): any {
+    if (!meta || typeof meta !== 'object') return meta;
+    const event = String(meta.event || '');
+    // 只对推送关注的事件做额外查表，避免给所有日志增加开销
+    const pushEvents = ['sell_success', 'sell_done', '照顾好友', '领取任务', 'ranch_task_claim',
+        'ranch_steal', 'ranch_cleanFriend', '收获作物', '施肥后收获作物', '神秘商人自动购买'];
+    if (!pushEvents.includes(event)) return meta;
+    const enriched = { ...meta };
+
+    // 好友头像：优先按 friendGid，其次按 friendName 从缓存匹配
+    const gid = toNum(meta.friendGid || 0);
+    const friendName = String(meta.friendName || meta.nickname || '').trim();
+    if (gid || friendName) {
+        try {
+            const cached = getFriendsListCacheOnly();
+            const match = (gid && cached.find((f: any) => toNum(f.gid) === gid))
+                || (friendName && cached.find((f: any) => String(f.name || '') === friendName));
+            if (match && match.avatarUrl) {
+                enriched.avatarUrl = String(match.avatarUrl).trim();
+            }
+        } catch {}
+    }
+
+    // 事件图标：优先 itemId，其次按名字查表（收获作物/出售等）
+    const iconPath = resolveEventIconPath(enriched);
+    if (iconPath) enriched.iconPath = iconPath;
+    return enriched;
+}
+
 // 捕获日志发送给主进程
 setLogHook((tag: string, msg: string, isWarn: boolean, meta: any) => {
     sendToMaster({
@@ -90,7 +163,7 @@ setLogHook((tag: string, msg: string, isWarn: boolean, meta: any) => {
             tag,
             msg,
             isWarn,
-            meta: meta || {},
+            meta: enrichPushMeta(meta || {}),
         }
     });
 });

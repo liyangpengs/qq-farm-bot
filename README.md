@@ -76,6 +76,7 @@
 - 作物收益分析、策略预览、批量维护作物黑名单
 - 设置页统一管理游戏账号、自动化策略、运行环境、管理员密码和下线提醒
 - 在「系统设置 → 通知设置」中可同时启用多个推送渠道、单独测试各渠道，并设置离线自动清理时间
+- 「系统设置 → QQ 机器人推送」用 QQ 机器人单聊推送出售、收获、任务、神秘商人等重要动态，带物品图标与好友头像，掉线时可直接在 QQ 里重新登录微信账号
 
 ## 技术栈
 
@@ -391,6 +392,7 @@ pnpm -C core exec tsx ../tools/audit-capture-compatibility.js <capture-dir>
 - [神秘商人、游戏商城与购买协议](docs/shop-protocols.md)
 - [好友宠物缓存与每日同步](docs/friend-pet-cache.md)
 - [个人页宠物协议](docs/pet-protocols.md)
+- [QQ 机器人单聊推送](docs/qq-bot-push.md)
 
 ## 免责声明
 
