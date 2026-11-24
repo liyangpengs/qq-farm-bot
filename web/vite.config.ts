@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -31,6 +32,7 @@ export default defineConfig(({ command, mode }) => {
             fileName: 'version.json',
             source: JSON.stringify({
               buildId: webBuildId,
+              inputHash: process.env.TURBO_HASH,
               appVersion: webPackageJson.version,
               builtAt,
             }, null, 2),

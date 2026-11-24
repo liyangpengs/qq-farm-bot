@@ -4,6 +4,7 @@
   "version": "20261124",
   "private": true,
   "scripts": {
+    "prepare:dist": "node ../tools/clean-dist.cjs",
     "dev": "vite",
     "build": "vite build",
     "build:compressed": "vite build --mode compressed",

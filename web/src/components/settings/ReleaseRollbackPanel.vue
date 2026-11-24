@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import { useToastStore } from '@/stores/toast'
 
 export interface ReleaseCompatInfo {
@@ -38,18 +39,22 @@ export interface ReleasesSummary {
   orphanSizeBytes: number
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   releases: RollbackReleaseItem[]
   summary: ReleasesSummary
   mode: 'source' | 'docker' | 'binary' | 'unknown'
   applySupported: boolean
   applyUnsupportedReason: string
   deployBusy: boolean
+  keepBackups?: boolean
   disabled?: boolean
-}>()
+}>(), {
+  keepBackups: true,
+})
 
 const emit = defineEmits<{
   statusUpdated: [status: any]
+  backupChanged: [keepBackups: boolean]
 }>()
 
 const toast = useToastStore()
@@ -57,6 +62,7 @@ const requestConfig = { skipErrorToast: true, timeout: 90_000 }
 
 const selectedIds = ref<string[]>([])
 const actionBusy = ref(false)
+const backupBusy = ref(false)
 const actionError = ref('')
 
 const confirmRollbackOpen = ref(false)
@@ -66,7 +72,9 @@ const confirmDeleteOpen = ref(false)
 const deleteMode = ref<'single' | 'batch' | 'orphans'>('single')
 const deleteTargets = ref<RollbackReleaseItem[]>([])
 
-const isBusy = computed(() => Boolean(props.disabled || props.deployBusy || actionBusy.value))
+const isBusy = computed(() => Boolean(props.disabled || props.deployBusy || actionBusy.value || backupBusy.value))
+const backupEnabled = computed(() => props.keepBackups !== false)
+const showBackupSwitch = computed(() => props.mode !== 'docker' && props.mode !== 'binary')
 
 watch(() => props.releases, (list) => {
   const allowedIds = new Set(list.filter(item => !item.isActive && item.canDelete).map(item => item.releaseId))
@@ -210,7 +218,7 @@ const rollbackConfirmMessage = computed(() => {
     return ''
   const label = item.shortCommit || item.releaseId
   const webNote = item.pairedWebReleaseId ? '并同步切换对应前端页面，' : ''
-  return `确定回滚到 ${label}（${formatReleaseTime(item.createdAt)}）吗？${webNote}切换期间会话宿主继续保持游戏连接在线，不会回滚账号数据或已发生的真实消耗。`
+  return `确定回滚到 ${label}（${formatReleaseTime(item.createdAt)}）吗？${webNote}切换期间挂机中的游戏连接保持在线，不会回滚账号数据或已发生的真实消耗。`
 })
 
 const deleteConfirmTitle = computed(() => {
@@ -223,7 +231,7 @@ const deleteConfirmTitle = computed(() => {
 
 const deleteConfirmMessage = computed(() => {
   if (deleteMode.value === 'orphans') {
-    return `确定清理未关联的冗余文件（旧会话宿主 ${props.summary.orphanHostCount} 个、无主前端 ${props.summary.orphanWebCount} 个）吗？将永久删除对应 releases 目录，预计释放 ${formatBytes(props.summary.orphanSizeBytes)} 磁盘空间。`
+    return `确定清理未关联的冗余文件（旧版连接服务 ${props.summary.orphanHostCount} 个、旧网页端 ${props.summary.orphanWebCount} 个）吗？将永久删除对应 releases 目录，预计释放 ${formatBytes(props.summary.orphanSizeBytes)} 磁盘空间。`
   }
   const bytes = deleteTargets.value.reduce((sum, item) => sum + (item.sizeBytes || 0), 0)
   if (deleteMode.value === 'batch') {
@@ -291,12 +299,36 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
+async function handleToggleBackup(nextValue: boolean | undefined): Promise<void> {
+  if (nextValue === undefined || isBusy.value || nextValue === backupEnabled.value)
+    return
+  backupBusy.value = true
+  actionError.value = ''
+  try {
+    const { data } = await api.put('/api/system/update/backup-setting', { keepBackups: nextValue }, requestConfig)
+    if (!data?.ok)
+      throw new Error(getApiErrorMessage(data, '更新备份设置失败'))
+    const saved: boolean = data.data.keepBackups
+    emit('backupChanged', saved)
+    toast.success(saved ? '已开启备份，下次更新会保留上一版' : '已关闭备份，下次更新生效')
+  }
+  catch (e) {
+    actionError.value = getApiErrorMessage(e, '更新备份设置失败')
+  }
+  finally {
+    backupBusy.value = false
+  }
+}
+
 defineExpose({
+  backupEnabled,
+  backupBusy,
   selectedIds,
   outdatedDeletableItems,
   toggleItemSelected,
   toggleSelectOutdated,
   clearSelection,
+  handleToggleBackup,
   requestRollback,
   requestDeleteSingle,
   requestBatchDelete,
@@ -318,37 +350,57 @@ defineExpose({
         </span>
       </div>
 
-      <div v-if="showToolbar" class="rollback-panel__actions">
-        <template v-if="selectedIds.length > 0">
-          <span class="rollback-panel__selection" aria-live="polite">
-            已选 {{ selectedIds.length }} 项 · {{ formatBytes(selectedBytes) }}
-          </span>
-          <BaseButton variant="text" size="sm" :disabled="isBusy" @click="clearSelection">
-            取消选择
-          </BaseButton>
-          <BaseButton variant="secondary" size="sm" class="rollback-panel__danger" :disabled="isBusy" @click="requestBatchDelete">
-            批量删除
-          </BaseButton>
+      <div v-if="showToolbar || showBackupSwitch" class="rollback-panel__actions">
+        <template v-if="showToolbar">
+          <template v-if="selectedIds.length > 0">
+            <span class="rollback-panel__selection" aria-live="polite">
+              已选 {{ selectedIds.length }} 项 · {{ formatBytes(selectedBytes) }}
+            </span>
+            <BaseButton variant="text" size="sm" :disabled="isBusy" @click="clearSelection">
+              取消选择
+            </BaseButton>
+            <BaseButton variant="secondary" size="sm" class="rollback-panel__danger" :disabled="isBusy" @click="requestBatchDelete">
+              批量删除
+            </BaseButton>
+          </template>
+          <template v-else>
+            <BaseButton
+              v-if="outdatedDeletableItems.length > 0"
+              variant="secondary"
+              size="sm"
+              :disabled="isBusy"
+              @click="toggleSelectOutdated"
+            >
+              选中过时版本 ({{ outdatedDeletableItems.length }})
+            </BaseButton>
+            <BaseButton v-if="hasOrphans" variant="secondary" size="sm" :disabled="isBusy" @click="requestCleanOrphans">
+              清理冗余 ({{ formatBytes(summary.orphanSizeBytes) }})
+            </BaseButton>
+          </template>
         </template>
-        <template v-else>
-          <BaseButton
-            v-if="outdatedDeletableItems.length > 0"
-            variant="secondary"
-            size="sm"
+
+        <div
+          v-if="showBackupSwitch"
+          class="rollback-panel__backup"
+          :class="{ 'rollback-panel__backup--divided': showToolbar }"
+        >
+          <BaseSwitch
+            :model-value="backupEnabled"
+            label="备份"
             :disabled="isBusy"
-            @click="toggleSelectOutdated"
-          >
-            选中过时版本 ({{ outdatedDeletableItems.length }})
-          </BaseButton>
-          <BaseButton v-if="hasOrphans" variant="secondary" size="sm" :disabled="isBusy" @click="requestCleanOrphans">
-            清理冗余 ({{ formatBytes(summary.orphanSizeBytes) }})
-          </BaseButton>
-        </template>
+            @update:model-value="handleToggleBackup"
+          />
+        </div>
       </div>
     </header>
 
     <p class="rollback-panel__desc">
-      QQ、微信客户端版本一致且支持当前会话宿主的备份可以回滚。
+      <template v-if="!showBackupSwitch || backupEnabled">
+        QQ、微信客户端版本一致，且兼容当前游戏连接服务的历史版本可以回滚。
+      </template>
+      <template v-else>
+        从下次更新起只保留正在使用的版本。已有备份仍可回滚或手动删除。
+      </template>
     </p>
 
     <div v-if="mode === 'docker' || mode === 'binary'" class="rollback-empty">
@@ -356,7 +408,9 @@ defineExpose({
     </div>
 
     <div v-else-if="releases.length === 0" class="rollback-empty">
-      暂无历史版本备份，通过 start.sh 启动或执行在线更新后会在这里显示可回滚版本。
+      {{ backupEnabled
+        ? '暂无历史版本备份，通过 start.sh 启动或执行在线更新后会在这里显示可回滚版本。'
+        : '暂无历史版本备份，当前已关闭备份，后续更新不会保留旧版备份。' }}
     </div>
 
     <div
@@ -515,7 +569,18 @@ defineExpose({
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
+}
+
+.rollback-panel__backup {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.rollback-panel__backup--divided {
+  padding-left: 8px;
+  border-left: 1px solid var(--ui-border);
 }
 
 .rollback-panel__selection {

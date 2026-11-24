@@ -1,0 +1,37 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "remoteCache": { "enabled": false },
+  "tasks": {
+    "prepare:dist": {
+      "cache": false,
+      "inputs": ["$TURBO_ROOT$/tools/clean-dist.cjs"],
+      "outputLogs": "errors-only"
+    },
+    "@qq-farm-bot/session-contract#build": {
+      "dependsOn": ["prepare:dist"],
+      "inputs": ["src/**", "tsconfig.json"],
+      "outputs": ["dist/**"]
+    },
+    "qq-farm-bot-web#build": {
+      "dependsOn": ["prepare:dist"],
+      "inputs": ["src/**", "public/**", "index.html", "vite.config.ts", "uno.config.ts", "tsconfig*.json", ".env", ".env.local", ".env.production", ".env.production.local"],
+      "outputs": ["dist/**"]
+    },
+    "qq-farm-bot#host-fingerprint": {
+      "dependsOn": ["^build", "prepare:dist"],
+      "inputs": [
+        "src/session/**", "src/proto/**", "src/gameConfig/**", "src/utils/*.wasm",
+        "src/utils/{client-profile,crypto-wasm,gateway-token,keepalive-policy,low-priority-gate,network,proto,request-context,request-pressure,request-priority,tsdk-runtime,utils}.ts",
+        "src/config/{config,gameConfig,runtime-paths,sell-conditions}.ts",
+        "src/services/{ace,level-forecast,logger,scheduler,stats,status}.ts",
+        "tsconfig.json", "$TURBO_ROOT$/tools/record-build.cjs"
+      ],
+      "outputs": ["dist/host-fingerprint"]
+    },
+    "qq-farm-bot#build": {
+      "dependsOn": ["host-fingerprint"],
+      "inputs": ["src/**", "client.ts", "tsconfig*.json", "$TURBO_ROOT$/tools/record-build.cjs"],
+      "outputs": ["client.js", "dist/**", "!dist/bin/**", "!dist/host-fingerprint"]
+    }
+  }
+}
