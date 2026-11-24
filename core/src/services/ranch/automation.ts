@@ -62,7 +62,10 @@ function resetCycle(keepFriendProgress = false): void {
     cycleChanged = false;
     ownRecheckUsed = false;
 }
-const FRIEND_CONTROLS: Record<string, string> = { stroke: 'ranch_stroke', steal: 'ranch_friend_steal', cleanFriend: 'ranch_friend_clean', putMosquito: 'ranch_friend_mosquito' };
+const FRIEND_CONTROLS: Record<string, string> = {
+    steal: 'ranch_friend_steal', produceFriend: 'ranch_friend_produce', cleanFriend: 'ranch_friend_clean',
+    stroke: 'ranch_stroke', putMosquito: 'ranch_friend_mosquito',
+};
 const enabled = (key: string) => getAutomation()[key] === true;
 function logCanFeed(canLabel: string, message: string, result: 'skipped' | 'ok'): void {
     log('牧场', `${canLabel}：${message}`, {
@@ -504,7 +507,7 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                     const blacklist = new Set(getRanchFriendBlacklist(process.env.FARM_ACCOUNT_ID));
                     const friends = patrolFriends.filter(friend => !blacklist.has(friend.gid));
                     if (!friends.length) return;
-                    const hasBulkWork = enabled('ranch_friend_steal') || enabled('ranch_friend_clean');
+                    const hasBulkWork = canInteract('steal') || canInteract('produceFriend') || canInteract('cleanFriend');
                     const times = hasBulkWork ? {} : await interactions.getInteractionTimes();
                     const wanted = (action: string) => canInteract(action) && times[action] !== 0;
                     const statusDecides = () => !wanted('stroke') && !wanted('putMosquito');
@@ -537,7 +540,8 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                                 checkpoint();
                             }
                             if (!canVisit() || (pendingFriend?.gid !== gid && statusDecides() && Date.now() - friend.statusAtMs <= FRIEND_STATUS_FRESH_MS
-                                && !(wanted('steal') && friend.canSteal) && !(wanted('cleanFriend') && friend.canHelp))) {
+                                && !(wanted('steal') && friend.canSteal) && !(wanted('produceFriend') && friend.canMidwife)
+                                && !(wanted('cleanFriend') && friend.canHelp))) {
                                 pendingFriend = null;
                                 continue;
                             }

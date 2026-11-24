@@ -70,6 +70,7 @@ const ranchSwitches = [
 ] as const
 const ranchFriendSwitches = [
   ['ranch_friend_steal', '自动偷取产物'],
+  ['ranch_friend_produce', '自动帮忙生产'],
   ['ranch_friend_clean', '自动清理'],
   ['ranch_stroke', '自动抚摸动物'],
   ['ranch_friend_mosquito', '自动放蚊子'],
