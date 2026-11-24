@@ -1,7 +1,9 @@
 import type { CareerHarvestSteal } from '@/components/CareerHarvestSteal.vue'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import api, { getApiErrorMessage, normalizeApiErrorMessage } from '@/api'
+import { useAccountStore } from '@/stores/account'
+import { useToastStore } from '@/stores/toast'
 
 export interface BlacklistItem {
   gid: number
@@ -13,6 +15,13 @@ export interface KnownFriendSettings {
   knownFriendGids: number[]
   knownFriendGidSyncCooldownSec: number
   friendsListCacheTtlSec: number
+}
+
+interface KnownFriendSettingsReply {
+  ok: boolean
+  data: KnownFriendSettings
+  addedCount?: number
+  removedCount?: number
 }
 
 export interface FriendInteractionItemDto {
@@ -77,6 +86,26 @@ export interface FriendInteractionBatchDto {
 export const useFriendStore = defineStore('friend', () => {
   const friends = ref<any[]>([])
   const loading = ref(false)
+  const friendsListState = ref<'unloaded' | 'ready' | 'partial' | 'error'>('unloaded')
+  const friendsError = ref('')
+  const accountStore = useAccountStore()
+  const knownFriendSettings = ref<KnownFriendSettings | null>(null)
+  const knownFriendGids = computed(() => knownFriendSettings.value?.knownFriendGids ?? [])
+  const settingsRequest = ref<'load' | 'save' | null>(null)
+  const knownFriendSettingsLoading = computed(() => settingsRequest.value === 'load')
+  const knownFriendSettingsSaving = computed(() => settingsRequest.value === 'save')
+  let settingsSequence = 0
+  let friendsRequestSequence = 0
+  watch(() => accountStore.currentAccountId, () => {
+    settingsSequence++
+    settingsRequest.value = null
+    knownFriendSettings.value = null
+    friendsRequestSequence++
+    friends.value = []
+    loading.value = false
+    friendsListState.value = 'unloaded'
+    friendsError.value = ''
+  }, { flush: 'sync' })
   const friendLands = ref<Record<string, any[]>>({})
   const friendLandsLoading = ref<Record<string, boolean>>({})
   const friendLandsError = ref<Record<string, string>>({})
@@ -247,12 +276,6 @@ export const useFriendStore = defineStore('friend', () => {
       syncFriendPlantSummary(key, merged, null)
   }
 
-  const knownFriendGids = ref<number[]>([])
-  const knownFriendGidSyncCooldownSec = ref(600)
-  const friendsListCacheTtlSec = ref(60)
-  const knownFriendSettingsLoading = ref(false)
-  const knownFriendSettingsSaving = ref(false)
-
   function buildPlantSummaryFromDetail(lands: any[], summary: any) {
     let stealNum = 0
     let dryNum = 0
@@ -305,32 +328,48 @@ export const useFriendStore = defineStore('friend', () => {
   }
 
   async function fetchFriends(accountId: string, forceSync = false) {
-    if (!accountId)
+    if (!accountId || accountId !== accountStore.currentAccountId)
       return
+    const sequence = ++friendsRequestSequence
     loading.value = true
     try {
       const res = await api.get('/api/friends', {
         headers: { 'x-account-id': accountId },
         params: forceSync ? { forceSync: 'true' } : {},
-      })
-      if (res.data.ok) {
-        friends.value = res.data.data || []
+        skipErrorToast: true,
+      } as any)
+      if (sequence !== friendsRequestSequence)
+        return
+      if (!res.data.ok)
+        throw new Error(getApiErrorMessage(res.data, '读取好友列表失败'))
+      friends.value = res.data.data
+      friendsListState.value = res.data.partial ? 'partial' : 'ready'
+      friendsError.value = ''
+    }
+    catch (error) {
+      if (sequence === friendsRequestSequence) {
+        friendsListState.value = 'error'
+        friendsError.value = getApiErrorMessage(error, '读取好友列表失败')
       }
     }
     finally {
-      loading.value = false
+      if (sequence === friendsRequestSequence)
+        loading.value = false
     }
   }
 
   async function fetchFriendsCache(accountId: string) {
-    if (!accountId)
+    if (!accountId || accountId !== accountStore.currentAccountId || loading.value)
       return
+    const sequence = friendsRequestSequence
     try {
       const res = await api.get('/api/friends/cache', { headers: { 'x-account-id': accountId } })
-      if (res.data.ok && Array.isArray(res.data.data) && res.data.data.length > 0)
+      if (sequence === friendsRequestSequence && res.data.ok && res.data.data?.length) {
         friends.value = res.data.data
+        friendsListState.value = res.data.partial ? 'partial' : 'ready'
+      }
     }
-    catch { /* 仅缓存刷新失败时保持现有列表 */ }
+    catch { /* 保留已显示的列表 */ }
   }
 
   async function fetchInteractRecords(accountId: string) {
@@ -505,6 +544,9 @@ export const useFriendStore = defineStore('friend', () => {
         headers: { 'x-account-id': accountId },
       })
       if (!res.data?.ok) {
+        if (res.data?.reason === 'invalid_removed' && accountId === accountStore.currentAccountId) {
+          await Promise.all([fetchKnownFriendSettings(accountId), fetchFriends(accountId)])
+        }
         return {
           ok: false,
           message: getApiErrorMessage(res.data, '操作失败'),
@@ -514,7 +556,7 @@ export const useFriendStore = defineStore('friend', () => {
       if (result && typeof result.message === 'string')
         result.message = normalizeApiErrorMessage(result.message)
       await fetchFriends(accountId)
-      if (friendLands.value[friendId]) {
+      if (accountId === accountStore.currentAccountId && friendLands.value[friendId]) {
         await fetchFriendLands(accountId, friendId)
       }
       return result
@@ -670,108 +712,63 @@ export const useFriendStore = defineStore('friend', () => {
     friendLandOverlays.value = {}
   }
 
-  function applyKnownFriendSettings(data: KnownFriendSettings | null | undefined) {
-    if (!data)
-      return
-    knownFriendGids.value = Array.isArray(data.knownFriendGids) ? data.knownFriendGids : []
-    knownFriendGidSyncCooldownSec.value = Number.isFinite(data.knownFriendGidSyncCooldownSec)
-      ? Math.max(30, Math.min(86400, data.knownFriendGidSyncCooldownSec))
-      : 600
-    friendsListCacheTtlSec.value = Number.isFinite(data.friendsListCacheTtlSec)
-      ? Math.max(10, Math.min(86400, data.friendsListCacheTtlSec))
-      : 60
-  }
-
-  async function fetchKnownFriendSettings(accountId: string) {
-    if (!accountId)
-      return
-    knownFriendSettingsLoading.value = true
+  async function requestKnownFriendSettings(accountId: string, change?: { suffix?: string, body: unknown }) {
+    if (!accountId || accountId !== accountStore.currentAccountId || knownFriendSettingsSaving.value)
+      return null
+    const sequence = ++settingsSequence
+    settingsRequest.value = change ? 'save' : 'load'
+    const options = { headers: { 'x-account-id': accountId }, skipErrorToast: true }
+    const path = '/api/friend-known-gids'
+    const failure = change ? '保存好友设置失败' : '读取好友设置失败'
     try {
-      const res = await api.get('/api/friend-known-gids', {
-        headers: { 'x-account-id': accountId },
-      })
-      if (res.data.ok) {
-        applyKnownFriendSettings(res.data.data)
-      }
+      const res = change
+        ? await api.post<KnownFriendSettingsReply>(path + (change.suffix ?? ''), change.body, options)
+        : await api.get<KnownFriendSettingsReply>(path, options)
+      if (sequence !== settingsSequence)
+        return null
+      if (!res.data?.ok || !res.data.data)
+        throw new Error(getApiErrorMessage(res.data, failure))
+      knownFriendSettings.value = res.data.data
+      return res.data
+    }
+    catch (error) {
+      if (sequence === settingsSequence)
+        useToastStore().error(getApiErrorMessage(error, failure))
+      return null
     }
     finally {
-      knownFriendSettingsLoading.value = false
+      if (sequence === settingsSequence)
+        settingsRequest.value = null
     }
   }
 
-  async function saveKnownFriendSettings(accountId: string, payload: Partial<KnownFriendSettings>) {
-    if (!accountId)
-      return
-    knownFriendSettingsSaving.value = true
-    try {
-      const res = await api.post('/api/friend-known-gids', payload, {
-        headers: { 'x-account-id': accountId },
-      })
-      if (res.data.ok) {
-        applyKnownFriendSettings(res.data.data)
-      }
-    }
-    finally {
-      knownFriendSettingsSaving.value = false
-    }
+  function fetchKnownFriendSettings(accountId: string) {
+    return requestKnownFriendSettings(accountId)
+  }
+
+  function saveKnownFriendSettings(accountId: string, payload: Partial<KnownFriendSettings>) {
+    return requestKnownFriendSettings(accountId, { body: payload })
   }
 
   async function removeKnownFriendGid(accountId: string, gid: number) {
-    if (!accountId || !gid)
-      return
-    knownFriendSettingsSaving.value = true
-    try {
-      const res = await api.post('/api/friend-known-gids/remove', { gid }, {
-        headers: { 'x-account-id': accountId },
-      })
-      if (res.data.ok) {
-        applyKnownFriendSettings(res.data.data)
-      }
-    }
-    finally {
-      knownFriendSettingsSaving.value = false
-    }
+    return !!gid && !!await requestKnownFriendSettings(accountId, { suffix: '/remove', body: { gid } })
   }
 
   async function batchAddKnownFriendGids(accountId: string, gids: number[]) {
-    if (!accountId || !gids || gids.length === 0)
-      return { ok: false, addedCount: 0 }
-    knownFriendSettingsSaving.value = true
-    try {
-      const res = await api.post('/api/friend-known-gids/batch-add', { gids }, {
-        headers: { 'x-account-id': accountId },
-      })
-      if (res.data.ok) {
-        applyKnownFriendSettings(res.data.data)
-      }
-      return { ok: res.data.ok, addedCount: res.data.addedCount || 0 }
-    }
-    finally {
-      knownFriendSettingsSaving.value = false
-    }
+    const result = gids.length ? await requestKnownFriendSettings(accountId, { suffix: '/batch-add', body: { gids } }) : null
+    return { ok: !!result, addedCount: result?.addedCount || 0 }
   }
 
   async function removeUnsyncedKnownFriendGids(accountId: string, gids: number[]) {
-    if (!accountId || !gids || gids.length === 0)
-      return { ok: false, removedCount: 0 }
-    knownFriendSettingsSaving.value = true
-    try {
-      const res = await api.post('/api/friend-known-gids/batch-remove', { gids }, {
-        headers: { 'x-account-id': accountId },
-      })
-      if (res.data.ok) {
-        applyKnownFriendSettings(res.data.data)
-      }
-      return { ok: res.data.ok, removedCount: res.data.removedCount || 0 }
-    }
-    finally {
-      knownFriendSettingsSaving.value = false
-    }
+    const result = gids.length ? await requestKnownFriendSettings(accountId, { suffix: '/batch-remove', body: { gids } }) : null
+    return { ok: !!result, removedCount: result?.removedCount || 0 }
   }
 
   return {
     friends,
     loading,
+    friendsListState,
+    friendsError,
     friendLands,
     friendLandsLoading,
     friendLandsError,
@@ -787,8 +784,7 @@ export const useFriendStore = defineStore('friend', () => {
     interactionUsePending,
     interactionUseError,
     knownFriendGids,
-    knownFriendGidSyncCooldownSec,
-    friendsListCacheTtlSec,
+    knownFriendSettings,
     knownFriendSettingsLoading,
     knownFriendSettingsSaving,
     fetchFriends,

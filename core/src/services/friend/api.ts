@@ -3,7 +3,7 @@
  */
 
 const { CONFIG } = require('../../config/config');
-const { sendMsgAsync, getUserState, GatewayError } = require('../../utils/network');
+const { sendMsgAsync, getUserState, networkEvents, GatewayError } = require('../../utils/network');
 const { types } = require('../../utils/proto');
 const { toLong, toNum, log, logWarn, sleep, randomDelay } = require('../../utils/utils');
 const { getFarmingSkillGiftCount } = require('../dog-skill-gifts');
@@ -13,6 +13,7 @@ const {
     fetchQqFriendsByKnownGids,
     syncKnownFriendGidsFromFriends,
     getEffectiveKnownQqFriendGids,
+    isInvalidFriendAccessError,
     fetchQqFriendsByLegacyMethod,
     dedupeFriendsByGid,
     buildFriendReply,
@@ -25,17 +26,17 @@ function schedulerRef(): any {
     return _scheduler;
 }
 
-const allFriendsRequests: Partial<Record<'low' | 'normal', Promise<any>>> = {};
+let allFriendsRequests: Partial<Record<'low' | 'normal' | 'sync', Promise<any>>> = {};
+networkEvents.on('disconnected', () => { allFriendsRequests = {}; });
 
 // ============ 好友 API ============
 async function fetchAllFriends(forceSync: boolean, priority: 'low' | 'normal'): Promise<any> {
     const isQQ: boolean = CONFIG.platform === 'qq';
     if (isQQ) {
         await syncKnownFriendGidsFromRecentVisitors(forceSync, priority);
-        const friendsFromKnownGids: any[] = await fetchQqFriendsByKnownGids(priority);
-        if (friendsFromKnownGids.length > 0) {
-            syncKnownFriendGidsFromFriends(friendsFromKnownGids);
-            return buildFriendReply(friendsFromKnownGids);
+        const { friends, partial } = await fetchQqFriendsByKnownGids(priority, forceSync);
+        if (friends.length || partial) {
+            return { ...buildFriendReply(friends), partial };
         }
 
         try {
@@ -67,16 +68,25 @@ async function fetchAllFriends(forceSync: boolean, priority: 'low' | 'normal'): 
 export async function getAllFriends(forceSync: boolean = false, priority: 'low' | 'normal' = 'normal'): Promise<any> {
     // 同优先级好友列表请求合并，避免页面刷新、巡田和后台同步同时重复拉取。
     // 低优先级请求不会阻塞普通请求；反过来低优先级可以复用正在执行的普通请求。
-    if (priority === 'low' && allFriendsRequests.normal) return allFriendsRequests.normal;
-    const current = allFriendsRequests[priority];
+    const requests = allFriendsRequests;
+    const key = forceSync && CONFIG.platform === 'qq' ? 'sync' : priority;
+    if (requests.sync) return requests.sync;
+    if (key === 'low' && requests.normal) return requests.normal;
+    const current = requests[key];
     if (current) return current;
 
-    const request = fetchAllFriends(forceSync, priority);
-    allFriendsRequests[priority] = request;
+    const request = (async () => {
+        if (key === 'sync') await Promise.allSettled(Object.values(requests));
+        if (requests !== allFriendsRequests) throw new Error('好友读取中断，账号已断开连接');
+        const reply = await fetchAllFriends(forceSync, priority);
+        if (requests !== allFriendsRequests) throw new Error('好友读取中断，账号已断开连接');
+        return reply;
+    })();
+    requests[key] = request;
     try {
         return await request;
     } finally {
-        if (allFriendsRequests[priority] === request) delete allFriendsRequests[priority];
+        if (requests[key] === request) delete requests[key];
     }
 }
 
@@ -299,7 +309,7 @@ export async function putPlantItemsDetailed(friendGid: number, landIds: number[]
                 break;
             }
             failed.push({ landId, reason: e && e.message ? e.message : '未知错误' });
-            if (propagateErrors) throw e;
+            if (propagateErrors || isInvalidFriendAccessError(e, true)) throw e;
         }
 
         if (index < ids.length - 1 && !schedulerRef().isBadOperationLimitReached()) {

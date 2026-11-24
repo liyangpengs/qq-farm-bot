@@ -37,6 +37,7 @@ const {
 } = require('./application-filter');
 const {
     extractReplyFriends,
+    canScanFriend,
     clearAllInvalidKnownFriendGidCooldowns,
 } = require('./gid-manager');
 const {
@@ -410,7 +411,7 @@ export async function checkFriends(options: CheckFriendsOptions = {}): Promise<b
 
             try {
                 await runExclusiveAutomationTask('friend_visit', async () => {
-                    if (!canContinue() || getFriendBlacklist(accountId).includes(target.gid)) return;
+                    if (!canContinue() || !canScanFriend(target.gid) || getFriendBlacklist(accountId).includes(target.gid)) return;
                     const allowSteal = target.wantSteal && isAutomationOn('friend_steal');
                     const allowHelp = target.wantHelp && isAutomationOn('friend_help');
                     const allowBad = target.wantBad && isAutomationOn('friend_bad');
