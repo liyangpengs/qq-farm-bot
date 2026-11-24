@@ -17,7 +17,7 @@ const ranch = useRanchStore()
 const { state, loading, error } = storeToRefs(ranch)
 const { currentAccountId } = storeToRefs(useAccountStore())
 const toast = useToastStore()
-const { disabled, request } = useRanchActions()
+const { disabled, request, requestDirect } = useRanchActions()
 
 const friends = ref<any[]>([])
 const listLoaded = ref(false)
@@ -472,6 +472,19 @@ async function reloadList() {
                     </span>
                   </div>
                   <div class="friend-overview__actions">
+                    <NButton
+                      v-if="entry.friend.canMidwife"
+                      size="small"
+                      type="primary"
+                      secondary
+                      :disabled="disabled"
+                      @click="requestDirect('produceFriend', { hostGid: entry.gid })"
+                    >
+                      <template #icon>
+                        <span class="i-carbon-circle-dash" aria-hidden="true" />
+                      </template>
+                      帮忙生产
+                    </NButton>
                     <NButton
                       v-if="entry.detail.feedMachine"
                       size="small"

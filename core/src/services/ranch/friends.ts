@@ -135,11 +135,20 @@ function cleanableHazards(ranch: any): any[] {
 }
 
 function interactionPlan(action: string, input: any, ranches: any[], host: string, times: any): any {
+    if (action === 'produceFriend') {
+        const animals = ranches.flatMap(ranch => ranch.animals);
+        const keyOf = (animal: any) => `${quantity(animal.ranch_inst_id)}:${animal.animal_inst_id}`;
+        const ready = animals.filter(animal => animal.can_deliver).map(keyOf).sort();
+        // 好友的一键生产只指定主人，由服务端选择执行时已经就绪的动物。
+        return { action, route: 'produce', label: '帮忙生产', payload: { host_gid: host, targets: [] },
+            count: ready.length, animalKeys: new Set(animals.map(keyOf)), target: `ranch:produceFriend:${host}`,
+            signature: JSON.stringify([host, ready]) };
+    }
     if (action === 'cleanFriend') {
         const pens = ranches.filter(ranch => cleanableHazards(ranch).length);
         const payload = { host_gid: host, ranch_inst_ids: pens.map(ranch => quantity(ranch.ranch_inst_id)) };
         const hazards = pens.flatMap(ranch => cleanableHazards(ranch).map((hazard: any) => `${quantity(ranch.ranch_inst_id)}:${quantity(hazard.hazard_id)}`));
-        return { action, label: '清理好友牧场', payload, count: hazards.length, target: `ranch:cleanFriend:${host}`,
+        return { action, route: 'clean', label: '清理好友牧场', payload, count: hazards.length, target: `ranch:cleanFriend:${host}`,
             signature: JSON.stringify({ action, payload, hazards }) };
     }
     const ranchId = positiveId(input.ranchId, '牧场设施');
@@ -163,35 +172,47 @@ function interactionPlan(action: string, input: any, ranches: any[], host: strin
         // 同一栏舍的未决投放始终共用目标，不因新污物而重复提交。
         marker = { mosquitoes: state.mosquitoes, limit: state.mosquitoLimit, hazards: ranch.hazards.map((hazard: any) => quantity(hazard.hazard_id)) };
     }
-    return { action, label, payload, marker, remaining: times[action], count: 1,
+    return { action, route: action, label, payload, marker, remaining: times[action], count: 1,
         target: `ranch:${action}:${host}:${ranchId}${action === 'stroke' ? `:${payload.target.animal_inst_id}` : ''}`,
         signature: JSON.stringify({ action, payload, marker }) };
 }
 
-async function prepareInteraction(action: string, input: any): Promise<any> {
+function withInteractionPlan(action: string, input: any, run: (plan: any) => any): Promise<any> {
     return visit(input.hostGid, async (_entry, ranches, host) => {
-        const plan = interactionPlan(action, input, ranches, host, action === 'cleanFriend' ? null : await getInteractionTimes());
-        return { action, label: plan.label, costs: [], costItems: [], rewards: [], count: plan.count,
-            expected: { signature: plan.signature }, skipped: plan.count === 0 };
+        const times = action === 'stroke' || action === 'putMosquito' ? await getInteractionTimes() : null;
+        return run(interactionPlan(action, input, ranches, host, times));
     });
 }
 
+function prepareInteraction(action: string, input: any): Promise<any> {
+    return withInteractionPlan(action, input, plan => ({
+        action, label: plan.label, costs: [], costItems: [], rewards: [], count: plan.count,
+        expected: { signature: plan.signature }, skipped: plan.count === 0,
+    }));
+}
+
 async function commitInteraction(plan: any, ranch?: any): Promise<any> {
-    if (!plan.count) return { action: plan.action, status: 'skipped', costs: [], rewards: [], completed: 0, snapshot: null };
+    const production = plan.action === 'produceFriend';
+    const emptyNotice = production ? '好友当前没有可帮生产的动物' : '当前已无可清理项目';
+    if (!plan.count) return { action: plan.action, status: 'skipped', costs: [], rewards: [], completed: 0, snapshot: null,
+        notice: emptyNotice, refreshRequired: true };
     return reservations.forCurrentAccount().spend({ target: plan.target, label: plan.label, costs: [], balances: [] }, async () => {
         const reset = nextQuotaReset();
-        const reply = await rpc(plan.action === 'cleanFriend' ? 'clean' : plan.action, plan.payload, true);
-        const remaining = Number(quantity(reply.remaining_times));
+        const reply = await rpc(plan.route, plan.payload, true);
+        const remaining = plan.remaining === undefined ? undefined : Number(quantity(reply.remaining_times));
         const invalid = () => { throw error('RANCH_RESULT_UNKNOWN', `${plan.label}结果未能确认，请刷新核对，勿重复提交`); };
-        if (plan.action !== 'cleanFriend' && remaining !== plan.remaining - 1) invalid();
+        if (remaining !== undefined && remaining !== plan.remaining - 1) invalid();
         let rewards: any[];
         let completed = 1;
-        if (plan.action === 'cleanFriend') {
+        if (production || plan.action === 'cleanFriend') {
             const keys = new Set<string>();
             for (const row of reply.op_results) {
-                const key = `${quantity(row.facility_inst_id)}:${quantity(row.target_id)}`;
-                if (row.kind !== 3 || !plan.payload.ranch_inst_ids.includes(quantity(row.facility_inst_id))
-                    || BigInt(quantity(row.target_id)) <= 0n || keys.has(key) || row.costs.length) invalid();
+                const facility = quantity(row.facility_inst_id);
+                const target = quantity(row.target_id);
+                const key = `${facility}:${target}`;
+                const matches = production ? row.kind === 1 && plan.animalKeys.has(key)
+                    : row.kind === 3 && plan.payload.ranch_inst_ids.includes(facility) && BigInt(target) > 0n;
+                if (!matches || keys.has(key) || row.costs.length) invalid();
                 keys.add(key);
             }
             completed = reply.op_results.length;
@@ -214,22 +235,22 @@ async function commitInteraction(plan: any, ranch?: any): Promise<any> {
             rewards = reply.rewards;
         }
         if (rewards.some((item: any) => BigInt(quantity(item.count)) <= 0n)) invalid();
-        if (plan.action !== 'cleanFriend') rememberQuota(plan.action, remaining, reset);
+        if (remaining !== undefined) rememberQuota(plan.action, remaining, reset);
         // 放蚊子回包包含栏舍当前的全部污物，用它规划下一只。
         if (plan.action === 'putMosquito' && ranch) ranch.hazards = reply.hazards;
         const items = sumItems(rewards);
-        if (plan.action === 'cleanFriend' && completed > 0) recordOperation('helpFarming', completed, 'ranch');
+        if ((production || plan.action === 'cleanFriend') && completed > 0) recordOperation('helpFarming', completed, 'ranch');
+        const completedNotice = production ? `好友的 ${completed} 只动物已开始生产` : `${plan.label}完成`;
         return { action: plan.action, status: completed ? 'confirmed' : 'skipped', snapshot: null, costs: [], rewards: items, completed,
-            remainingTimes: plan.action === 'cleanFriend' ? undefined : remaining, triggered: reply.triggered === true, refreshRequired: true,
-            notice: `${plan.label}${completed ? '完成' : '当前已无可清理项目'}${reply.triggered ? '，触发巨大变异' : ''}${items.length ? `，获得 ${items.map((item: any) => `${item.name} ×${item.count}`).join('、')}` : ''}` };
+            remainingTimes: remaining, triggered: reply.triggered === true, refreshRequired: true,
+            notice: `${completed ? completedNotice : emptyNotice}${reply.triggered ? '，触发巨大变异' : ''}${items.length ? `，获得 ${items.map((item: any) => `${item.name} ×${item.count}`).join('、')}` : ''}` };
     });
 }
 
 async function interact(action: string, input: any): Promise<any> {
-    return visit(input.hostGid, async (_entry, ranches, host) => {
-        const plan = interactionPlan(action, input, ranches, host, action === 'cleanFriend' ? null : await getInteractionTimes());
-        if (!plan.count) return commitInteraction(plan);
-        if (input.expected?.signature !== plan.signature) throw error('RANCH_OFFER_CHANGED', '好友牧场状态已变化，请重新确认');
+    return withInteractionPlan(action, input, plan => {
+        const direct = action === 'produceFriend' && input.direct === true && input.expected === undefined;
+        if (plan.count && !direct && input.expected?.signature !== plan.signature) throw error('RANCH_OFFER_CHANGED', '好友牧场状态已变化，请重新确认');
         return commitInteraction(plan);
     });
 }

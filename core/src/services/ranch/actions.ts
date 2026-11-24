@@ -12,6 +12,7 @@ const { setTimeout: wait } = require('node:timers/promises');
 
 const { ACTIONS } = require('./contract');
 const DIRECT_ACTIONS = new Set(['feed', 'produce', 'harvest', 'clean']);
+const FRIEND_INTERACTIONS = new Set(['stroke', 'putMosquito', 'cleanFriend', 'produceFriend']);
 const LABELS: Record<string, string> = {
     buy: '购买牧场商品', place: '放养幼崽', addGrass: '补充牧草', useCan: '添加罐头', feed: '喂养动物',
     produce: '牧场生产', harvest: '牧场收获', sell: '出售牧场产物', clean: '清理牧场', upgrade: '升级牧场设施',
@@ -353,7 +354,7 @@ function inActionScene(action: string, input: any, run: (cells: any, recipient?:
 
 async function prepareAction(action: string, input: any = {}, feedStage?: RanchFeedStage): Promise<any> {
     if (action === 'steal') return require('./friends').prepareSteal(input);
-    if (['stroke', 'putMosquito', 'cleanFriend'].includes(action)) return require('./friends').prepareInteraction(action, input);
+    if (FRIEND_INTERACTIONS.has(action)) return require('./friends').prepareInteraction(action, input);
     return inActionScene(action, input, async (cells, recipient) => {
         const raw = action === 'claimIllustrated' ? null : { ...await loadRaw(cells), recipient };
         const plan = await planAction(action, input, raw, undefined, feedStage);
@@ -385,7 +386,7 @@ function animalsInResults(ranches: any[], rows: any[]): any[] {
 }
 
 async function operate(action: string, input: any = {}, feedStage?: RanchFeedStage): Promise<any> {
-    if (['stroke', 'putMosquito', 'cleanFriend'].includes(action)) return require('./friends').interact(action, input);
+    if (FRIEND_INTERACTIONS.has(action)) return require('./friends').interact(action, input);
     if (action === 'acknowledge') return inScene(async () => {
         reservations.forCurrentAccount().acknowledge(String(input.id));
         require('./automation').resetSchedule();
