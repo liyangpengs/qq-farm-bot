@@ -522,12 +522,9 @@ function createWorkerManager(options: WorkerManagerOptions) {
                 friendCount: saved.length,
             });
         } else if (msg.type === 'push_notify') {
-            const title = String(msg.title || '').trim();
-            const content = String(msg.content || '').trim();
-            if (!title || !content || typeof sendConfiguredPush !== 'function') return;
+            if (!Array.isArray(msg.candidates) || typeof sendConfiguredPush !== 'function') return;
             Promise.resolve(sendConfiguredPush({
-                title,
-                content,
+                candidates: msg.candidates,
                 accountId,
                 accountName: worker.name,
             })).catch((e: any) => {

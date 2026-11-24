@@ -1,4 +1,6 @@
 import type { GlobalConfig, LoginSettings, OfflineReminder, SystemConfig, UIConfig } from '../../types/config';
+import { normalizeNotificationTypes } from '../../config/notification-types';
+import { isPushChannelConfigured, readPushChannels, singlePushChannel } from '../../config/push-channels';
 export {};
 
 const { DEFAULT_CLIENT_VERSION, DEFAULT_WX_CLIENT_VERSION, DEFAULT_TIME_ZONE, normalizeTimeZone, resolveClientVersionUpdatedAt } = require('../../config/config');
@@ -6,7 +8,6 @@ const { DEFAULT_CLIENT_VERSION, DEFAULT_WX_CLIENT_VERSION, DEFAULT_TIME_ZONE, no
 const sharedState = require('./shared-state');
 
 const {
-    PUSHOO_CHANNELS,
     DEFAULT_OFFLINE_REMINDER,
     DEFAULT_LOGIN_SETTINGS,
     globalConfig,
@@ -21,25 +22,8 @@ function normalizeOfflineReminder(input: unknown): OfflineReminder {
     if (!Number.isFinite(offlineDeleteSec) || offlineDeleteSec < 0) {
         offlineDeleteSec = DEFAULT_OFFLINE_REMINDER.offlineDeleteSec;
     }
-    const rawChannel = (src.channel !== undefined && src.channel !== null)
-        ? String(src.channel).trim().toLowerCase()
-        : '';
-    const endpoint = (src.endpoint !== undefined && src.endpoint !== null)
-        ? String(src.endpoint).trim()
-        : DEFAULT_OFFLINE_REMINDER.endpoint;
-    const migratedChannel = rawChannel
-        || (PUSHOO_CHANNELS.has(String(endpoint || '').trim().toLowerCase())
-            ? String(endpoint || '').trim().toLowerCase()
-            : DEFAULT_OFFLINE_REMINDER.channel);
-    const channel = PUSHOO_CHANNELS.has(migratedChannel)
-        ? migratedChannel
-        : DEFAULT_OFFLINE_REMINDER.channel;
-    const token = (src.token !== undefined && src.token !== null)
-        ? String(src.token).trim()
-        : DEFAULT_OFFLINE_REMINDER.token;
-    const secret = (src.secret !== undefined && src.secret !== null)
-        ? String(src.secret).trim()
-        : DEFAULT_OFFLINE_REMINDER.secret;
+    const channels = readPushChannels(src);
+    const primary = channels.find(entry => entry.enabled);
     const title = (src.title !== undefined && src.title !== null)
         ? String(src.title).trim()
         : DEFAULT_OFFLINE_REMINDER.title;
@@ -47,10 +31,12 @@ function normalizeOfflineReminder(input: unknown): OfflineReminder {
         ? String(src.msg).trim()
         : DEFAULT_OFFLINE_REMINDER.msg;
     return {
-        channel,
-        endpoint,
-        token,
-        secret,
+        notificationTypes: normalizeNotificationTypes(src.notificationTypes),
+        channels,
+        channel: primary?.channel ?? DEFAULT_OFFLINE_REMINDER.channel,
+        endpoint: primary?.endpoint ?? '',
+        token: primary?.token ?? '',
+        secret: primary?.secret ?? '',
         title,
         msg,
         offlineDeleteSec,
@@ -106,9 +92,36 @@ function setLoginSettings(cfg: Partial<LoginSettings> | undefined): LoginSetting
     return getLoginSettings();
 }
 
-function setOfflineReminder(cfg: Partial<OfflineReminder> | undefined): OfflineReminder {
-    const current = normalizeOfflineReminder(globalConfig.offlineReminder);
-    const next = normalizeOfflineReminder({ ...current, ...(cfg || {}) });
+function setOfflineReminder(cfg: Partial<Omit<OfflineReminder, 'notificationTypes'>> & {
+    notificationTypes?: Partial<OfflineReminder['notificationTypes']>;
+    enabled?: boolean;
+} = {}): OfflineReminder {
+    const current = getOfflineReminder();
+    let channels = cfg.channels ?? current.channels;
+    if (!cfg.channels && cfg.enabled !== undefined) {
+        const selected = singlePushChannel(current, cfg);
+        const byName = new Map(current.channels.map(entry => [entry.channel, entry]));
+        if (selected.endpoint || selected.token || selected.secret) byName.set(selected.channel, selected);
+        else byName.delete(selected.channel);
+        channels = [...byName.values()];
+    } else if (!cfg.channels && ['channel', 'endpoint', 'token', 'secret'].some(key => Object.hasOwn(cfg, key))) {
+        const selected = singlePushChannel(current, cfg);
+        // 单渠道表单只替换原先选中的渠道，保留 App 另行启用的渠道。
+        const configured = isPushChannelConfigured(selected);
+        const changed = selected.channel !== current.channel || selected.endpoint !== current.endpoint
+            || selected.token !== current.token || selected.secret !== current.secret;
+        if (changed) {
+            channels = current.channels.filter(entry => entry.channel !== selected.channel);
+            if (selected.channel !== current.channel && configured) {
+                channels = channels.map(entry => entry.channel === current.channel ? { ...entry, enabled: false } : entry);
+            }
+            if (configured) channels.unshift(selected);
+        }
+    }
+    const next = normalizeOfflineReminder({
+        ...current, ...cfg, channels,
+        notificationTypes: { ...current.notificationTypes, ...cfg.notificationTypes },
+    });
     saveGlobalConfig({ offlineReminder: next });
     return getOfflineReminder();
 }
