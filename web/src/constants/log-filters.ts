@@ -47,7 +47,7 @@ export const SUBMODULE_BY_TAG: Record<string, string> = {
 }
 export const SUBMODULE_EVENTS: Record<string, string[]> = {
   'farm:land': ['farm_cycle', 'plant_seed', '土地推送通知', '种植种子', '农场循环', '铲除植物', '收获后状态分类'],
-  'ranch:friend': ['ranch_cleanFriend', 'ranch_steal', '好友牧场清理', '牧场产物偷取'],
+  'ranch:friend': ['ranch_cleanFriend', 'ranch_steal', 'ranch_produceFriend', '好友牧场清理', '牧场产物偷取'],
   'ranch:warehouse': ['ranch_sell', 'ranch_feed', '出售牧场产物', '牧场罐头喂养'],
 }
 
@@ -104,6 +104,7 @@ export const LOG_EVENTS: LogFilterOption[] = [
   { label: '牧场每日分享', value: 'ranch_claimDailyShare' },
   { label: '购买牧场罐头', value: 'ranch_buyCan' },
   { label: '牧场产物偷取', value: 'ranch_steal' },
+  { label: '帮好友生产', value: 'ranch_produceFriend' },
   { label: '抚摸好友动物', value: 'ranch_stroke' },
   { label: '放生动物', value: 'ranch_release' },
   { label: '放蚊子', value: 'ranch_putMosquito' },

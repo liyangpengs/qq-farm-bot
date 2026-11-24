@@ -144,10 +144,14 @@ const visibleEntries = computed(() => visible.value.map((friend) => {
   const gid = String(friend.gid ?? '')
   const detail = detailOf(gid)
   const blacklisted = blacklistedSet.value.has(Number(gid))
+  const canHelpProduce = detail
+    ? detail.ranches.some((pen: any) => pen.animals.some((animal: any) => animal.canProduce))
+    : friend.canMidwife
   return {
     friend,
     gid,
-    statusId: blacklisted || friend.canMidwife || friend.canSteal || friend.canHelp ? `ranch-friend-status-${gid}` : undefined,
+    canHelpProduce,
+    statusId: blacklisted || canHelpProduce || friend.canSteal || friend.canHelp ? `ranch-friend-status-${gid}` : undefined,
     expanded: !blacklisted && expandedGid.value === gid,
     blacklisted,
     detail,
@@ -211,7 +215,6 @@ watch(() => state.value?.friendRanch, (live) => {
   if (friend) {
     friend.canHelp = live.cleanableHazards > 0
     friend.helpCount = live.cleanableHazards
-    friend.canMidwife = live.ranches.some((pen: any) => pen.animals.some((animal: any) => animal.canProduce))
     friend.canSteal = live.canSteal
   }
 })
@@ -415,7 +418,7 @@ async function reloadList() {
                 <span v-if="entry.statusId" :id="entry.statusId" class="friend-tags">
                   <span v-if="entry.blacklisted" class="f-tag f-tag--blocked">已拉黑</span>
                   <template v-else>
-                    <span v-if="entry.friend.canMidwife" class="f-tag">
+                    <span v-if="entry.canHelpProduce" class="f-tag">
                       <span class="i-carbon-circle-dash" aria-hidden="true" />可帮生产
                     </span>
                     <span v-if="entry.friend.canSteal" class="f-tag f-tag--steal">
@@ -473,7 +476,7 @@ async function reloadList() {
                   </div>
                   <div class="friend-overview__actions">
                     <NButton
-                      v-if="entry.friend.canMidwife"
+                      v-if="entry.canHelpProduce"
                       size="small"
                       type="primary"
                       secondary

@@ -26,6 +26,7 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_clean: true,
     ranch_stroke: true,
     ranch_friend_steal: true,
+    ranch_friend_produce: false,
     ranch_friend_clean: true,
     ranch_friend_mosquito: true,
     ranch_task: true,
