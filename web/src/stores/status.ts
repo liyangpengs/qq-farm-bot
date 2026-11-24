@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { io } from 'socket.io-client'
 import { computed, ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
+import { LOG_CACHE_LIMIT } from '@/constants/log-filters'
 import { useAccountStore } from '@/stores/account'
 
 // Define interfaces for better type checking
@@ -87,8 +88,8 @@ export const useStatusStore = defineStore('status', () => {
   function pushRealtimeLog(entry: any) {
     const next = normalizeLogEntry(entry)
     logs.value.push(next)
-    if (logs.value.length > 300)
-      logs.value = logs.value.slice(-300)
+    if (logs.value.length > LOG_CACHE_LIMIT)
+      logs.value = logs.value.slice(-LOG_CACHE_LIMIT)
   }
 
   function handleRealtimeStatus(payload: any) {
@@ -111,6 +112,10 @@ export const useStatusStore = defineStore('status', () => {
   }
 
   function handleRealtimeLogsSnapshot(payload: any) {
+    // 筛选启用时实时日志已暂停，全量快照会把筛选结果覆盖回全量日志，
+    // 导致列表在「筛选结果」和「全部日志」之间来回跳。
+    if (!realtimeLogsEnabled.value)
+      return
     const body = (payload && typeof payload === 'object') ? payload : {}
     const list = Array.isArray(body.logs) ? body.logs : []
     logs.value = list.map((item: any) => normalizeLogEntry(item))
