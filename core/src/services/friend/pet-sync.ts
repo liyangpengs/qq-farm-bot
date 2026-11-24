@@ -24,7 +24,7 @@ const { toNum, log, logWarn, sleep, getSystemDateKey } = require('../../utils/ut
 const { createScheduler } = require('../scheduler');
 const { runExclusiveAutomationTask } = require('../automation-lock');
 const { getAllFriends, enterFriendFarm, leaveFriendFarm } = require('./api');
-const { extractReplyFriends, getInvalidKnownFriendGidSet } = require('./gid-manager');
+const { canScanFriend, extractReplyFriends, getInvalidKnownFriendGidSet } = require('./gid-manager');
 const {
     isFriendDogKnownToday,
     isFullSyncDoneToday,
@@ -125,6 +125,7 @@ function describeDeferReason(reason: string): string {
     if (reason === 'round_quota') return '本轮配额已用完';
     if (reason === 'friend_task_busy') return '好友巡查占用';
     if (reason === 'switch_off') return '开关已关闭';
+    if (reason === 'partial_list') return '好友详情暂未齐全';
     return reason || '未知';
 }
 
@@ -185,7 +186,7 @@ async function probeFriendDog(gid: number, name: string): Promise<ProbeOutcome> 
         // 网关没余力或连接已断：这不是这位好友的问题，整轮让路，不逐个刷超时日志
         if (isGatewayYieldError(e) || String(e.message).includes('stage=pending')) return 'yield';
         // 复用已有的封禁加黑、失效好友清理逻辑
-        const handled: { handled: boolean; kind: string } = visitStrategyRef().handleFriendEnterError(gid, name, e);
+        const handled = visitStrategyRef().handleFriendAccessError(gid, name, e, entered);
         if (!handled.handled) {
             logWarn('好友', `同步宠物时进入 ${name} 农场失败: ${e.message}`, {
                 module: 'friend', event: '好友宠物同步', result: 'error', friendName: name, friendGid: gid,
@@ -207,7 +208,7 @@ export function collectPendingFriends(friends: any[], myGid: number, blacklist: 
         if (gid <= 0 || gid === myGid) continue;
         if (seen.has(gid)) continue;
         seen.add(gid);
-        if (blacklist.has(gid) || invalid.has(gid)) continue;
+        if (blacklist.has(gid) || invalid.has(gid) || !canScanFriend(gid)) continue;
         // 当天已经有结论的不重复同步（包括帮忙/偷菜/天气扫描顺手写入的）
         if (isFriendDogKnownToday(gid)) continue;
         pending.push({ gid, name: friend.remark || friend.name || `GID:${gid}` });
@@ -255,8 +256,8 @@ async function runFriendPetSyncRound(): Promise<FriendPetSyncResult> {
         }
         if (generation !== syncGeneration) return { outcome: 'skipped', reason: 'session_changed' };
         // 这里只需要 GID 和名称，复用农场巡查的名单，不为宠物同步重读几百位好友详情。
-        let friends: any[] = visitStrategyRef().getFriendsListCacheOnly();
-        if (!friends.length) {
+        let roster = visitStrategyRef().getFreshConfirmedFriends();
+        if (!roster) {
             const reply: any = await runExclusiveAutomationTask('friend_pet_list', () => {
                 if (generation !== syncGeneration || schedulerRef().isFriendCheckRunning()) return null;
                 return getAllFriends(false, 'low');
@@ -264,14 +265,15 @@ async function runFriendPetSyncRound(): Promise<FriendPetSyncResult> {
             if (generation !== syncGeneration) return { outcome: 'skipped', reason: 'session_changed' };
             if (!reply) return { outcome: 'deferred', reason: 'friend_task_busy' };
             visitStrategyRef().cacheFriendsListFromReply(reply);
-            friends = extractReplyFriends(reply);
+            roster = { friends: extractReplyFriends(reply), partial: !!reply.partial };
         }
         const accountId: string = process.env.FARM_ACCOUNT_ID || '';
         const blacklist: Set<number> = new Set(getFriendBlacklist(accountId));
         const invalid: Set<number> = getInvalidKnownFriendGidSet();
-        const pending: Array<{ gid: number; name: string }> = collectPendingFriends(friends, myGid, blacklist, invalid);
+        const pending = collectPendingFriends(roster.friends, myGid, blacklist, invalid);
 
         if (pending.length === 0) {
+            if (roster.partial) return { outcome: 'deferred', reason: 'partial_list', checked: 0 };
             markFullSyncDone();
             return { outcome: 'fresh', reason: 'all_known', checked: 0 };
         }
@@ -317,12 +319,14 @@ async function runFriendPetSyncRound(): Promise<FriendPetSyncResult> {
                     break;
                 }
                 // 只对 Enter/Leave 这一对操作持锁，等待和批次间隔留给农场巡查。
-                const outcome: ProbeOutcome | 'friend_task_busy' | 'switch_off' = await runExclusiveAutomationTask('friend_pet_visit', async () => {
+                const outcome: ProbeOutcome | 'friend_task_busy' | 'switch_off' | 'skipped' = await runExclusiveAutomationTask('friend_pet_visit', async () => {
                     if (generation !== syncGeneration || !isSyncEnabled().enabled || !getUserState().gid) return 'switch_off';
                     if (schedulerRef().isFriendCheckRunning()) return 'friend_task_busy';
                     if (!isGatewayHealthyForBusiness(getGatewayLoad())) return 'yield';
+                    if (!canScanFriend(friend.gid)) return 'skipped';
                     return probeFriendDog(friend.gid, friend.name);
                 });
+                if (outcome === 'skipped') continue;
                 if (outcome === 'friend_task_busy' || outcome === 'switch_off') {
                     deferred = pending.length - checked - failed;
                     deferReason = outcome;
@@ -347,14 +351,15 @@ async function runFriendPetSyncRound(): Promise<FriendPetSyncResult> {
 
         // 只有真正跑完才标记当日完成，否则下一次定时检查继续补剩下的
         if (generation !== syncGeneration) return { outcome: 'skipped', reason: 'session_changed' };
-        if (deferred === 0) markFullSyncDone();
+        if (!deferReason && roster.partial) deferReason = 'partial_list';
+        if (!deferReason) markFullSyncDone();
 
         const stats: any = getFriendPetCacheStats();
-        const deferNote: string = deferred > 0 ? `（让路原因：${describeDeferReason(deferReason)}）` : '';
+        const deferNote: string = deferReason ? `（${describeDeferReason(deferReason)}）` : '';
         log('好友', `好友宠物同步完成：确认 ${checked}，失败 ${failed}，待补 ${deferred}${deferNote}，当日护主犬 ${stats.protect} 位`, {
             module: 'friend',
             event: '好友宠物同步',
-            result: deferred > 0 ? 'deferred' : 'ok',
+            result: deferReason ? 'deferred' : 'ok',
             checked,
             failed,
             deferred,
@@ -364,7 +369,7 @@ async function runFriendPetSyncRound(): Promise<FriendPetSyncResult> {
         });
 
         return {
-            outcome: deferred > 0 ? 'deferred' : 'synced',
+            outcome: deferReason ? 'deferred' : 'synced',
             reason: deferReason || undefined,
             checked,
             failed,

@@ -113,13 +113,9 @@ function buildKnownFriendGidSettings(accountId: string): {
     friendsListCacheTtlSec: number;
 } {
     return {
-        knownFriendGids: store.getKnownFriendGids ? store.getKnownFriendGids(accountId) : [],
-        knownFriendGidSyncCooldownSec: store.getKnownFriendGidSyncCooldownSec
-            ? store.getKnownFriendGidSyncCooldownSec(accountId)
-            : 600,
-        friendsListCacheTtlSec: store.getFriendsListCacheTtlSec
-            ? store.getFriendsListCacheTtlSec(accountId)
-            : 60,
+        knownFriendGids: store.getKnownFriendGids(accountId),
+        knownFriendGidSyncCooldownSec: store.getKnownFriendGidSyncCooldownSec(accountId),
+        friendsListCacheTtlSec: store.getFriendsListCacheTtlSec(accountId),
     };
 }
 

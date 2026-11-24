@@ -464,11 +464,11 @@ async function reloadList() {
                     </span>
                     <span class="friend-stat" :class="{ 'is-zero': !entry.detail.strokeRemaining }">
                       <span class="i-carbon-favorite text-rose-500 dark:text-rose-400" aria-hidden="true" />
-                      <span>今日可抚摸 <b>{{ entry.detail.strokeRemaining }}</b> 次</span>
+                      <span>可抚摸 <b>{{ entry.detail.strokeRemaining }}</b> 次</span>
                     </span>
                     <span class="friend-stat" :class="{ 'is-zero': !entry.detail.mosquitoRemaining }">
                       <span class="i-carbon-debug text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                      <span>今日可放蚊子 <b>{{ entry.detail.mosquitoRemaining }}</b> 次</span>
+                      <span>可放蚊子 <b>{{ entry.detail.mosquitoRemaining }}</b> 次</span>
                     </span>
                   </div>
                   <div class="friend-overview__actions">
