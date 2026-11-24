@@ -4,7 +4,7 @@ export {};
  */
 
 const protobuf = require('protobufjs');
-const { sendMsgAsync, getUserState } = require('../../utils/network');
+const { sendMsgAsync, getUserState, networkEvents } = require('../../utils/network');
 const { types } = require('../../utils/proto');
 const { toLong, toNum, sleep, randomDelay, log, logWarn } = require('../../utils/utils');
 
@@ -32,6 +32,12 @@ async function sendPlantRequest(
     return ReplyType.decode(replyBody);
 }
 
+function decodeChangedLands(replyType: any, body: Uint8Array): any {
+    const reply = replyType.decode(body);
+    if (reply.land?.length) networkEvents.emit('ownFarmLandsUpdated', reply.land);
+    return reply;
+}
+
 async function getAllLands(): Promise<any> {
     const forecast = require('../level-forecast');
     const revision = forecast.getLandForecastRevision();
@@ -39,6 +45,7 @@ async function getAllLands(): Promise<any> {
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'AllLands', body);
     const reply = types.AllLandsReply.decode(replyBody);
     forecast.rememberLandForecast(reply.lands, getUserState(), revision);
+    networkEvents.emit('ownFarmLandsUpdated', reply.lands, true);
     // 更新操作限制
     if (reply.operation_limits && onOperationLimitsUpdate) {
         onOperationLimitsUpdate(reply.operation_limits);
@@ -46,15 +53,15 @@ async function getAllLands(): Promise<any> {
     return reply;
 }
 
-async function harvest(landIds: number[]): Promise<any> {
+async function harvest(landIds: number[], isAll = true): Promise<any> {
     const state = getUserState();
     const body = types.HarvestRequest.encode(types.HarvestRequest.create({
         land_ids: landIds,
         host_gid: toLong(state.gid),
-        is_all: true,
+        is_all: isAll,
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'Harvest', body);
-    return types.HarvestReply.decode(replyBody);
+    return decodeChangedLands(types.HarvestReply, replyBody);
 }
 
 async function waterLand(landIds: number[]): Promise<any> {
@@ -66,7 +73,7 @@ async function farming(landIds: number[], socialEventItemIds: Array<number | str
     const state = getUserState();
     const body = encodeOwnFarmingRequest(landIds, state.gid, socialEventItemIds);
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'Farming', body);
-    return types.FarmingReply.decode(replyBody);
+    return decodeChangedLands(types.FarmingReply, replyBody);
 }
 
 /**
@@ -111,7 +118,7 @@ async function fertilizeBatch(landIds: number[], fertilizerId: number): Promise<
         fertilizer_id: toLong(fertilizerId),
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'Fertilize', body);
-    const reply = types.FertilizeReply.decode(replyBody);
+    const reply = decodeChangedLands(types.FertilizeReply, replyBody);
     if (reply.operation_limits && onOperationLimitsUpdate) {
         onOperationLimitsUpdate(reply.operation_limits);
     }
@@ -142,7 +149,8 @@ async function fertilize(landIds: number[], fertilizerId: number = NORMAL_FERTIL
                 land_ids: [toLong(landId)],
                 fertilizer_id: toLong(fertilizerId),
             })).finish();
-            await sendMsgAsync('gamepb.plantpb.PlantService', 'Fertilize', body);
+            const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'Fertilize', body);
+            decodeChangedLands(types.FertilizeReply, replyBody);
             successCount++;
         } catch (error) {
             if (isSkippableFertilizeLandError(error)) {
@@ -186,7 +194,8 @@ async function fertilizeOrganicLoop(landIds: number[] | any[], propagateErrors: 
                 land_ids: [toLong(landId)],
                 fertilizer_id: toLong(ORGANIC_FERTILIZER_ID),
             })).finish();
-            await sendMsgAsync('gamepb.plantpb.PlantService', 'Fertilize', body);
+            const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'Fertilize', body);
+            decodeChangedLands(types.FertilizeReply, replyBody);
             successCount++;
         } catch (error) {
             // 常见是有机肥耗尽，按需求直接停止
@@ -210,7 +219,7 @@ async function removePlant(landIds: number[]): Promise<any> {
         land_ids: landIds.map(id => toLong(id)),
     })).finish();
     const { body: replyBody } = await sendMsgAsync('gamepb.plantpb.PlantService', 'RemovePlant', body);
-    return types.RemovePlantReply.decode(replyBody);
+    return decodeChangedLands(types.RemovePlantReply, replyBody);
 }
 
 async function upgradeLand(landId: number): Promise<any> {
@@ -273,6 +282,7 @@ function encodePlantRequest(seedId: number | string, landIds: number[]): Uint8Ar
 }
 
 module.exports = {
+    decodeChangedLands,
     setOperationLimitsCallback,
     sendPlantRequest,
     getAllLands,

@@ -21,6 +21,12 @@ const { toNum, toTimeSec, getServerTimeSec, log, logWarn } = require('../../util
 const MATURE_PHASE_RECORD_ID = 19;
 const { buildLandUpgradeDetail } = require('./land-upgrade');
 
+function isExplicitMaturePhase(phaseInfo: any): boolean {
+    const phase = toNum(phaseInfo?.phase);
+    return phase !== PlantPhase.DEAD && (phase === PlantPhase.MATURE
+        || phase === MATURE_PHASE_RECORD_ID || toNum(phaseInfo?.phase_id) === MATURE_PHASE_RECORD_ID);
+}
+
 function int64String(value: any): string {
     if (value == null) return '0';
     const text = String(value?.toString?.() ?? value).trim();
@@ -462,15 +468,8 @@ function convertServerPhaseToClient(phases: any[], serverPhaseInfo: any, plantId
     // 大多数作物成熟时 phase=6，但部分作物（例如最后阶段名为“盛开”的牵牛花）
     // 仍可能返回粗状态 2，或把详细阶段 ID 19 放进 phase。成熟阶段同时可由
     // phase_id=19 和 grow_phases 的最后一个剩余阶段确定，不能只依赖粗状态。
-    const isMature = serverPhase !== PlantPhase.DEAD && (
-        serverPhase === PlantPhase.MATURE
-        || serverPhase === MATURE_PHASE_RECORD_ID
-        || phaseRecordId === MATURE_PHASE_RECORD_ID
-        || (isFinalConfiguredPhase && (
-            serverPhase === PlantPhase.GERMINATION
-            || serverPhase > PlantPhase.DEAD
-        ))
-    );
+    const isMature = isExplicitMaturePhase(serverPhaseInfo) || (isFinalConfiguredPhase
+        && (serverPhase === PlantPhase.GERMINATION || serverPhase > PlantPhase.DEAD));
     const clientPhase = isMature ? PlantPhase.MATURE : serverPhase;
     const imagePhase = serverPhase === PlantPhase.DEAD ? PlantPhase.DEAD : phaseIndex + 1;
     const isKnownClientPhase = clientPhase >= PlantPhase.SEED && clientPhase <= PlantPhase.MATURE;
@@ -1125,6 +1124,7 @@ async function resolveRemovableHarvestedLands(harvestedLandIds: number[], harves
 
 module.exports = {
     getCurrentPhase,
+    isExplicitMaturePhase,
     getPlantStatusFlags,
     getPlantMutantConfigIds,
     getExtendedStatusInteractionItemId,

@@ -3,17 +3,20 @@ export {};
  * 农场循环调度 - 循环管理、可变状态
  */
 
-const { CONFIG } = require('../../config/config');
+const { CONFIG, PlantPhase } = require('../../config/config');
 const { getPlantById, getItemById } = require('../../config/gameConfig');
 const { isAutomationOn, getAutomation, getFertilizerBuyOrganicCount, getFertilizerBuyOrganicThresholdHours, getFertilizerBuyNormalCount, getFertilizerBuyNormalThresholdHours, getFertilizerBuyCheckIntervalMinutes } = require('../../models/store');
 const { getUserState, networkEvents } = require('../../utils/network');
-const { toNum, log, logWarn, randomDelay } = require('../../utils/utils');
+const { toNum, toTimeSec, serverTimeToLocalMs, log, logWarn, randomDelay } = require('../../utils/utils');
+const { runWithRequestClass } = require('../../utils/request-context');
 const { createScheduler } = require('../scheduler');
 const { runExclusiveAutomationTask } = require('../automation-lock');
 const { recordOperation } = require('../stats');
 const { getAllLands, harvest, farming, unlockLand, upgradeLand } = require('./api');
 const {
     analyzeLands,
+    getCurrentPhase,
+    isExplicitMaturePhase,
     getCleanableFarmSocialEventItemIds,
     getNormalFertilizerTargetsFromLands,
     resolveRemovableHarvestedLands,
@@ -38,13 +41,102 @@ let externalSchedulerMode: boolean = false;
 let farmLoopGeneration = 0;
 let automaticPlantPacing: any = { lastPlantAt: null, defer: true };
 const farmScheduler = createScheduler('farm');
-let lastPushTime: number = 0;
+const landDeadlines = new Map<number, { at: number; plantId: number }>();
+const pendingHarvest = new Map<number, any>();
+const lastHarvestAttempt = new Map<number, string>();
+let maturityAt = Infinity;
+let pushCheckAt = Infinity;
+let scheduledAt = Infinity;
+let wakeQueued = false;
+let nextOrdinaryPushAt = 0;
 
 // ============ 农场循环 ============
 
 function canContinueFarm(generation: number): boolean {
     return generation === farmLoopGeneration
         && !!getUserState().gid && isAutomationOn('farm') && !inFarmQuietHours();
+}
+
+function cropKey(land: any): string {
+    const plant = land.plant;
+    return `${plant.id}:${plant.season}:${plant.phases[0].begin_time}`;
+}
+
+function maturePushKey(land: any): string {
+    if (!land?.unlocked || !isExplicitMaturePhase(land.plant?.phases?.[0])) return '';
+    const master = toNum(land.master_land_id);
+    return master && master !== toNum(land.id) ? '' : cropKey(land);
+}
+
+function isTiangongCrop(plantId: number): boolean {
+    return Number(getItemById(getPlantById(plantId)?.seed_id)?.rarity) === 4;
+}
+
+function armFarmWake(): void {
+    const at = farmLoopRunning && canContinueFarm(farmLoopGeneration) ? Math.min(maturityAt, pushCheckAt) : Infinity;
+    if (wakeQueued || isCheckingFarm || at === scheduledAt) return;
+    farmScheduler.clear('farm_push_check');
+    scheduledAt = at;
+    if (!Number.isFinite(at)) return;
+    const generation = farmLoopGeneration;
+    farmScheduler.setTimeoutTask('farm_push_check', Math.max(0, at - Date.now()), async () => {
+        scheduledAt = Infinity;
+        wakeQueued = true;
+        try {
+            await runExclusiveAutomationTask('farm_push_check', async () => {
+                if (generation !== farmLoopGeneration) return;
+                if (!canContinueFarm(generation)) { pendingHarvest.clear(); pushCheckAt = Infinity; return; }
+                if (Math.min(maturityAt, pushCheckAt) > Date.now()) return;
+                await runWithRequestClass('farm', checkFarm);
+            }, { detached: true });
+        } finally {
+            if (generation === farmLoopGeneration) { wakeQueued = false; armFarmWake(); }
+        }
+    });
+}
+
+function rememberMaturity(land: any): void {
+    const id = toNum(land.id);
+    landDeadlines.delete(id);
+    const master = toNum(land.master_land_id);
+    const phases = land.plant?.phases;
+    if (!land.unlocked || (master && master !== id) || !phases || phases.length < 2) return;
+    const plantId = toNum(land.plant.id);
+    const current = getCurrentPhase(phases, false, '', plantId)?.phase;
+    if (!current || current === PlantPhase.MATURE || current === PlantPhase.DEAD) return;
+    const last = phases[phases.length - 1];
+    const mature = phases.find(isExplicitMaturePhase)
+        || (getCurrentPhase([last], false, '', plantId)?.phase === PlantPhase.MATURE ? last : null);
+    if (!mature) return;
+    const now = Date.now();
+    const due = serverTimeToLocalMs(toTimeSec(mature.begin_time) * 1000);
+    // 到点仍报生长中时，在成熟时刻后的 300ms 补查一次。
+    const at = due > now ? due : due + 300;
+    if (at > now) landDeadlines.set(id, { at, plantId });
+}
+
+function updateMaturityWake(): void {
+    const skipTiangong = getAutomation().farm_harvest_tiangong === false;
+    maturityAt = Infinity;
+    for (const { at, plantId } of landDeadlines.values()) {
+        if (!skipTiangong || !isTiangongCrop(plantId)) maturityAt = Math.min(maturityAt, at);
+    }
+    armFarmWake();
+}
+
+function observeFarmLands(lands: any[], full = false): void {
+    if (full) {
+        landDeadlines.clear();
+        for (const [id, pending] of pendingHarvest) {
+            const current = lands.find(land => toNum(land.id) === id);
+            if (maturePushKey(current) !== cropKey(pending)) pendingHarvest.delete(id);
+        }
+    }
+    for (const land of lands) {
+        rememberMaturity(land);
+        if (!full) pendingHarvest.delete(toNum(land.id));
+    }
+    updateMaturityWake();
 }
 
 function schedulePlantContinuation(generation: number, pacing: any, delayMs?: number): void {
@@ -67,6 +159,12 @@ async function checkFarm(): Promise<boolean> {
     farmScheduler.clear('farm_plant_continue');
     pacing.deferred = false;
     isCheckingFarm = true;
+    if (pushCheckAt <= Date.now()) nextOrdinaryPushAt = Date.now() + 500;
+    pushCheckAt = Infinity;
+    if (maturityAt <= Date.now()) {
+        for (const [id, deadline] of landDeadlines) if (deadline.at <= Date.now()) landDeadlines.delete(id);
+        updateMaturityWake();
+    }
 
     try {
         // 复用手动操作逻辑
@@ -79,6 +177,7 @@ async function checkFarm(): Promise<boolean> {
     } finally {
         isCheckingFarm = false;
         schedulePlantContinuation(generation, pacing);
+        armFarmWake();
     }
 }
 
@@ -113,7 +212,7 @@ async function runMultiSeasonFertilizer(growingLandIds: any[], propagateErrors: 
 function autoHarvestLandIds(status: any): number[] {
     if (getAutomation().farm_harvest_tiangong !== false) return status.harvestable;
     const tiangongLandIds = new Set(status.harvestableInfo
-        .filter((info: any) => Number(getItemById(getPlantById(info.plantId)?.seed_id)?.rarity) === 4)
+        .filter((info: any) => isTiangongCrop(info.plantId))
         .map((info: any) => info.landId));
     return status.harvestable.filter((id: number) => !tiangongLandIds.has(id));
 }
@@ -179,13 +278,48 @@ async function runFarmOperation(
     propagateErrors: boolean = false,
     automatic?: { generation: number; pacing: any },
 ): Promise<{ hadWork: boolean; actions: string[] }> {
+    const actions: string[] = [];
+    const harvestedLandIds: number[] = [];
+    const harvestReply: { land: any[] } = { land: [] };
+    const pushedIds = new Set<number>();
+    async function collectHarvest(ids: number[], source: any[], isAll: boolean): Promise<void> {
+        if (!ids.length) return;
+        for (const land of source) {
+            if (ids.includes(toNum(land.id))) lastHarvestAttempt.set(toNum(land.id), cropKey(land));
+        }
+        try {
+            const reply = await harvest(ids, isAll);
+            const updated = reply.land || [];
+            const completed = isAll ? ids : ids.filter(id => updated.some((land: any) => toNum(land.id) === id));
+            if (!completed.length) return;
+            harvestedLandIds.push(...completed);
+            harvestReply.land.push(...updated);
+            const count = completed.length;
+            log('收获', `收获完成 ${count} 块土地`, { module: 'farm', event: '收获作物', result: 'ok', count, landIds: completed });
+            actions.push(`收获${count}`);
+            recordOperation('harvest', count);
+            networkEvents.emit('farmHarvested', { count, landIds: completed, opType });
+        } catch (e: any) {
+            logWarn('收获', e.message, { module: 'farm', event: '收获作物', result: 'error' });
+            if (propagateErrors) throw e;
+        }
+    }
+    if (automatic && pendingHarvest.size) {
+        const lands = [...pendingHarvest.values()].filter(land => lastHarvestAttempt.get(toNum(land.id)) !== cropKey(land));
+        pendingHarvest.clear();
+        if (lands.length && isAutomationOn('farm_push')) {
+            const ids = autoHarvestLandIds(analyzeLands(lands, false, getUserState().gid));
+            for (const id of ids) pushedIds.add(id);
+            await collectHarvest(ids, lands, false);
+        }
+    }
     const landsReply = await getAllLands();
-    if (automatic && !canContinueFarm(automatic.generation)) return { hadWork: false, actions: [] };
+    if (automatic && !canContinueFarm(automatic.generation)) return { hadWork: actions.length > 0, actions };
     if (!landsReply.lands || landsReply.lands.length === 0) {
         if (opType !== 'all') {
             log('农场', '没有土地数据');
         }
-        return { hadWork: false, actions: [] };
+        return { hadWork: actions.length > 0, actions };
     }
 
     const lands = landsReply.lands;
@@ -218,7 +352,15 @@ async function runFarmOperation(
     if (status.upgradable.length) statusParts.push(`升:${status.upgradable.length}`);
     statusParts.push(`长:${status.growing.length}`);
 
-    const actions: string[] = [];
+    const harvestFromRead = async () => {
+        const candidates: number[] = opType === 'all' ? autoHarvestLandIds(status) : status.harvestable;
+        const ids = candidates.filter(id => !pushedIds.has(id));
+        if (ids.length) {
+            fertilizerSnapshot = undefined;
+            await collectHarvest(ids, lands, !pushedIds.size && ids.length === status.harvestable.length);
+        }
+    };
+    if (automatic) await harvestFromRead();
 
     // 执行一键务农 (除草+除虫+浇水) - 串行执行以降低并发压力
     if (opType === 'all' || opType === 'clear') {
@@ -270,40 +412,8 @@ async function runFarmOperation(
     }
 
     // 执行收获
-    let harvestedLandIds: number[] = [];
-    let harvestReply: any = null;
     let postHarvest: any = null;
-    if (opType === 'all' || opType === 'harvest') {
-        const harvestable = opType === 'all' ? autoHarvestLandIds(status) : status.harvestable;
-        if (harvestable.length > 0) {
-            fertilizerSnapshot = undefined;
-            try {
-                harvestReply = await harvest(harvestable);
-                log('收获', `收获完成 ${harvestable.length} 块土地`, {
-                    module: 'farm',
-                    event: '收获作物',
-                    result: 'ok',
-                    count: harvestable.length,
-                    landIds: [...harvestable],
-                });
-                actions.push(`收获${harvestable.length}`);
-                recordOperation('harvest', harvestable.length);
-                harvestedLandIds = [...harvestable];
-                networkEvents.emit('farmHarvested', {
-                    count: harvestable.length,
-                    landIds: [...harvestable],
-                    opType,
-                });
-            } catch (e: any) {
-                logWarn('收获', e.message, {
-                    module: 'farm',
-                    event: '收获作物',
-                    result: 'error',
-                });
-                if (propagateErrors) throw e;
-            }
-        }
-    }
+    if (!automatic && (opType === 'all' || opType === 'harvest')) await harvestFromRead();
 
     // 执行种植
     if (opType === 'all' || opType === 'plant') {
@@ -481,6 +591,7 @@ function startFarmCheckLoop(options: { externalScheduler?: boolean } = {}): void
     farmLoopGeneration++;
     externalSchedulerMode = !!options.externalScheduler;
     farmLoopRunning = true;
+    networkEvents.on('ownFarmLandsUpdated', observeFarmLands);
     networkEvents.on('landsChanged', onLandsChangedPush);
     networkEvents.on('farmSocialEventsChanged', onFarmSocialEventsChangedPush);
     if (!externalSchedulerMode) {
@@ -490,35 +601,36 @@ function startFarmCheckLoop(options: { externalScheduler?: boolean } = {}): void
     startFertilizerBuyCheckTimer();
 }
 
-function onLandsChangedPush(lands: any[]): void {
-    if (!isAutomationOn('farm_push')) {
-        return;
+function queuePushCheck(urgent: boolean, social: boolean, count: number): void {
+    if (!canContinueFarm(farmLoopGeneration) || (isCheckingFarm && !urgent)) return;
+    const now = Date.now();
+    const at = urgent ? now : Math.max(now + 100, nextOrdinaryPushAt);
+    if (at >= pushCheckAt) return;
+    pushCheckAt = at;
+    log('农场', social ? `收到农场社交事件推送: ${count}个，检查中...` : `收到推送: ${count}块土地变化，检查中...`, {
+        module: 'farm', event: social ? '农场社交事件通知' : '土地推送通知', result: 'trigger_check', count,
+    });
+    armFarmWake();
+}
+
+function onLandsChangedPush(lands: any[], hostGid?: number): void {
+    const own = !!hostGid && hostGid === getUserState().gid;
+    const enabled = isAutomationOn('farm_push') && canContinueFarm(farmLoopGeneration);
+    for (const land of lands) {
+        const id = toNum(land.id);
+        pendingHarvest.delete(id);
+        if (!own) continue;
+        rememberMaturity(land);
+        const key = enabled && maturePushKey(land);
+        if (key && lastHarvestAttempt.get(id) !== key
+            && (getAutomation().farm_harvest_tiangong !== false || !isTiangongCrop(toNum(land.plant.id)))) pendingHarvest.set(id, land);
     }
-    if (isCheckingFarm) return;
-    const now: number = Date.now();
-    if (now - lastPushTime < 500) return;
-    lastPushTime = now;
-    log('农场', `收到推送: ${lands.length}块土地变化，检查中...`, {
-        module: 'farm', event: '土地推送通知', result: 'trigger_check', count: lands.length
-    });
-    farmScheduler.setTimeoutTask('farm_push_check', 100, async () => {
-        if (!isCheckingFarm) await runExclusiveAutomationTask('farm_push_check', checkFarm);
-    });
+    if (own) updateMaturityWake();
+    if (enabled) queuePushCheck(pendingHarvest.size > 0, false, lands.length);
 }
 
 function onFarmSocialEventsChangedPush(events: any[]): void {
-    if (!isAutomationOn('farm_push')) return;
-    if (isCheckingFarm) return;
-    const now: number = Date.now();
-    if (now - lastPushTime < 500) return;
-    lastPushTime = now;
-    const count = Array.isArray(events) ? events.length : 0;
-    log('农场', `收到农场社交事件推送: ${count}个，检查中...`, {
-        module: 'farm', event: '农场社交事件通知', result: 'trigger_check', count
-    });
-    farmScheduler.setTimeoutTask('farm_push_check', 100, async () => {
-        if (!isCheckingFarm) await runExclusiveAutomationTask('farm_push_check', checkFarm);
-    });
+    if (isAutomationOn('farm_push')) queuePushCheck(false, true, events.length);
 }
 
 function stopFarmCheckLoop(): void {
@@ -526,7 +638,14 @@ function stopFarmCheckLoop(): void {
     farmLoopGeneration++;
     automaticPlantPacing = { lastPlantAt: null, defer: true };
     externalSchedulerMode = false;
+    landDeadlines.clear();
+    pendingHarvest.clear();
+    lastHarvestAttempt.clear();
+    maturityAt = pushCheckAt = scheduledAt = Infinity;
+    nextOrdinaryPushAt = 0;
+    wakeQueued = false;
     farmScheduler.clearAll();
+    networkEvents.removeListener('ownFarmLandsUpdated', observeFarmLands);
     networkEvents.removeListener('landsChanged', onLandsChangedPush);
     networkEvents.removeListener('farmSocialEventsChanged', onFarmSocialEventsChangedPush);
     // 停止化肥自动购买检测定时器
@@ -535,6 +654,11 @@ function stopFarmCheckLoop(): void {
 
 function refreshFarmCheckLoop(delayMs: number = 200): void {
     if (!farmLoopRunning) return;
+    if (!canContinueFarm(farmLoopGeneration) || !isAutomationOn('farm_push')) {
+        pendingHarvest.clear();
+        pushCheckAt = Infinity;
+    }
+    updateMaturityWake();
     if (farmScheduler.has('farm_plant_continue')) {
         farmScheduler.clear('farm_plant_continue');
         schedulePlantContinuation(farmLoopGeneration, automaticPlantPacing, delayMs);
