@@ -8,10 +8,12 @@
   "main": "client.js",
   "bin": "client.js",
   "scripts": {
+    "prepare:dist": "node ../tools/clean-dist.cjs",
     "start": "node client.js",
     "dev": "tsx client.ts",
-    "build": "tsc && tsc -p tsconfig.client.json",
-    "build:ts": "tsc && tsc -p tsconfig.client.json",
+    "build": "tsc --incremental false && tsc -p tsconfig.client.json --incremental false && node ../tools/record-build.cjs",
+    "host-fingerprint": "node ../tools/record-build.cjs host",
+    "build:ts": "tsc && tsc -p tsconfig.client.json && node ../tools/record-build.cjs",
     "typecheck": "tsc --noEmit",
     "build:release": "tsc && tsc -p tsconfig.client.json && pkg . --no-bytecode --targets node18-win-x64,node18-linux-x64,node18-macos-x64,node18-macos-arm64 --out-path dist/bin",
     "build:win": "tsc && tsc -p tsconfig.client.json && pkg . --no-bytecode --targets node18-win-x64 --out-path dist/bin",
@@ -61,6 +63,7 @@
   "files": [
     "client.js",
     "dist",
+    "!dist/bin",
     "src/gameConfig",
     "src/proto",
     "src/activity-data",

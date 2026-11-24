@@ -7,7 +7,9 @@ const path = require('node:path');
 const { isProcessAlive, readLockMetadata } = require('@qq-farm-bot/session-contract');
 const { getRuntimePaths, isPackaged } = require('../config/runtime-paths');
 const { writeJsonFileAtomic } = require('./json-db');
+const { UPDATE_SETTINGS_FILENAME, readBackupEnabled } = require('./release-compat');
 const releaseManager = require('./release-manager');
+const { inspectInstallation, installStamp, targetFingerprints, runningComponents, compareComponents, hostMaintenanceMessage } = require('./update-plan');
 
 export interface IncomingCommitInfo {
     hash: string;
@@ -46,6 +48,8 @@ export interface SystemUpdateStatus {
     commitSubject: string;
     startupCommit: string;
     needsApply: boolean;
+    updateHint: string;
+    hostMaintenance: string;
     upstream: string;
     remote: string;
     remoteBranch: string;
@@ -63,6 +67,7 @@ export interface SystemUpdateStatus {
     job: PanelUpdateJobState | null;
     releases: RollbackReleaseItem[];
     releasesSummary: ReleasesSummary;
+    keepBackups: boolean;
 }
 
 export interface SystemUpdateServiceOptions {
@@ -133,8 +138,6 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
     let lastCheckedAt: number | null = null;
     let lastCheckError = '';
     let lastPulledAt: number | null = null;
-    let startupCommit = '';
-    let startupCommitInit: Promise<void> | null = null;
     let operationLock: Promise<any> = Promise.resolve();
 
     const withOpMutex = async <T>(fn: () => Promise<T>): Promise<T> => {
@@ -243,28 +246,6 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         };
     };
 
-    const ensureStartupCommit = async (): Promise<void> => {
-        if (startupCommit) return;
-        if (!startupCommitInit) {
-            startupCommitInit = (async () => {
-                try {
-                    const envInfo = await detectEnv();
-                    if (envInfo.gitSupported && envInfo.repoRoot) {
-                        // Immutable backend releases keep their source revision when restarted or rolled back.
-                        const releaseCommit = /^backend-\d{14}-([\da-f]+)-[\da-f]{4}$/.exec(process.env.FARM_RELEASE_ID || '')?.[1];
-                        startupCommit = releaseCommit
-                            || (await execGit(envInfo.repoRoot, ['rev-parse', 'HEAD'])).trim();
-                    }
-                } catch {
-                    // ignore initial read failures
-                }
-            })();
-        }
-        await startupCommitInit;
-    };
-
-    void ensureStartupCommit();
-
     const getJobFilePath = (runtimeDir: string) => path.join(runtimeDir, 'panel-update-job.json');
     const getJobLogPath = (runtimeDir: string) => path.join(runtimeDir, 'panel-update-job.log');
 
@@ -303,7 +284,7 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
                         ...job,
                         status: 'failed',
                         finishedAt: now(),
-                        error: job.error || '更新进程意外退出，请查看 runtime/panel-update-job.log',
+                        error: job.error || '后台任务意外中断，详细日志见 runtime/panel-update-job.log',
                     };
                     try {
                         writeJsonFileAtomic(jobFile, failedJob);
@@ -416,14 +397,19 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         return releaseManager.resolveReleasesDir(envInfo.repoRoot || options.repoRoot || null, options.releasesDir);
     };
 
-    const getStatus = async (): Promise<SystemUpdateStatus> => {
-        await ensureStartupCommit();
+    let repoSnapshot: Awaited<ReturnType<typeof inspectRepoLocal>>;
+    let targetsKey = '';
+    let targets: Promise<Record<'web' | 'backend' | 'host', string> | null> | null = null;
+    let releasesData = { releases: [] as RollbackReleaseItem[], summary: releaseManager.createEmptySummary() };
+
+    const getStatus = async (refresh = false): Promise<SystemUpdateStatus> => {
         const envInfo = await detectEnv();
         const job = readJobState(envInfo.paths.runtimeDir);
         const deployBusy = job?.status === 'running' || isDeployLockAlive(envInfo.paths.runtimeDir);
         const releasesDir = getReleasesDirForEnv(envInfo);
-        const releasesData = releasesDir
-            ? await releaseManager.listReleases({
+        const keepBackups = readBackupEnabled(envInfo.paths.runtimeDir);
+        if (releasesDir && !deployBusy) {
+            releasesData = await releaseManager.listReleases({
                 repoRoot: envInfo.repoRoot,
                 runtimeDir: envInfo.paths.runtimeDir,
                 releasesDir,
@@ -431,8 +417,8 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
                 applySupported: envInfo.applySupported,
                 deployBusy,
                 execGit,
-            })
-            : { releases: [], summary: releaseManager.createEmptySummary() };
+            });
+        }
 
         if (!envInfo.gitSupported || !envInfo.repoRoot) {
             return {
@@ -448,6 +434,8 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
                 commitSubject: '',
                 startupCommit: '',
                 needsApply: false,
+                updateHint: '',
+                hostMaintenance: '',
                 upstream: '',
                 remote: '',
                 remoteBranch: '',
@@ -465,11 +453,41 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
                 job,
                 releases: releasesData.releases,
                 releasesSummary: releasesData.summary,
+                keepBackups,
             };
         }
 
-        const repo = await inspectRepoLocal(envInfo.repoRoot);
-        const needsApply = Boolean(startupCommit && repo.commit && !repo.commit.startsWith(startupCommit));
+        const root = envInfo.repoRoot;
+        if (refresh || !repoSnapshot || (!deployBusy && repoSnapshot.commit !== (await execGit(root, ['rev-parse', 'HEAD'])).trim())) {
+            repoSnapshot = await inspectRepoLocal(root);
+        }
+        const repo = repoSnapshot;
+        const activeBackend = releasesData.releases.find(item => item.isActive);
+        const startupCommit = activeBackend?.commit || activeBackend?.shortCommit || '';
+        let needsApply = false;
+        let updateHint = '';
+        let hostMaintenance = '';
+        if (envInfo.applySupported && fs.existsSync(path.join(root, 'turbo.json'))) {
+            // HEAD only invalidates the target cache. CLI rollbacks can change the serving releases at any time.
+            const stampTime = fs.statSync(path.join(root, installStamp), { throwIfNoEntry: false })?.mtimeMs;
+            const key = `${root}:${repo.commit}:${stampTime}`;
+            if (!deployBusy && (refresh || !targets || key !== targetsKey)) {
+                targetsKey = key;
+                targets = inspectInstallation(root).needed ? Promise.resolve(null) : targetFingerprints(root);
+            }
+            const hashes = await targets;
+            if (hashes) {
+                const live = runningComponents({ repoRoot: root, releasesDir, runtimeDir: envInfo.paths.runtimeDir });
+                const plan = compareComponents(hashes, live);
+                needsApply = plan.web || plan.backend;
+                const components = [plan.web && '网页端', plan.backend && '服务端'].filter(Boolean).join('和');
+                if (needsApply) updateHint = `${components}有新内容待生效，点击「应用更新」即可切换。`;
+                hostMaintenance = hostMaintenanceMessage(plan.host);
+            } else if (!deployBusy) {
+                needsApply = true;
+                updateHint = '点击「应用更新」准备所需文件，再检查网页端和服务端是否有更新。';
+            }
+        }
         const canCheck = Boolean(!repo.detached && repo.upstream);
         const canPull = Boolean(
             canCheck
@@ -500,6 +518,8 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
             commitSubject: repo.commitSubject,
             startupCommit,
             needsApply,
+            updateHint,
+            hostMaintenance,
             upstream: repo.upstream,
             remote: repo.remote,
             remoteBranch: repo.remoteBranch,
@@ -517,11 +537,11 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
             job,
             releases: releasesData.releases,
             releasesSummary: releasesData.summary,
+            keepBackups,
         };
     };
 
     const runCheckUnlocked = async (): Promise<SystemUpdateStatus> => {
-        await ensureStartupCommit();
         const envInfo = await detectEnv();
         if (!envInfo.gitSupported || !envInfo.repoRoot) {
             throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持检查更新', 400, 'UNSUPPORTED_ENVIRONMENT');
@@ -539,7 +559,7 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
             lastCheckError = err?.message || '检查远程更新失败';
             throw createUpdateError(`检查远程更新失败：${lastCheckError}`, 400, 'GIT_FETCH_FAILED');
         }
-        return getStatus();
+        return getStatus(true);
     };
 
     const runPullUnlocked = async (): Promise<{
@@ -548,7 +568,6 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         toCommit: string;
         status: SystemUpdateStatus;
     }> => {
-        await ensureStartupCommit();
         const envInfo = await detectEnv();
         if (!envInfo.gitSupported || !envInfo.repoRoot) {
             throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持拉取更新', 400, 'UNSUPPORTED_ENVIRONMENT');
@@ -564,7 +583,7 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
                 pulled: false,
                 fromCommit: repo.shortCommit,
                 toCommit: repo.shortCommit,
-                status: await getStatus(),
+                status: await getStatus(true),
             };
         }
 
@@ -575,7 +594,7 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         } catch (err: any) {
             throw createUpdateError(`拉取代码失败：${err?.message || 'git pull 执行失败'}`, 400, 'GIT_PULL_FAILED');
         }
-        const nextStatus = await getStatus();
+        const nextStatus = await getStatus(true);
         return {
             pulled: nextStatus.shortCommit !== fromCommit,
             fromCommit,
@@ -660,7 +679,6 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
     };
 
     const applyUpdate = (applyOptions: { pullFirst?: boolean } = {}) => withOpMutex(async () => {
-        await ensureStartupCommit();
         const envInfo = await detectEnv();
         if (!envInfo.gitSupported || !envInfo.repoRoot) {
             throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持更新', 400, 'UNSUPPORTED_ENVIRONMENT');
@@ -673,27 +691,24 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
             throw createUpdateError('已有部署或更新任务正在运行，请稍候查看进度', 409, 'UPDATE_BUSY');
         }
 
-        if (applyOptions.pullFirst !== false) {
-            const checked = await runCheckUnlocked();
-            if (checked.behindCount > 0) await runPullUnlocked();
-        }
-
-        const statusNow = await getStatus();
+        const pullFirst = applyOptions.pullFirst !== false;
+        let statusNow = pullFirst ? await runCheckUnlocked() : await getStatus(true);
+        if (pullFirst && statusNow.behindCount > 0) statusNow = (await runPullUnlocked()).status;
         assertUpdatableBranch(statusNow);
         if (statusNow.deployBusy) {
             throw createUpdateError('已有部署或更新任务正在运行，请稍候查看进度', 409, 'UPDATE_BUSY');
         }
         if (!statusNow.needsApply) {
-            throw createUpdateError('当前代码已是最新版本且已在运行中，无需重复更新', 400, 'NOTHING_TO_APPLY');
+            return { job: null, status: statusNow };
         }
 
         const initialJob = await launchDetachedControlJob({
             envInfo,
             args: ['update', 'all'],
             jobIdPrefix: 'upd',
-            phase: '正在后台启动更新流程',
-            recentLine: '[发布] 正在启动后台更新进程…',
-            fromCommit: startupCommit ? startupCommit.slice(0, 7) : statusNow.shortCommit,
+            phase: '正在准备更新',
+            recentLine: '正在启动更新任务…',
+            fromCommit: statusNow.startupCommit.slice(0, 7),
             targetCommit: statusNow.shortCommit,
         });
 
@@ -704,7 +719,6 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
     });
 
     const rollbackRelease = (releaseId: unknown) => withOpMutex(async () => {
-        await ensureStartupCommit();
         const envInfo = await detectEnv();
         if (!envInfo.gitSupported || !envInfo.repoRoot) {
             throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持回滚', 400, 'UNSUPPORTED_ENVIRONMENT');
@@ -740,9 +754,9 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
             envInfo,
             args,
             jobIdPrefix: 'rbk',
-            phase: '正在后台启动回滚流程',
-            recentLine: '[发布] 正在启动后台回滚进程…',
-            fromCommit: startupCommit ? startupCommit.slice(0, 7) : statusNow.shortCommit,
+            phase: '正在准备回滚',
+            recentLine: '正在启动回滚任务…',
+            fromCommit: statusNow.startupCommit.slice(0, 7),
             targetCommit: target.shortCommit || target.releaseId,
         });
 
@@ -753,7 +767,6 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
     });
 
     const deleteReleases = (payload: { releaseIds?: unknown; cleanOrphans?: unknown } = {}) => withOpMutex(async () => {
-        await ensureStartupCommit();
         const envInfo = await detectEnv();
         if (envInfo.mode === 'docker' || envInfo.mode === 'binary') {
             throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持清理历史发布目录', 400, 'UNSUPPORTED_ENVIRONMENT');
@@ -781,6 +794,18 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         };
     });
 
+    const setBackupEnabled = (enabled: unknown) => withOpMutex(async () => {
+        if (typeof enabled !== 'boolean') {
+            throw createUpdateError('keepBackups 参数必须是布尔值', 400, 'INVALID_BACKUP_SETTING');
+        }
+        const envInfo = await detectEnv();
+        if (envInfo.mode === 'docker' || envInfo.mode === 'binary') {
+            throw createUpdateError(envInfo.unsupportedReason || '当前运行方式不支持修改备份设置', 400, 'UNSUPPORTED_ENVIRONMENT');
+        }
+        writeJsonFileAtomic(path.join(envInfo.paths.runtimeDir, UPDATE_SETTINGS_FILENAME), { keepBackups: enabled });
+        return { keepBackups: enabled };
+    });
+
     return {
         getStatus,
         checkForUpdates,
@@ -788,6 +813,7 @@ function createSystemUpdateService(options: SystemUpdateServiceOptions = {}) {
         applyUpdate,
         rollbackRelease,
         deleteReleases,
+        setBackupEnabled,
     };
 }
 
@@ -801,4 +827,5 @@ module.exports = {
     applySystemUpdate: (options?: { pullFirst?: boolean }) => defaultSystemUpdateService.applyUpdate(options),
     rollbackSystemRelease: (releaseId: unknown) => defaultSystemUpdateService.rollbackRelease(releaseId),
     deleteSystemReleases: (payload?: { releaseIds?: unknown; cleanOrphans?: unknown }) => defaultSystemUpdateService.deleteReleases(payload),
+    setSystemBackupEnabled: (enabled: unknown) => defaultSystemUpdateService.setBackupEnabled(enabled),
 };

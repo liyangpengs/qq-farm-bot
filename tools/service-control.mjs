@@ -12,13 +12,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const require = createRequire(import.meta.url);
-const { RELEASE_META_FILENAME, compareReleaseVersions, readReleaseMeta, readReleaseVersions } = require('../core/src/services/release-compat.js');
+const { RELEASE_META_FILENAME, compareReleaseVersions, pairedWebReleases, readBackupEnabled, readReleaseIpcVersion, readReleaseMeta, readReleaseVersions } = require('../core/src/services/release-compat.js');
+const { buildEnv, compareComponents, hostMaintenanceMessage, inspectInstallation, runningComponents, targetFingerprints, turboArgs } = require('../core/src/services/update-plan.js');
 
 const VERBOSE_OUTPUT = process.argv.includes('--verbose')
     || process.argv.includes('-v')
     || process.env.FARM_DEPLOY_VERBOSE === '1';
 
 const RELEASE_HISTORY_LIMIT = Math.max(3, Number.parseInt(process.env.FARM_MAX_RELEASES, 10) || 10);
+const PREVIOUS_WEB_ASSETS = '.previous-web';
 const UPDATE_JOB_FILE = process.env.FARM_UPDATE_JOB_FILE ? path.resolve(process.env.FARM_UPDATE_JOB_FILE) : '';
 delete process.env.FARM_UPDATE_JOB_FILE;
 const updateJobRecentLines = [];
@@ -48,13 +50,22 @@ function writeUpdateJobPatch(patch = {}, logLine = '') {
 if (UPDATE_JOB_FILE) writeUpdateJobPatch({ pid: process.pid });
 
 let workspaceInstall;
-let contractBuild;
 let coreBuild;
 let pnpmInvocation;
-const contractEntry = path.join(REPO_ROOT, 'packages/session-contract/dist/index.js');
+let contractEntry = path.join(REPO_ROOT, 'packages/session-contract/dist/index.js');
+if (!fs.existsSync(contractEntry)) {
+    // The controller can still use the installed host's contract after workspace outputs are cleaned.
+    const runtime = process.env.FARM_RUNTIME_DIR || path.join(REPO_ROOT, 'runtime');
+    const hostId = readJsonSafe(path.join(runtime, 'session-host.lock'))?.releaseId;
+    if (typeof hostId === 'string' && /^host-[\w.-]+$/.test(hostId)) {
+        const releases = process.env.FARM_RELEASES_DIR || path.join(REPO_ROOT, 'releases');
+        const installed = path.resolve(releases, 'host', hostId, 'node_modules/@qq-farm-bot/session-contract/dist/index.js');
+        if (fs.existsSync(installed)) contractEntry = installed;
+    }
+}
 if (['start', 'update'].includes(process.argv[2]) && !fs.existsSync(contractEntry)) {
     try {
-        await buildSessionContract();
+        await buildComponents(['contract'], '准备基础组件');
     } catch (err) {
         exitWithError(err);
     }
@@ -128,6 +139,7 @@ function getControlConfig(env = process.env) {
     const startTimeoutMs = Math.max(2000, Number(env.FARM_START_TIMEOUT_MS) || 20000);
     return {
         env,
+        contract,
         repoRoot: REPO_ROOT,
         releasesDir,
         hostReleasesDir: path.join(releasesDir, 'host'),
@@ -158,8 +170,12 @@ function getControlConfig(env = process.env) {
 function writeJsonAtomic(filePath, data) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-    fs.renameSync(tmp, filePath);
+    try {
+        fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+        fs.renameSync(tmp, filePath);
+    } finally {
+        fs.rmSync(tmp, { force: true });
+    }
 }
 
 function readJsonSafe(filePath) {
@@ -182,7 +198,7 @@ function readPidFile(pidPath) {
 }
 
 function readActiveReleases(cfg) {
-    const raw = readJsonSafe(cfg.activeReleasesPath) || {};
+    const raw = fs.existsSync(cfg.activeReleasesPath) ? JSON.parse(fs.readFileSync(cfg.activeReleasesPath, 'utf8')) : {};
     return {
         host: raw.host || { active: null, previous: null, history: [] },
         backend: raw.backend || { active: null, previous: null, history: [] },
@@ -190,16 +206,19 @@ function readActiveReleases(cfg) {
     };
 }
 
+function nextReleaseSlot(slot, releaseId, keepBackups = true, discardedId = null, restoring = false) {
+    const history = [releaseId, ...(slot.history || []).filter(id => id !== releaseId && id !== discardedId)];
+    const previous = keepBackups && slot.active && slot.active !== releaseId ? slot.active : history[1] || null;
+    return {
+        active: releaseId, previous, history: keepBackups ? history.slice(0, RELEASE_HISTORY_LIMIT) : history,
+        restoredBackup: !keepBackups && (releaseId === slot.active ? slot.restoredBackup : restoring) || undefined,
+        updatedAt: Date.now(),
+    };
+}
+
 function recordActiveRelease(cfg, kind, releaseId) {
     const state = readActiveReleases(cfg);
-    const slot = state[kind] || { active: null, previous: null, history: [] };
-    if (slot.active && slot.active !== releaseId) {
-        slot.previous = slot.active;
-    }
-    slot.active = releaseId;
-    slot.history = [releaseId, ...(slot.history || []).filter(id => id !== releaseId)].slice(0, RELEASE_HISTORY_LIMIT);
-    slot.updatedAt = Date.now();
-    state[kind] = slot;
+    state[kind] = nextReleaseSlot(state[kind], releaseId);
     writeJsonAtomic(cfg.activeReleasesPath, state);
     return state;
 }
@@ -318,7 +337,7 @@ async function probeHost(cfg) {
                 key: 'hello',
                 op: 'hello',
                 params: {
-                    ipcVersion: SESSION_IPC_VERSION,
+                    ipcVersion: (lockAlive && lock.releaseId && readReleaseIpcVersion(path.join(cfg.hostReleasesDir, lock.releaseId))) || SESSION_IPC_VERSION,
                     role: 'control',
                     instanceId: `ctrl_${process.pid}`,
                 },
@@ -447,16 +466,18 @@ function truncateForColumns(text, maxCols) {
 function extractProgressHint(line) {
     if (!line) return null;
     let match;
-    if (/transforming\.{0,3}/i.test(line)) return '转换模块中';
-    if ((match = line.match(/(\d+)\s+modules transformed/i))) return `已转换 ${match[1]} 个模块`;
-    if (/rendering chunks/i.test(line)) return '生成分块中';
-    if (/computing gzip size/i.test(line)) return '计算产物体积中';
-    if ((match = line.match(/built in\s+([0-9.]+(?:ms|s))/i))) return `打包完成 (${match[1]})`;
+    if (/transforming\.{0,3}/i.test(line)) return '正在编译页面';
+    if ((match = line.match(/(\d+)\s+modules transformed/i))) return `已编译 ${match[1]} 个页面文件`;
+    if (/rendering chunks/i.test(line)) return '正在打包页面文件';
+    if (/computing gzip size/i.test(line)) return '正在整理发布文件';
+    if ((match = line.match(/built in\s+([0-9.]+(?:ms|s))/i))) return `页面打包完成（${match[1]}）`;
+    if (/cache hit/i.test(line)) return '已复用上次的编译结果';
+    if (/qq-farm-bot:build:.*tsc/i.test(line)) return '正在编译服务端代码';
     if ((match = line.match(/Progress:\s*resolved\s+(\d+),\s*reused\s+(\d+),\s*downloaded\s+(\d+),\s*added\s+(\d+)/i))) {
-        return `已解析 ${match[1]} 个依赖（复用 ${match[2]}，新增 ${match[4]}）`;
+        return `已检查 ${match[1]} 项依赖，已复用 ${match[2]} 项，已下载 ${match[3]} 项`;
     }
     if ((match = line.match(/Packages:\s*\+(\d+)/i)) || (match = line.match(/\|\s*\+(\d+)\s*\++/i))) {
-        return `写入 ${match[1]} 个依赖包`;
+        return `正在安装 ${match[1]} 项依赖`;
     }
     return null;
 }
@@ -481,7 +502,7 @@ async function withProgress(label, run) {
         const cleaned = String(next || '').trim();
         if (!cleaned || cleaned === detail) return;
         detail = cleaned;
-        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `[发布] ${label} · ${detail}（已用时 ${elapsed()} 秒）`);
+        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `${label}：${detail}（${elapsed()} 秒）`);
         if (VERBOSE_OUTPUT) return;
         if (isTty) {
             renderTty();
@@ -491,7 +512,7 @@ async function withProgress(label, run) {
         console.error(`[发布] ${label} · ${detail}（已用时 ${elapsed()} 秒）`);
     };
 
-    writeUpdateJobPatch({ status: 'running', phase: label, detail: '' }, `[发布] ${label}…`);
+    writeUpdateJobPatch({ status: 'running', phase: label, detail: '' }, `开始${label}…`);
 
     let timer;
     if (VERBOSE_OUTPUT) {
@@ -516,7 +537,7 @@ async function withProgress(label, run) {
     try {
         const result = await run({ updateDetail });
         clearInterval(timer);
-        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `[发布] 已完成「${label}」，用时 ${elapsed()} 秒`);
+        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `已完成「${label}」（${elapsed()} 秒）`);
         if (isTty) {
             process.stderr.write(`\r\x1b[2K[发布] ✓ ${label} (${elapsed()}s)\n`);
         } else {
@@ -525,7 +546,7 @@ async function withProgress(label, run) {
         return result;
     } catch (err) {
         clearInterval(timer);
-        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `[发布] 「${label}」失败，用时 ${elapsed()} 秒`);
+        writeUpdateJobPatch({ status: 'running', phase: label, detail }, `「${label}」失败（${elapsed()} 秒）`);
         if (isTty) {
             process.stderr.write(`\r\x1b[2K[发布] ✗ ${label} 失败 (${elapsed()}s)\n`);
         } else {
@@ -549,6 +570,7 @@ function runCommand(cmd, args, options = {}) {
     return new Promise((resolve, reject) => {
         const child = spawn(command, useShell ? [] : args, {
             cwd: REPO_ROOT,
+            env: options.env || process.env,
             stdio: VERBOSE_OUTPUT ? ['ignore', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe'],
             shell: useShell,
             windowsHide: true,
@@ -604,16 +626,28 @@ async function runPnpm(args, options = {}) {
 }
 
 function ensureBuildDependencies() {
-    return workspaceInstall ??= withProgress('检查并安装构建依赖', progress => runPnpm(['install', '--frozen-lockfile', '--prod=false', '--prefer-offline'], { onProgress: progress.updateDetail }));
+    return workspaceInstall ??= (async () => {
+        const install = inspectInstallation(REPO_ROOT);
+        if (!install.needed) return;
+        await withProgress('安装所需依赖', progress => runPnpm(['install', '--frozen-lockfile', '--prod=false', '--prefer-offline'], { onProgress: progress.updateDetail }));
+        const installed = inspectInstallation(REPO_ROOT);
+        if (!installed.valid) throw new Error('依赖安装完成后仍缺少必要组件，请检查网络或手动执行 pnpm install。');
+        fs.mkdirSync(path.dirname(install.file), { recursive: true });
+        fs.writeFileSync(install.file, installed.fingerprint);
+    })();
 }
 
-async function buildSessionContract() {
+async function buildComponents(components, label) {
     await ensureBuildDependencies();
-    return contractBuild ??= withProgress('构建会话契约', progress => runPnpm(['build:contract'], { onProgress: progress.updateDetail }));
+    const pnpm = await (pnpmInvocation ??= resolvePnpmInvocation());
+    const env = buildEnv(pnpm.cmd);
+    const args = turboArgs(REPO_ROOT, components);
+    if (!VERBOSE_OUTPUT) args.push('--output-logs=new-only');
+    return withProgress(label, progress => runCommand(process.execPath, args, { env, onProgress: progress.updateDetail }));
 }
 
 function buildCore() {
-    return coreBuild ??= withProgress('构建后端与会话宿主', progress => runPnpm(['-C', 'core', 'build:ts'], { onProgress: progress.updateDetail }));
+    return coreBuild ??= buildComponents(['backend'], '编译服务端和游戏连接服务');
 }
 
 function assertPathIsolatedFromWorkspace(candidateDir, entryFiles, requiredPackages) {
@@ -696,19 +730,39 @@ function createReleaseDirectory(releasesDir, releaseId) {
     return dir;
 }
 
+function removeRelease(dir) {
+    try {
+        fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+        return true;
+    } catch (err) {
+        logUpdate(`清理 ${dir} 失败：${err.message}`);
+        return false;
+    }
+}
+
+async function stageRelease(releasesDir, releaseId, populate) {
+    const dir = createReleaseDirectory(releasesDir, releaseId);
+    try {
+        await populate(dir);
+        return { releaseId, dir };
+    } catch (err) {
+        removeRelease(dir);
+        throw err;
+    }
+}
+
 async function stageHostRelease(cfg, options = {}) {
     const releaseId = options.releaseId || createReleaseId('host');
     const candidateDir = createReleaseDirectory(cfg.hostReleasesDir, releaseId);
     if (options.stageFrom) {
         const src = path.resolve(options.stageFrom);
         if (!fs.existsSync(src)) throw new Error(`Host staging source does not exist: ${src}`);
-        await withProgress('复制会话宿主发布包', () => fs.promises.cp(src, candidateDir, { recursive: true, dereference: true }));
+        await withProgress('复制游戏连接服务', () => fs.promises.cp(src, candidateDir, { recursive: true, dereference: true }));
     } else {
         if (!options.skipBuild) {
-            await buildSessionContract();
             await buildCore();
         }
-        await withProgress('打包会话宿主', progress => deployPnpmPackage('qq-farm-bot', candidateDir, progress.updateDetail));
+        await withProgress('打包游戏连接服务', progress => deployPnpmPackage('qq-farm-bot', candidateDir, progress.updateDetail));
         assertPathIsolatedFromWorkspace(candidateDir, ['dist/session/host.js', 'dist/session/gateway-worker.js'], ['@qq-farm-bot/session-contract']);
     }
     await runCommand(process.execPath, ['--check', path.join(candidateDir, 'dist/session/host.js')]);
@@ -717,68 +771,112 @@ async function stageHostRelease(cfg, options = {}) {
 
 async function stageWebRelease(cfg, options = {}) {
     if (!options.skipBuild && !options.stageFrom) {
-        await ensureBuildDependencies();
-        await withProgress('构建前端', progress => runPnpm(['build:web'], { onProgress: progress.updateDetail }));
+        await buildComponents(['web'], '编译网页端');
     }
     const sourceDir = options.stageFrom ? path.resolve(options.stageFrom) : path.join(REPO_ROOT, 'web', 'dist');
     if (!fs.existsSync(path.join(sourceDir, 'index.html'))) {
         throw new Error(`Built web output missing index.html at ${sourceDir}`);
     }
     const releaseId = options.releaseId || createReleaseId('web');
-    const candidateDir = createReleaseDirectory(cfg.webReleasesDir, releaseId);
-    await withProgress('复制前端静态文件', () => fs.promises.cp(sourceDir, candidateDir, { recursive: true, dereference: true }));
-
-    const webInfo = resolveWebRootInfo(cfg.runtimeDir, path.join(REPO_ROOT, 'web', 'dist'), cfg.env);
-    const activeWebDir = webInfo.webRoot;
-    return { releaseId, dir: candidateDir, previousDir: fs.existsSync(activeWebDir) ? activeWebDir : null };
+    const previousDir = runningComponents(cfg).web.dir;
+    const staged = await stageRelease(cfg.webReleasesDir, releaseId, dir =>
+        withProgress('保存网页端文件', () => fs.promises.cp(sourceDir, dir, {
+            recursive: true, dereference: true, filter: file => file !== path.join(sourceDir, PREVIOUS_WEB_ASSETS),
+        })));
+    return { ...staged, previousDir };
 }
 
-function switchWebRelease(cfg, stagedWeb) {
-    const fallbackRoots = stagedWeb.previousDir && stagedWeb.previousDir !== stagedWeb.dir
-        ? [stagedWeb.previousDir]
-        : [];
-    writeJsonAtomic(cfg.activeWebPath, {
-        releaseId: stagedWeb.releaseId,
-        webRoot: stagedWeb.dir,
-        fallbackRoots,
-        updatedAt: Date.now(),
+function webFallbackRoots(web, removingPrevious) {
+    if (!web.previousDir || web.previousDir === web.dir) return [];
+    if (!removingPrevious) return [web.previousDir];
+    // Open tabs may request lazy chunks after the switch. Keep only missing assets from one generation.
+    const oldAssets = path.join(web.previousDir, 'assets');
+    if (!fs.existsSync(oldAssets)) return [];
+    const fallback = path.join(web.dir, PREVIOUS_WEB_ASSETS);
+    // A rollback can select a release that previously supplied its own fallback.
+    fs.rmSync(fallback, { recursive: true, force: true });
+    fs.cpSync(oldAssets, path.join(fallback, 'assets'), {
+        recursive: true,
+        mode: fs.constants.COPYFILE_FICLONE,
+        filter: file => fs.statSync(file).isDirectory() || !fs.existsSync(path.join(web.dir, 'assets', path.relative(oldAssets, file))),
     });
-    recordActiveRelease(cfg, 'web', stagedWeb.releaseId);
+    return [fallback];
+}
+
+function activateReleases(cfg, { backend, web, previousBackend, keepBackups = true, restoring = false }) {
+    const previous = readActiveReleases(cfg);
+    const next = { ...previous };
+    const savedBackend = previous.backend.restoredBackup && previous.backend.active;
+    const discardedBackend = previousBackend && !keepBackups && previousBackend.releaseId !== savedBackend && previousBackend.releaseId !== backend.releaseId
+        ? previousBackend : null;
+    if (backend) next.backend = nextReleaseSlot(previous.backend, backend.releaseId, keepBackups, discardedBackend?.releaseId, restoring);
+
+    let discardedWeb = null;
+    let pair = null;
+    let pointer;
+    if (web) {
+        const id = web.previousDir && path.relative(cfg.webReleasesDir, web.previousDir);
+        const savedWeb = previous.web.restoredBackup && previous.web.active;
+        if (!keepBackups && id !== web.releaseId && /^web-[\w.-]+$/.test(id)) {
+            if (!backend) {
+                const activeId = runningComponents(cfg).backend?.id || previous.backend.active;
+                const active = resolveReleaseDir(cfg.backendReleasesDir, activeId);
+                const meta = active && readReleaseMeta(active.dir);
+                if (meta && activeId !== savedBackend && (!meta.pairedWebReleaseId || meta.pairedWebReleaseId === id)) {
+                    pair = { id: activeId, file: path.join(active.dir, RELEASE_META_FILENAME), meta };
+                }
+            }
+            const refs = backendWebReferences(cfg, [discardedBackend?.releaseId, pair?.id]);
+            if (id !== savedWeb && !refs.includes(id)) discardedWeb = id;
+        }
+        next.web = nextReleaseSlot(previous.web, web.releaseId, keepBackups, discardedWeb, restoring);
+        pointer = { releaseId: web.releaseId, webRoot: web.dir, fallbackRoots: webFallbackRoots(web, Boolean(discardedWeb)), updatedAt: Date.now() };
+    }
+
+    // Publish the web pointer last. Both old packages remain usable if any write fails.
+    let stateWritten = false;
+    let pairWritten = false;
+    try {
+        if (pair) {
+            writeJsonAtomic(pair.file, { ...pair.meta, pairedWebReleaseId: web.releaseId });
+            pairWritten = true;
+        }
+        writeJsonAtomic(cfg.activeReleasesPath, next);
+        stateWritten = true;
+        if (web) writeJsonAtomic(cfg.activeWebPath, pointer);
+    } catch (err) {
+        if (stateWritten) writeJsonAtomic(cfg.activeReleasesPath, previous);
+        if (pairWritten) writeJsonAtomic(pair.file, pair.meta);
+        throw err;
+    }
+    const backendRemoved = !discardedBackend || removeRelease(discardedBackend.dir);
+    if (discardedWeb && backendRemoved) removeRelease(web.previousDir);
 }
 
 async function stageBackendRelease(cfg, options = {}) {
     const releaseId = options.releaseId || createReleaseId('backend');
-    const candidateDir = createReleaseDirectory(cfg.backendReleasesDir, releaseId);
-    if (options.stageFrom) {
-        const src = path.resolve(options.stageFrom);
-        if (!fs.existsSync(src)) throw new Error(`Backend staging source does not exist: ${src}`);
-        await withProgress('复制后端发布包', () => fs.promises.cp(src, candidateDir, { recursive: true, dereference: true }));
-    } else {
-        if (!options.skipBuild) {
-            await buildSessionContract();
-            await buildCore();
+    return stageRelease(cfg.backendReleasesDir, releaseId, async candidateDir => {
+        if (options.stageFrom) {
+            const src = path.resolve(options.stageFrom);
+            if (!fs.existsSync(src)) throw new Error(`Backend staging source does not exist: ${src}`);
+            await withProgress('复制服务端文件', () => fs.promises.cp(src, candidateDir, { recursive: true, dereference: true }));
+        } else {
+            if (!options.skipBuild) await buildCore();
+            await withProgress('打包服务端', progress => deployPnpmPackage('qq-farm-bot', candidateDir, progress.updateDetail));
+            assertPathIsolatedFromWorkspace(candidateDir, ['client.js', 'dist/core/worker.js'], ['@qq-farm-bot/session-contract']);
         }
-        await withProgress('打包后端', progress => deployPnpmPackage('qq-farm-bot', candidateDir, progress.updateDetail));
-        assertPathIsolatedFromWorkspace(candidateDir, ['client.js', 'dist/core/worker.js'], ['@qq-farm-bot/session-contract']);
-    }
-
-    const entryJs = path.join(candidateDir, 'client.js');
-    if (!fs.existsSync(entryJs)) {
-        throw new Error(`Candidate backend missing client.js: ${entryJs}`);
-    }
-    await runCommand(process.execPath, ['--check', entryJs]);
-    return { releaseId, dir: candidateDir };
+        const entryJs = path.join(candidateDir, 'client.js');
+        if (!fs.existsSync(entryJs)) {
+            throw new Error(`Candidate backend missing client.js: ${entryJs}`);
+        }
+        await runCommand(process.execPath, ['--check', entryJs]);
+    });
 }
 
-function resolveReleaseDir(baseDir, releaseId, fallbackLocalDir) {
-    if (releaseId) {
-        const candidate = path.join(baseDir, releaseId);
-        if (fs.existsSync(candidate)) return { releaseId, dir: candidate };
-    }
-    if (fallbackLocalDir && fs.existsSync(fallbackLocalDir)) {
-        return { releaseId: releaseId || 'workspace', dir: fallbackLocalDir };
-    }
-    return null;
+function resolveReleaseDir(baseDir, releaseId) {
+    if (typeof releaseId !== 'string' || !releaseId.startsWith(path.basename(baseDir) + '-') || !/^[\w.-]+$/.test(releaseId)) return null;
+    const dir = path.join(baseDir, releaseId);
+    return fs.lstatSync(dir, { throwIfNoEntry: false })?.isDirectory() ? { releaseId, dir } : null;
 }
 
 function cleanupStaleUnixSocket(cfg, hostState) {
@@ -851,8 +949,8 @@ async function waitForHostReady(cfg, expectedPid = 0) {
 async function waitForBackendReady(cfg, expectedPid, expectedHost) {
     const expectedOnlineSessionIds = expectedHost.sessions.filter(s => s.lifecycle === 'ONLINE').map(s => s.sessionId);
     const label = expectedOnlineSessionIds.length
-        ? `等待后端接管 ${expectedOnlineSessionIds.length} 个在线会话`
-        : '等待后端就绪';
+        ? `恢复 ${expectedOnlineSessionIds.length} 个在线账号`
+        : '等待服务端就绪';
     return withProgress(label, async () => {
         const deadline = Date.now() + cfg.startTimeoutMs;
         while (Date.now() < deadline) {
@@ -987,9 +1085,9 @@ async function stopHostProcess(cfg) {
     return { stopped: true, forced: true };
 }
 
-function pruneOldReleases(releasesDir, slotState, keepCount = RELEASE_HISTORY_LIMIT) {
+function pruneOldReleases(releasesDir, slotState, keepCount = RELEASE_HISTORY_LIMIT, references = []) {
     if (!fs.existsSync(releasesDir)) return;
-    const pinned = new Set([slotState?.active, slotState?.previous].filter(Boolean));
+    const pinned = new Set([slotState?.active, slotState?.previous, ...references]);
     for (const id of (slotState?.history || []).slice(0, keepCount)) pinned.add(id);
     for (const entry of fs.readdirSync(releasesDir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
@@ -997,6 +1095,22 @@ function pruneOldReleases(releasesDir, slotState, keepCount = RELEASE_HISTORY_LI
         if (pinned.has(entry.name)) continue;
         try { fs.rmSync(path.join(releasesDir, entry.name), { recursive: true, force: true }); } catch {}
     }
+}
+
+function backendWebReferences(cfg, exclude = []) {
+    const backends = fs.existsSync(cfg.backendReleasesDir)
+        ? fs.readdirSync(cfg.backendReleasesDir, { withFileTypes: true })
+            .filter(entry => entry.isDirectory() && entry.name.startsWith('backend-') && !exclude.includes(entry.name))
+            .map(entry => entry.name)
+        : [];
+    return pairedWebReleases(cfg.backendReleasesDir, backends);
+}
+
+function pruneWebReleases(cfg) {
+    const refs = backendWebReferences(cfg);
+    const web = resolveWebRootInfo(cfg.runtimeDir, path.join(REPO_ROOT, 'web/dist'), cfg.env);
+    for (const dir of [web.webRoot, ...web.fallbackRoots]) refs.push(path.relative(cfg.webReleasesDir, dir));
+    pruneOldReleases(cfg.webReleasesDir, readActiveReleases(cfg).web, RELEASE_HISTORY_LIMIT, refs);
 }
 
 function parseFlags(args) {
@@ -1130,7 +1244,7 @@ async function cmdStart(cfg, flags) {
                 logFile: hostLogFile,
                 pidFile: cfg.hostPidPath,
             });
-            activeHost = await withProgress('等待会话宿主就绪', () => waitForHostReady(cfg, hostPid));
+            activeHost = await withProgress('启动游戏连接服务', () => waitForHostReady(cfg, hostPid));
         }
 
         const latestBackend = await probeBackend(cfg);
@@ -1150,7 +1264,7 @@ async function cmdStart(cfg, flags) {
                 skipBuild: Boolean(flags['skip-build']),
                 stageFrom: flags['stage-web-from'],
             });
-            switchWebRelease(cfg, stagedWeb);
+            activateReleases(cfg, { web: stagedWeb });
             webRel = stagedWeb;
             releases = readActiveReleases(cfg);
         } else if (!fs.existsSync(cfg.activeWebPath)) {
@@ -1163,7 +1277,7 @@ async function cmdStart(cfg, flags) {
                 skipBuild: Boolean(flags['skip-build']),
                 stageFrom: flags['stage-backend-from'],
             });
-            writeBackendReleaseMeta(backendRel, webRel.releaseId);
+            writeBackendReleaseMeta(backendRel, runningComponents(cfg).web.id);
             releases = recordActiveRelease(cfg, 'backend', backendRel.releaseId);
         }
 
@@ -1239,22 +1353,17 @@ async function cmdStatus(cfg, flags) {
     return 0;
 }
 
-async function swapBackendToRelease(cfg, targetRel, expectedHost) {
+async function swapBackendToRelease(cfg, targetRel, expectedHost, options = {}) {
     const hostState = await probeHost(cfg);
     if (hostState.state !== 'ready' || hostState.hostInstanceId !== expectedHost.hostInstanceId) {
         throw new Error('构建期间会话宿主已改变，请重新执行更新。');
     }
-    const releasesBefore = readActiveReleases(cfg);
-    const prevReleaseId = releasesBefore.backend?.active && releasesBefore.backend.active !== targetRel.releaseId
-        ? releasesBefore.backend.active
-        : null;
-    const prevRel = prevReleaseId ? resolveReleaseDir(cfg.backendReleasesDir, prevReleaseId) : null;
+    const prevRunningId = runningComponents(cfg).backend?.id;
+    const prevRel = resolveReleaseDir(cfg.backendReleasesDir, prevRunningId || readActiveReleases(cfg).backend.active);
 
-    if (hostState.ipcVersion && hostState.ipcVersion !== SESSION_IPC_VERSION) {
-        throw new Error(`Incompatible host IPC version ${hostState.ipcVersion} (expected ${SESSION_IPC_VERSION})`);
-    }
+    assertBackendIpc(targetRel.dir, hostState);
 
-    await withProgress('等待旧后端退出', () => stopBackendProcess(cfg));
+    await withProgress('停止旧版服务', () => stopBackendProcess(cfg));
 
     const backendLogFile = path.join(cfg.backendLogDir, 'service.log');
     let newPid = 0;
@@ -1267,14 +1376,12 @@ async function swapBackendToRelease(cfg, targetRel, expectedHost) {
             logFile: backendLogFile,
             pidFile: cfg.backendPidPath,
         });
-        const ready = await waitForBackendReady(cfg, newPid, hostState);
-        const updatedReleases = recordActiveRelease(cfg, 'backend', targetRel.releaseId);
-        pruneOldReleases(cfg.backendReleasesDir, updatedReleases.backend);
-        return ready;
+        await waitForBackendReady(cfg, newPid, hostState);
+        activateReleases(cfg, { backend: targetRel, previousBackend: prevRel, ...options });
     } catch (err) {
         await stopBackendProcess(cfg, newPid);
-        if (prevRel) {
-            console.error(`Candidate backend ${targetRel.releaseId} failed readiness (${err.message}); rolling back to ${prevRel.releaseId}...`);
+        if (prevRunningId && prevRel) {
+            logUpdate(`切换失败，正在恢复原服务端：${err.message}`);
             const rbPid = spawnDetachedService({
                 command: process.execPath,
                 args: [path.join(prevRel.dir, 'client.js')],
@@ -1289,6 +1396,13 @@ async function swapBackendToRelease(cfg, targetRel, expectedHost) {
     }
 }
 
+function assertBackendIpc(dir, host) {
+    const ipc = readReleaseIpcVersion(dir);
+    if (ipc !== host.ipcVersion) {
+        throw new Error(`服务端与在线的游戏连接服务不兼容（所需协议版本 ${ipc || '未知'}，在线版本 ${host.ipcVersion}），已取消切换。`);
+    }
+}
+
 async function cmdUpdate(cfg, positional, flags) {
     const target = (positional[0] || 'all').toLowerCase();
     if (!['all', 'backend', 'web'].includes(target)) {
@@ -1296,49 +1410,72 @@ async function cmdUpdate(cfg, positional, flags) {
     }
 
     return withDeployLock(cfg, async () => {
-        if (target === 'web') {
-            const stagedWeb = await stageWebRelease(cfg, {
-                skipBuild: Boolean(flags['skip-build']),
-                stageFrom: flags['stage-web-from'],
-            });
-            switchWebRelease(cfg, stagedWeb);
-            const updated = readActiveReleases(cfg);
-            pruneOldReleases(cfg.webReleasesDir, updated.web);
-            console.log(`前端已更新至 ${stagedWeb.releaseId}，后端与会话宿主未重启。`);
+        const keepBackups = readBackupEnabled(cfg.runtimeDir);
+        const requested = target === 'all' ? ['web', 'backend'] : [target];
+        const fromSource = requested.filter(key => !flags['skip-build'] && !flags[`stage-${key}-from`]);
+        let selected = requested;
+        if (fromSource.length) {
+            await ensureBuildDependencies();
+            const plan = compareComponents(await targetFingerprints(REPO_ROOT), runningComponents(cfg));
+            selected = requested.filter(key => !fromSource.includes(key) || plan[key]);
+            const maintenance = hostMaintenanceMessage(plan.host);
+            if (maintenance) logUpdate(maintenance);
+        }
+        if (!selected.length) {
+            const components = target === 'all' ? '网页端和服务端' : target === 'web' ? '网页端' : '服务端';
+            logUpdate(`${components}无需更新。`);
             return 0;
         }
-
-        const host = await probeHost(cfg);
-        if (host.state === 'conflict') throw new Error(`Host conflict: ${host.reason}`);
-        if (host.state !== 'ready') {
-            throw new Error(`session-host is ${host.state}; run 'start' first (update never restarts session-host).`);
+        const host = selected.includes('backend') ? await probeHost(cfg) : null;
+        if (host && host.state !== 'ready') {
+            throw new Error(`无法更新服务端：游戏连接服务当前未就绪（${host.reason || '请先执行 bash ./start.sh 启动服务'}）。`);
         }
-
-        const stagedWeb = target === 'all' ? await stageWebRelease(cfg, {
-            skipBuild: Boolean(flags['skip-build']),
-            stageFrom: flags['stage-web-from'],
-        }) : null;
-
-        // Build & validate candidate BEFORE stopping running backend so failed builds/isolation keep backend untouched.
-        const candidateBackend = await stageBackendRelease(cfg, {
-            skipBuild: Boolean(flags['skip-build']),
-            stageFrom: flags['stage-backend-from'],
-        });
-        writeBackendReleaseMeta(candidateBackend, stagedWeb?.releaseId || '');
-        const beforeSwap = await probeHost(cfg);
-        if (beforeSwap.state !== 'ready' || beforeSwap.hostInstanceId !== host.hostInstanceId) {
-            throw new Error('Session host changed while staging the update');
+        const build = selected.filter(key => fromSource.includes(key));
+        if (build.length) {
+            await buildComponents(
+                build,
+                build.length === 2 ? '编译网页端和服务端' : build[0] === 'web' ? '编译网页端' : '编译服务端',
+            );
         }
-        const ready = await swapBackendToRelease(cfg, candidateBackend, beforeSwap);
-        if (stagedWeb) {
-            switchWebRelease(cfg, stagedWeb);
-            pruneOldReleases(cfg.webReleasesDir, readActiveReleases(cfg).web);
-            console.log(`前后端已更新：后端 ${candidateBackend.releaseId} (pid=${ready.pid})，前端 ${stagedWeb.releaseId}，会话宿主 ${host.hostInstanceId} 保持在线。`);
-        } else {
-            console.log(`后端已更新至 ${candidateBackend.releaseId} (pid=${ready.pid})，会话宿主 ${host.hostInstanceId} 保持在线。`);
+        if (host) assertBackendIpc(path.resolve(flags['stage-backend-from'] || path.join(REPO_ROOT, 'core')), host);
+        let web;
+        let backend;
+        try {
+            if (selected.includes('web')) web = await stageWebRelease(cfg, { skipBuild: true, stageFrom: flags['stage-web-from'] });
+            if (host) {
+                backend = await stageBackendRelease(cfg, { skipBuild: true, stageFrom: flags['stage-backend-from'] });
+                writeBackendReleaseMeta(backend, web?.releaseId || runningComponents(cfg).web.id);
+                const beforeSwap = await probeHost(cfg);
+                if (beforeSwap.state !== 'ready' || beforeSwap.hostInstanceId !== host.hostInstanceId) {
+                    throw new Error('准备新版期间，游戏连接服务发生了变化，已取消切换。');
+                }
+                await swapBackendToRelease(cfg, backend, beforeSwap, { web, keepBackups });
+            } else {
+                activateReleases(cfg, { web, keepBackups });
+            }
+        } catch (err) {
+            // A failed stop may leave the candidate backend running with its paired web files.
+            const recorded = readActiveReleases(cfg);
+            if (!backend || (readLockMetadata(cfg.backendLockPath)?.releaseId !== backend.releaseId && recorded.backend.active !== backend.releaseId)) {
+                if (backend) removeRelease(backend.dir);
+                if (web && web.releaseId !== recorded.web.active) removeRelease(web.dir);
+            }
+            throw err;
         }
+        if (keepBackups) {
+            if (backend) pruneOldReleases(cfg.backendReleasesDir, readActiveReleases(cfg).backend);
+            if (web) pruneWebReleases(cfg);
+        }
+        if (backend) logUpdate('服务端已切换至新版，游戏连接保持在线。');
+        if (web) logUpdate('网页端已切换至新版。');
+        if (!keepBackups) logUpdate('已关闭备份，本次更新不新增历史版本。');
         return 0;
     });
+}
+
+function logUpdate(message) {
+    console.log(message);
+    writeUpdateJobPatch({}, message);
 }
 
 async function cmdStop(cfg, positional) {
@@ -1354,10 +1491,10 @@ async function cmdStop(cfg, positional) {
 
     await withDeployLock(cfg, async () => {
         if (target === 'backend' || target === 'all') {
-            await withProgress('停止后端', () => stopBackendProcess(cfg));
+            await withProgress('停止面板服务', () => stopBackendProcess(cfg));
         }
         if (target === 'host' || target === 'all') {
-            await withProgress('停止会话宿主', () => stopHostProcess(cfg));
+            await withProgress('停止游戏连接服务', () => stopHostProcess(cfg));
         }
     });
     if (target === 'backend') {
@@ -1376,8 +1513,7 @@ function getRollbackWebRelease(cfg, releaseId) {
     }
     const dir = path.join(cfg.webReleasesDir, releaseId);
     if (!fs.existsSync(path.join(dir, 'index.html'))) throw new Error(`Target web release missing: ${releaseId}`);
-    const { webRoot } = resolveWebRootInfo(cfg.runtimeDir, path.join(REPO_ROOT, 'web', 'dist'), cfg.env);
-    return { releaseId, dir, previousDir: webRoot };
+    return { releaseId, dir, previousDir: runningComponents(cfg).web.dir };
 }
 
 async function cmdRollback(cfg, positional, flags) {
@@ -1386,6 +1522,7 @@ async function cmdRollback(cfg, positional, flags) {
         throw new Error(`Unsupported rollback target: ${target}. Use all, backend, or web.`);
     }
     return withDeployLock(cfg, async () => {
+        const keepBackups = readBackupEnabled(cfg.runtimeDir);
         const releases = readActiveReleases(cfg);
         const slot = target === 'web' ? (releases.web || {}) : (releases.backend || {});
         const targetId = typeof flags.release === 'string' && flags.release ? flags.release : slot.previous;
@@ -1393,7 +1530,7 @@ async function cmdRollback(cfg, positional, flags) {
             throw new Error(`No previous ${target === 'all' ? 'backend' : target} release recorded to roll back to (pass --release <id>).`);
         }
         if (target === 'web') {
-            switchWebRelease(cfg, getRollbackWebRelease(cfg, targetId));
+            activateReleases(cfg, { web: getRollbackWebRelease(cfg, targetId), keepBackups, restoring: true });
             console.log(`Rolled back web to ${targetId}.`);
             return 0;
         }
@@ -1414,13 +1551,12 @@ async function cmdRollback(cfg, positional, flags) {
             ? getRollbackWebRelease(cfg, flags['web-release'] || readReleaseMeta(rel.dir)?.pairedWebReleaseId)
             : null;
         await runCommand(process.execPath, ['--check', path.join(rel.dir, 'client.js')]);
-        const ready = await swapBackendToRelease(cfg, rel, host);
+        await swapBackendToRelease(cfg, rel, host, { web, keepBackups, restoring: true });
         if (web) {
-            switchWebRelease(cfg, web);
-            console.log(`已回滚前后端：后端 ${targetId} (pid=${ready.pid})，前端 ${web.releaseId}，会话宿主 ${host.hostInstanceId} 保持在线。`);
+            logUpdate(`已回滚网页端和服务端（${targetId.split('-')[2] || targetId}），挂机中的游戏连接保持在线。`);
             return 0;
         }
-        console.log(`Rolled back backend to ${targetId} (pid=${ready.pid}, hostInstanceId=${host.hostInstanceId} preserved).`);
+        logUpdate(`已回滚服务端（${targetId.split('-')[2] || targetId}），挂机中的游戏连接保持在线。`);
         return 0;
     });
 }
@@ -1476,7 +1612,8 @@ async function main() {
         }
     }
     if (exitCode === 0) {
-        writeUpdateJobPatch({ status: 'succeeded', phase: '已完成', detail: '', finishedAt: Date.now(), exitCode: 0, error: '' });
+        const donePhase = subcommand === 'rollback' ? '回滚已完成' : subcommand === 'update' ? '更新已完成' : '已完成';
+        writeUpdateJobPatch({ status: 'succeeded', phase: donePhase, detail: '', finishedAt: Date.now(), exitCode: 0, error: '' });
     } else {
         writeUpdateJobPatch({ status: 'failed', finishedAt: Date.now(), exitCode, error: `操作退出码 ${exitCode}` });
     }

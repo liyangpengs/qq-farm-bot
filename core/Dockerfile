@@ -39,7 +39,8 @@ RUN pnpm -C web build
 FROM workspace-deps AS core-builder
 
 COPY packages/session-contract ./packages/session-contract
-RUN pnpm build:contract
+RUN pnpm -C packages/session-contract build
+COPY tools/record-build.cjs ./tools/
 COPY core ./core
 RUN pnpm -C core build:ts
 

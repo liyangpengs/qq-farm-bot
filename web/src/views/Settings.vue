@@ -1570,6 +1570,8 @@ interface SystemUpdateState {
   commitSubject: string
   startupCommit: string
   needsApply: boolean
+  updateHint: string
+  hostMaintenance: string
   upstream: string
   remote: string
   remoteBranch: string
@@ -1587,6 +1589,7 @@ interface SystemUpdateState {
   job: PanelUpdateJob | null
   releases: RollbackReleaseItem[]
   releasesSummary: ReleasesSummary
+  keepBackups?: boolean
 }
 
 const emptyReleasesSummary: ReleasesSummary = {
@@ -1668,6 +1671,8 @@ async function handleCheckSystemUpdates() {
       scheduleUpdatePollIfBusy()
       if (data.data.behindCount > 0)
         toast.info(`发现 ${data.data.behindCount} 个可拉取更新`)
+      else if (data.data.needsApply)
+        toast.info(data.data.updateHint)
       else
         toast.success('当前分支已是最新')
     }
@@ -1716,7 +1721,10 @@ async function handleApplySystemUpdate(pullFirst: boolean) {
     if (data?.ok && data.data?.status) {
       updateStatus.value = data.data.status
       scheduleUpdatePollIfBusy()
-      toast.info('已在后台开始更新，构建期间可继续操作')
+      if (data.data.job)
+        toast.info('已开始更新，准备新版期间可以继续使用面板')
+      else
+        toast.success('网页端和服务端均无需更新')
     }
     else {
       updateActionError.value = getApiErrorMessage(data, '启动在线更新失败')
@@ -1745,6 +1753,8 @@ const updateHeadline = computed<{ label: string, tone: 'busy' | 'pending' | 'war
     return { label: '待应用', tone: 'pending' }
   if (status.dirtyFiles.length || status.aheadCount > 0)
     return { label: '本地有改动', tone: 'warn' }
+  if (status.hostMaintenance)
+    return { label: '游戏连接服务', tone: 'muted' }
   if (!status.lastCheckedAt)
     return { label: '未检查', tone: 'muted' }
   return { label: '已是最新', tone: 'ok' }
@@ -2715,11 +2725,15 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div v-if="updateStatus.aheadCount > 0" class="update-notice update-notice--warn">
-                      当前分支领先远程 {{ updateStatus.aheadCount }} 个提交，无法快进拉取（--ff-only）。
+                      本地有 {{ updateStatus.aheadCount }} 个未推送的提交，无法直接自动拉取更新。
                     </div>
 
                     <div v-if="updateStatus.needsApply && updateStatus.behindCount === 0" class="update-notice update-notice--info">
-                      工作区代码已更新（运行基线 {{ updateStatus.startupCommit.slice(0, 7) }} → {{ updateStatus.shortCommit }}），应用更新并重启后端后生效。
+                      {{ updateStatus.updateHint }}
+                    </div>
+
+                    <div v-if="updateStatus.hostMaintenance" class="update-notice update-notice--muted">
+                      {{ updateStatus.hostMaintenance }}
                     </div>
 
                     <div v-if="updateStatus.behindCount > 0" class="update-block">
@@ -2781,8 +2795,10 @@ onBeforeUnmount(() => {
                   :apply-supported="updateStatus.applySupported"
                   :apply-unsupported-reason="updateStatus.applyUnsupportedReason"
                   :deploy-busy="updateStatus.deployBusy"
+                  :keep-backups="updateStatus.keepBackups"
                   :disabled="updateChecking || updatePulling || updateApplying"
                   @status-updated="handleReleaseStatusUpdated"
+                  @backup-changed="updateStatus.keepBackups = $event"
                 />
               </div>
               <div v-else-if="updateActionError" class="flex flex-wrap items-center gap-2">
