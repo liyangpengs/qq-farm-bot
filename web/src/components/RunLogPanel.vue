@@ -7,6 +7,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import {
+  LOG_CACHE_LIMIT,
   LOG_EVENTS,
   LOG_LEVELS,
   LOG_MODULES,
@@ -93,11 +94,13 @@ function matchSubmodule(log: any): boolean {
     .some(key => key.endsWith(`:${filter.submodule}`) && logMatchesSubmoduleKey(log, key))
 }
 
+// 不在聚合前截断：逐块务农日志密集，先截断会把可聚合的原始行切掉，
+// 导致聚合后实际日志远少于 maxLogs。这里取缓存的全部（最多 LOG_CACHE_LIMIT），
+// 聚合完成后再由 logGroups 截到实际显示上限。
 const allLogs = computed(() => {
   return [...(statusLogs.value || [])]
     .filter(matchSubmodule)
     .filter(l => !filter.level || getLogLevel(l) === filter.level)
-    .slice(-props.maxLogs)
     .sort((a: any, b: any) => a.ts - b.ts)
 })
 
@@ -155,10 +158,12 @@ function cycleTs(log: any): number {
   return Number(log?.ts) || Date.parse(String(log?.time || '').replace(' ', 'T')) || 0
 }
 
-// 找出从 i 开始的一个完整循环块 {logs, endIdx}，失败返回 null
-function findCycle(logs: any[], i: number): { logs: any[], endIdx: number } | null {
+// 找出从 i 开始的一个完整循环块 {logs, endIdx, inners}，失败返回 null。
+// inners = 块内被跳过的非循环日志，必须随聚合一起保留，否则会吞日志。
+function findCycle(logs: any[], i: number): { logs: any[], endIdx: number, inners: any[] } | null {
   if (String(logs[i]?.meta?.event || '') !== CYCLE_EVENTS[0]) return null
   const block: any[] = [logs[i]]
+  const inners: any[] = []
   let j = i + 1
   for (let step = 1; step < CYCLE_EVENTS.length && j < logs.length; step++) {
     let found = -1
@@ -166,12 +171,14 @@ function findCycle(logs: any[], i: number): { logs: any[], endIdx: number } | nu
       if (String(logs[k]?.meta?.event || '') === CYCLE_EVENTS[step]) { found = k; break }
     }
     if (found < 0) return null
+    // j..found-1 是被跳过的非循环日志，收集起来
+    for (let k = j; k < found; k++) inners.push(logs[k])
     block.push(logs[found])
     j = found + 1
   }
   if (block.length !== CYCLE_EVENTS.length) return null
   if (cycleTs(block[block.length - 1]) - cycleTs(block[0]) > CYCLE_WINDOW_MS) return null
-  return { logs: block, endIdx: j }
+  return { logs: block, endIdx: j, inners }
 }
 
 // 把若干个循环块按 event 归并成 4 条合并日志
@@ -222,13 +229,15 @@ function collapseCycles(logs: any[]): any[] {
     if (first) {
       const blocks = [first.logs]
       let cursor = first.endIdx
-      const skipped: any[] = []
-      // 归并后续循环块（允许中间夹非循环日志，夹的日志会保留），1 分钟内
+      // 所有被聚合跳过的非循环日志都要保留，否则日志条数会莫名变少
+      const skipped: any[] = [...first.inners]
+      // 归并后续循环块（允许中间夹非循环日志），1 分钟内
       while (cursor < logs.length) {
         const next = findCycle(logs, cursor)
         if (next) {
           if (cycleTs(next.logs[0]) - cycleTs(first.logs[0]) <= CYCLE_WINDOW_MS) {
             blocks.push(next.logs)
+            skipped.push(...next.inners)
             cursor = next.endIdx
             continue
           }
@@ -251,7 +260,9 @@ function collapseCycles(logs: any[]): any[] {
 
 const logGroups = computed<LogGroup[]>(() => {
   const groups: LogGroup[] = []
-  for (const log of collapseCycles(allLogs.value)) {
+  // 先聚合、后截断：保证显示的是 maxLogs 条「聚合后的实际日志」
+  const collapsed = collapseCycles(allLogs.value).slice(-props.maxLogs)
+  for (const log of collapsed) {
     const level = getLogLevel(log)
     const signature = `${props.levelInSignature ? level + '|' : ''}${log.tag}|${log.meta?.event || ''}|${String(log.msg || '').replace(/\d+/g, '#')}`
     const last = groups[groups.length - 1]
@@ -317,7 +328,8 @@ async function loadLogs(force = false) {
       || (!filter.module && Object.keys(SUBMODULE_EVENTS).some(k => k.endsWith(`:${filter.submodule}`)))
     )
     await statusStore.fetchLogs(currentAccountId.value, {
-      limit: byEvents || filter.submodule || filter.level === 'success' || filter.level === 'error' ? 300 : 100,
+      // 拉满缓存冗余，保证聚合前有足够原始行；聚合后再截到 maxLogs
+      limit: LOG_CACHE_LIMIT,
       module: filter.module ? (PARENT_MODULE_QUERY[filter.module] || filter.module) : undefined,
       event: filter.event && !byEvents ? filter.event : undefined,
       keyword: filter.keyword || undefined,
@@ -330,7 +342,9 @@ function onLogFilterChange() { loadLogs(true) }
 function onLogSearchTrigger() { loadLogs(true) }
 
 watch(currentAccountId, async () => {
-  await loadLogs()
+  // 强制重拉：否则「所有模块 + 实时连接」时 loadLogs 不会走 HTTP，
+  // 切账号后列表停留在旧账号数据 / 部分 WS 推送上，小号会只显示农场日志
+  await loadLogs(true)
   scrollToBottom()
 })
 watch(hasActiveLogFilter, (enabled) => {

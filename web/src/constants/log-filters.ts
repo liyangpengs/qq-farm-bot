@@ -1,5 +1,9 @@
 // 运行日志的模块与事件筛选项（Dashboard 与 RunLogCard 共用，避免两处不同步）
 
+// 日志缓存冗余上限：逐块务农日志密集，缓存比实际显示行数多，
+// 保证聚合前不被截断、聚合成四条后有足够多的实际日志可显示。
+export const LOG_CACHE_LIMIT = 500
+
 export interface LogFilterOption {
   label: string
   value: string
