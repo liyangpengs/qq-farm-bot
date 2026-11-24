@@ -10,8 +10,7 @@ const { createModuleLogger, sanitizeMeta } = require('../services/logger');
 const coreLogger = createModuleLogger('core');
 
 // ============ 服务器时间状态 ============
-let serverTimeMs: number = 0;
-let localTimeAtSync: number = 0;
+let serverTimeOffsetMs = 0;
 const dateFormatters: Map<string, Intl.DateTimeFormat> = new Map();
 const timeFormatters: Map<string, Intl.DateTimeFormat> = new Map();
 
@@ -29,15 +28,16 @@ function toNum(val: Long | number | null | undefined): number {
 
 /** 获取当前推算的服务器时间(秒) */
 function getServerTimeSec(): number {
-    if (!serverTimeMs) return Math.floor(Date.now() / 1000);
-    const elapsed = Date.now() - localTimeAtSync;
-    return Math.floor((serverTimeMs + elapsed) / 1000);
+    return Math.floor((Date.now() + serverTimeOffsetMs) / 1000);
+}
+
+function serverTimeToLocalMs(timestampMs: number): number {
+    return timestampMs - serverTimeOffsetMs;
 }
 
 /** 同步服务器时间 */
 function syncServerTime(ms: number): void {
-    serverTimeMs = ms;
-    localTimeAtSync = Date.now();
+    serverTimeOffsetMs = ms ? ms - Date.now() : 0;
 }
 
 function getDateFormatter(timeZone: string): Intl.DateTimeFormat {
@@ -215,7 +215,7 @@ function randomDelay(minMs: number, maxMs: number): Promise<void> {
 module.exports = {
     toLong, toNum,
     setLogHook,
-    getServerTimeSec, syncServerTime, getSystemDateKey, getSystemClockMinutes,
+    getServerTimeSec, serverTimeToLocalMs, syncServerTime, getSystemDateKey, getSystemClockMinutes,
     formatDateKeyInTimeZone, formatSystemDateTime24, toTimeSec,
     log, logWarn, sleep, randomDelay,
 };
